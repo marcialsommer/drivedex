@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>DriveDex</string>
+	<key>CFBundleDisplayName</key><string>DriveDex</string>
+	<key>CFBundleIdentifier</key><string>app.drivedex.DriveDex</string>
+	<key>CFBundleExecutable</key><string>DriveDex</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>VERSION_PLACEHOLDER</string>
+	<key>CFBundleVersion</key><string>BUILD_PLACEHOLDER</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>LSMinimumSystemVersion</key><string>13.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>NSRemovableVolumesUsageDescription</key><string>DriveDex reads the names, sizes and dates of files on your drives to build its catalog. It never reads file contents.</string>
+	<key>NSNetworkVolumesUsageDescription</key><string>DriveDex reads the names, sizes and dates of files on your NAS shares to build its catalog. It never reads file contents.</string>
+	<key>NSHumanReadableCopyright</key><string>Personal drive catalog.</string>
+</dict>
+</plist>

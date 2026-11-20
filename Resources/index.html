@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DriveDex</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<style>
+:root{--bg:#f6f6f4;--panel:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e3e3e0;--acc:#2f6fdf;--accbg:#e8f0fd;
+--ok:#2e9d58;--off:#b8b8b8;--warn:#d9822b;--err:#d33f3f;--hl:#fff4c2}
+@media (prefers-color-scheme:dark){:root{--bg:#18181a;--panel:#222225;--ink:#ececee;--mute:#9a9aa0;--line:#333337;
+--acc:#6ea0ff;--accbg:#253553;--hl:#4a4320}}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+header{display:flex;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:16px;margin:0;white-space:nowrap}
+#q{flex:1;min-width:0;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+select,button{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--acc)} button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button.danger{color:var(--err)}
+main{flex:1;display:flex;min-height:0}
+nav{width:290px;flex:none;overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:8px}
+nav .hd{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.drv{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px}
+.drv:hover{background:var(--bg)} .drv.sel{background:var(--accbg)}
+.drv .t{display:flex;align-items:center;gap:8px;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--off);flex:none}.dot.on{background:var(--ok)}
+.drv .s{color:var(--mute);font-size:12px;margin-left:16px}
+.bar{height:4px;background:var(--line);border-radius:2px;margin:5px 0 0 16px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+section{flex:1;overflow:auto;padding:16px 20px}
+.crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:8px 0 12px;color:var(--mute)}
+.crumbs a{color:var(--acc);cursor:pointer;text-decoration:none}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--mute);font-weight:500;cursor:pointer;user-select:none}
+td.n{white-space:normal;word-break:break-word;width:100%} td.r,th.r{text-align:right}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--bg)} tr.hl td{background:var(--hl)}
+.ic{display:inline-block;width:18px} .mute{color:var(--mute)} .path{color:var(--mute);font-size:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-block;padding:3px 9px;border-radius:99px;background:var(--accbg);color:var(--acc);margin:0 6px 6px 0;cursor:pointer;font-size:12px}
+.status{font-size:12px} .status.scanning{color:var(--warn)} .status.error{color:var(--err)}
+input.lbl{font:inherit;font-size:20px;font-weight:700;border:1px solid transparent;border-radius:6px;padding:2px 6px;background:transparent;color:var(--ink);width:100%}
+input.lbl:hover,input.lbl:focus{border-color:var(--line);background:var(--bg)}
+textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--bg);color:var(--ink);resize:vertical}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:10px 0}
+.grid div{font-size:12px;color:var(--mute)} .grid b{display:block;font-size:14px;color:var(--ink)}
+.empty{color:var(--mute);padding:40px;text-align:center}
+.set{display:block;margin:12px 0}.set input[type=number]{width:70px;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.set input[type=checkbox]{margin-right:8px;transform:scale(1.15)} h2{font-size:18px;margin:0 0 6px} h3{font-size:14px;margin:18px 0 4px;color:var(--mute);font-weight:600}
+.hero{text-align:center;padding:50px 20px}.hero h2{font-size:22px}.hero p{color:var(--mute);max-width:520px;margin:8px auto}
+body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-user-select:text}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;display:none}
+@media (max-width:720px){main{flex-direction:column}nav{width:auto;max-height:35vh;border-right:0;border-bottom:1px solid var(--line)}
+ header{flex-wrap:wrap}#q{order:3;flex-basis:100%}section{padding:12px 16px}.hide-sm{display:none}}
+</style></head><body>
+<header><h1>DriveDex</h1>
+<input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus>
+<select id="kind"><option value="all">Files &amp; folders</option><option value="folders">Folders only</option><option value="files">Files only</option></select>
+<select id="scope"><option value="">All drives</option></select>
+<button id="gear" title="Settings">⚙︎ Settings</button>
+</header>
+<main><nav><div class="hd"><span>Drives</span><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav>
+<section id="view"></section></main><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let drives=[], state={mode:'home'}, sort={k:'name',d:1};
+const hb=n=>{n=+n||0;for(const u of['B','KB','MB','GB','TB']){if(n<1000||u=='TB')return u=='B'?n+' B':n.toFixed(1)+' '+u;n/=1000}};
+const ago=t=>{if(!t)return'never';const s=Date.now()/1000-t;if(s<90)return'just now';if(s<3600)return Math.round(s/60)+' min ago';if(s<86400)return Math.round(s/3600)+' h ago';const d=Math.round(s/86400);return d<60?d+' days ago':new Date(t*1000).toLocaleDateString()};
+const date=t=>t?new Date(t*1000).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'';
+const icon=e=>e.is_dir==1?'📁':e.is_dir==2?'📦':({jpg:'🖼',jpeg:'🖼',png:'🖼',heic:'🖼',tif:'🖼',tiff:'🖼',cr2:'🖼',cr3:'🖼',arw:'🖼',nef:'🖼',dng:'🖼',raf:'🖼',psd:'🖼',mov:'🎞',mp4:'🎞',mxf:'🎞',braw:'🎞',r3d:'🎞',avi:'🎞',mkv:'🎞',wav:'🎵',mp3:'🎵',aif:'🎵',aiff:'🎵',m4a:'🎵',pdf:'📕',zip:'🗜',dmg:'💿'}[(e.name.split('.').pop()||'').toLowerCase()]||'📄');
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)};
+const api=(action,args)=>new Promise((res,rej)=>{const h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.api;
+  if(!h){rej(new Error('Not running inside DriveDex'));return}
+  h.postMessage({action,args:args||{}}).then(r=>{if(r&&r.error)rej(new Error(r.error));else res(r)},e=>rej(new Error(String(e))))});
+
+async function loadDrives(){
+  drives=await api('drives');
+  const sel=$('#scope'),cur=sel.value;
+  sel.innerHTML='<option value="">All drives</option>'+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=cur;
+  $('#drives').innerHTML=drives.length?drives.map(d=>{
+    const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
+    const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
+    return `<div class="drv ${state.drive==d.id?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span>${esc(d.display)}</div>
+    <div class="s">${d.kind=='network'?'🌐 ':''}${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div></div>`}).join(''):'<div class="empty">No drives yet.<br>Plug one in — it’s catalogued automatically.</div>';
+  document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
+  if(state.mode=='home')renderHome();
+  if(state.mode=='drive')renderDriveHeader();
+  clearTimeout(loadDrives._t);loadDrives._t=setTimeout(loadDrives,drives.some(d=>d.status=='scanning')?2500:15000);
+}
+function renderHome(){
+  if(!drives.length){$('#view').innerHTML=`<div class="hero"><h2>Plug in a drive</h2><p>DriveDex catalogues every drive and NAS share as soon as it's connected. It only records file and folder names, sizes and dates, never contents.</p><p>Drives that are already connected get scanned within a few seconds. You can also click <b>Rescan connected</b>.</p></div>`;return}
+  const tot=drives.reduce((a,d)=>a+(d.file_count||0),0);
+  $('#view').innerHTML=`<div class="card"><h2 style="margin:0 0 4px">All drives</h2><div class="mute">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Plug in a drive and it's catalogued automatically.</div></div>
+  <table><tr><th>Drive</th><th class="hide-sm">Notes</th><th class="r">Used</th><th class="r hide-sm">Files</th><th class="r">Last scan</th></tr>
+  ${drives.map(d=>`<tr class="click" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}</td><td class="hide-sm mute">${esc(d.notes).slice(0,60)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${ago(d.last_scan)}</td></tr>`).join('')}</table>`;
+  document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
+}
+function openDrive(id,path,hl){state={mode:'drive',drive:id,path,hl};$('#q').value='';render();loadDrives()}
+async function render(){
+  if(state.mode!='drive')return;
+  $('#view').innerHTML=`<div id="dh"></div><div class="crumbs" id="crumbs"></div><div id="list" class="empty">Loading…</div>`;
+  renderDriveHeader();
+  const parts=state.path?state.path.split('/'):[];
+  $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
+  document.querySelectorAll('#crumbs a').forEach(a=>a.onclick=()=>{state.path=a.dataset.p;state.hl=null;render()});
+  const rows=await api('list',{drive:state.drive,path:state.path});
+  state.rows=rows;drawList();
+}
+const cur=()=>drives.find(d=>d.id==state.drive)||{};
+function renderDriveHeader(){
+  const d=cur(),el=$('#dh');if(!el||!d.id)return;
+  if(el.dataset.id==d.id&&document.activeElement&&el.contains(document.activeElement)){ $('#dstat').innerHTML=dstat(d);return }
+  el.dataset.id=d.id;
+  el.innerHTML=`<div class="card"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">
+  <div class="mute" style="margin:2px 6px 8px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')} · <span id="dstat">${dstat(d)}</span></div>
+  <div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>First seen<b>${date(d.first_seen)}</b></div></div>
+  <textarea id="notes" rows="2" placeholder="Notes — where this drive lives, what it's for…">${esc(d.notes)}</textarea>
+  <div class="row" style="margin-top:8px"><button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>
+  <button id="reveal" ${d.online?'':'disabled'}>Show in Finder</button>${d.status=='error'&&/blocked/i.test(d.status_detail||'')?'<button id="priv">Open Privacy Settings</button>':''}<span style="flex:1"></span><button class="danger" id="forget">Forget drive</button></div></div>`;
+  const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes').value}).then(()=>{toast('Saved');loadDrives()});
+  $('#lbl').onchange=save;$('#notes').onchange=save;
+  $('#rescan').onclick=()=>api('rescan',{id:d.id}).then(()=>{toast('Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
+  if($('#priv'))$('#priv').onclick=()=>api('openPrivacy');
+  $('#reveal').onclick=()=>api('reveal',{id:d.id,path:state.path}).catch(e=>toast(e.message));
+  $('#forget').onclick=()=>{if(confirm(`Remove "${d.display}" and its catalog from DriveDex? (Nothing on the drive is touched.)`))api('forget',{id:d.id}).then(()=>{state={mode:'home'};loadDrives()})};
+}
+const dstat=d=>(d.online?'🟢 Connected':'⚪ Not connected')+(d.status=='scanning'?` · <span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?` · <span class="status error">⚠ ${esc(d.status_detail)}</span>`:d.status_detail?` · ${esc(d.status_detail)}`:'');
+function sorter(rows){const k=sort.k,dr=sort.d;return rows.slice().sort((a,b)=>{if(k=='name'){if((a.is_dir==1)!=(b.is_dir==1))return a.is_dir==1?-1:1;return dr*a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})}return dr*((a[k]||0)-(b[k]||0))})}
+function th(k,label,cls=''){return `<th class="${cls}" data-k="${k}">${label}${sort.k==k?(sort.d>0?' ▲':' ▼'):''}</th>`}
+function bindSort(redraw){document.querySelectorAll('th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;sort.d=sort.k==k?-sort.d:(k=='name'?1:-1);sort.k=k;redraw()})}
+function drawList(){
+  const rows=state.rows;if(!rows.length){$('#list').className='empty';$('#list').textContent=cur().last_scan?'This folder is empty.':'Not scanned yet.';return}
+  $('#list').className='';
+  $('#list').innerHTML=`<table>${th('name','Name')}${th('size','Size','r')}${th('mtime','Modified','r hide-sm')}${sorter(rows).map(e=>`<tr class="${e.is_dir==1?'click':''} ${state.hl==e.name?'hl':''}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}${e.is_dir==1?` <span class="mute">· ${e.items} item${e.items==1?'':'s'}</span>`:''}</td><td class="r">${hb(e.size)}</td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join('')}</table>`;
+  bindSort(drawList);
+  document.querySelectorAll('#list tr[data-n]').forEach(tr=>{if(tr.dataset.d==1)tr.onclick=()=>{state.path=state.path?state.path+'/'+tr.dataset.n:tr.dataset.n;state.hl=null;render()}});
+  const h=document.querySelector('tr.hl');if(h)h.scrollIntoView({block:'center'});
+}
+let st;
+async function doSearch(){
+  const q=$('#q').value.trim();if(!q){if(state.mode=='search'){state={mode:'home'};renderHome()}return}
+  state={mode:'search',q};
+  const r=await api('search',{q,kind:$('#kind').value,drive:$('#scope').value?+$('#scope').value:null});
+  if($('#q').value.trim()!=q)return;
+  state.res=r.results;drawSearch(r);
+}
+function drawSearch(r){
+  const res=state.res,total=r.per_drive.reduce((a,x)=>a+x.n,0);
+  $('#view').innerHTML=`<div class="card"><b>${total.toLocaleString()} match${total==1?'':'es'}</b>${total>res.length?` <span class="mute">(showing first ${res.length})</span>`:''}<div style="margin-top:8px">${r.per_drive.map(p=>`<span class="chip" data-d="${p.drive_id}">${esc(p.drive)} · ${p.n.toLocaleString()}</span>`).join('')||'<span class="mute">Nothing found on any catalogued drive.</span>'}</div></div>
+  ${res.length?`<table>${th('name','Name')}<th>Drive</th>${th('size','Size','r')}${th('mtime','Modified','r hide-sm')}${sorter(res).map(e=>`<tr class="click" data-id="${e.id}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}<div class="path">${esc(e.parent||'/')}</div></td><td>${esc(e.drive)} <span class="dot ${(drives.find(d=>d.id==e.drive_id)||{}).online?'on':''}" style="display:inline-block"></span></td><td class="r">${hb(e.size)}</td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join('')}</table>`:''}`;
+  bindSort(()=>drawSearch(r));
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{$('#scope').value=c.dataset.d;doSearch()});
+  document.querySelectorAll('tr[data-id]').forEach(tr=>tr.onclick=()=>{const e=res.find(x=>x.id==tr.dataset.id);
+    if(e.is_dir==1)openDrive(e.drive_id,e.parent?e.parent+'/'+e.name:e.name);else openDrive(e.drive_id,e.parent,e.name)});
+}
+$('#q').oninput=()=>{clearTimeout(st);st=setTimeout(doSearch,200)};
+$('#kind').onchange=$('#scope').onchange=doSearch;
+$('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Checking connected drives…');setTimeout(loadDrives,1500)});
+document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
+async function openSettings(){
+  state={mode:'settings'};$('#q').value='';document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));
+  const s=await api('getSettings');
+  const lnote=s.loginStatus=='requiresApproval'?' <a href="#" id="li">Approve in Login Items</a>':'';
+  $('#view').innerHTML=`<div class="card"><h2>Settings</h2>
+  <h3>Background</h3>
+  <label class="set"><input type="checkbox" id="s_login" ${s.openAtLogin?'checked':''}>Open DriveDex at login <span class="mute">(recommended: it only catalogues drives while running, quietly in the menu bar)</span>${lnote}</label>
+  <label class="set"><input type="checkbox" id="s_notify" ${s.notify?'checked':''}>Show a notification when a scan finishes</label>
+  <h3>Scanning</h3>
+  <label class="set">When a drive is plugged in, rescan it if its last scan is older than <input type="number" min="0" step="0.5" id="s_rescan" value="${s.rescanAfterHours}"> hours</label>
+  <label class="set">Rescan network shares (NAS) that stay connected every <input type="number" min="1" step="1" id="s_periodic" value="${s.periodicRescanHours}"> hours</label>
+  <label class="set"><input type="checkbox" id="s_hidden" ${s.includeHidden?'checked':''}>Include hidden files</label>
+  <label class="set"><input type="checkbox" id="s_dmg" ${s.skipDiskImages?'checked':''}>Ignore disk images (.dmg installers)</label>
+  <div class="set">Never scan these drives (one name per line)<textarea id="s_ignore" rows="3" placeholder="e.g. Time Machine">${esc(s.ignoreVolumes.join('\n'))}</textarea></div>
+  <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} · catalog stored in ${esc(s.catalogPath)}</div></div>`;
+  const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
+    periodicRescanHours:parseFloat($('#s_periodic').value)||12,includeHidden:$('#s_hidden').checked,skipDiskImages:$('#s_dmg').checked,
+    ignoreVolumes:$('#s_ignore').value.split('\n')}).then(r=>{toast(r.loginStatus=='requiresApproval'?'Approve DriveDex in System Settings → Login Items':'Saved')});
+  document.querySelectorAll('#view input,#view textarea').forEach(i=>i.onchange=save);
+  if($('#li'))$('#li').onclick=e=>{e.preventDefault();api('openLoginItems')};
+}
+$('#gear').onclick=openSettings;
+loadDrives();
+</script></body></html>
