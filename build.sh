@@ -17,8 +17,8 @@ for ARCH in arm64 x86_64; do
       -framework AppKit -framework WebKit -framework DiskArbitration -framework ServiceManagement \
       -framework UserNotifications -lsqlite3 2>&1 | tee "$OUT/swiftc-$ARCH.log"; then :; fi
   if [ ! -f "$OUT/DriveDex-$ARCH" ]; then
-    grep -E "error" "$OUT/swiftc-$ARCH.log" | sort -u | head -45 | \
-      sed -E -e 's#^.*/(Sources/[^:]+):([0-9]+):([0-9]+): error: (.*)$#::error file=\1,line=\2,col=\3::\4#' \
+    grep -E "^[^ |].*error: " "$OUT/swiftc-$ARCH.log" | sort -u | head -45 | \
+      sed -E -e 's#^(.*/)?(Sources/[^:]+):([0-9]+):([0-9]+): error: (.*)$#::error file=\2,line=\3,col=\4::\5#' \
              -e '/^::error/!s#^(.*)$#::error title=swiftc::\1#'
     tail -5 "$OUT/swiftc-$ARCH.log" | sed 's#^#::warning title=swiftc tail::#'
     exit 1
