@@ -9,10 +9,17 @@ APP="$OUT/DriveDex.app"
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 SDK="$(xcrun --show-sdk-path)"
+swift --version
 for ARCH in arm64 x86_64; do
-  swiftc -O -target "$ARCH-apple-macos13.0" -sdk "$SDK" Sources/*.swift -o "$OUT/DriveDex-$ARCH" \
-    -framework AppKit -framework WebKit -framework DiskArbitration -framework ServiceManagement \
-    -framework UserNotifications -lsqlite3
+  # Errors are also re-emitted as GitHub annotations so they show up on the run page.
+  if ! swiftc -O -target "$ARCH-apple-macos13.0" -sdk "$SDK" Sources/*.swift -o "$OUT/DriveDex-$ARCH" \
+      -framework AppKit -framework WebKit -framework DiskArbitration -framework ServiceManagement \
+      -framework UserNotifications -lsqlite3 2>&1 | tee "$OUT/swiftc-$ARCH.log"; then :; fi
+  if [ ! -f "$OUT/DriveDex-$ARCH" ]; then
+    grep -E ": error: " "$OUT/swiftc-$ARCH.log" | sort -u | head -40 | \
+      sed -E 's#^.*/(Sources/[^:]+):([0-9]+):([0-9]+): error: (.*)$#::error file=\1,line=\2,col=\3::\4#'
+    exit 1
+  fi
 done
 lipo -create "$OUT/DriveDex-arm64" "$OUT/DriveDex-x86_64" -output "$OUT/DriveDex"
 
