@@ -160,17 +160,23 @@ function covShort(d){
   if(!hasBackups(d))return '<span class="warnc">No backup assigned</span>';
   if(!covReady(d))return '<span class="mute">Checking backups…</span>';
   const n=d.cov_files||0;if(!n)return '';
-  const pct=Math.floor(1000*(n-(d.cov_none||0))/n)/10;
+  const pct=covPct(d);
   if(!d.cov_none&&(d.backed_up_by||[]).length<2)return '<span class="okc">✓ Backed up</span>';
-  return d.cov_none?`<span class="errc">${pct}% backed up</span>`:d.cov_one?`<span class="warnc">100% backed up · ${(d.cov_two||0)==n?'':Math.floor(100*(d.cov_two||0)/n)+'% twice'}</span>`:'<span class="okc">✓ Backed up twice</span>';
+  const twice=d.cov_bytes?Math.floor(100*(d.cov_two_bytes||0)/d.cov_bytes):Math.floor(100*(d.cov_two||0)/n);
+  return d.cov_none?`<span class="errc">${pct}% backed up</span>`:d.cov_one?`<span class="warnc">100% backed up · ${twice}% twice</span>`:'<span class="okc">✓ Backed up twice</span>';
 }
 let prevCov={};
 const TYPES=[['hdd','HDD'],['ssd','SSD'],['nas','NAS']];
 const capLabel=b=>{if(!b)return'';const tb=b/1e12;return tb>=1?(Math.round(tb*10)/10).toString().replace(/\.0$/,'')+' TB':Math.round(b/1e9)+' GB'};
 const capHTML=d=>d.total_bytes?`<span class="cap">${capLabel(d.total_bytes)}</span>`:'';
 const tagHTML=d=>d.type?`<span class="tag ${d.type}">${d.type=='other'?'OTHER':d.type.toUpperCase()}</span>`:'';
-const bkColor=b=>b.n==null?'var(--off)':!b.n||b.have>=b.n?'var(--ok)':b.have/b.n>=0.9?'var(--warn)':'var(--err)';
-const bkPct=b=>b.n?Math.floor(1000*b.have/b.n)/10:100;
+// Percentages are by data (bytes); never show 100% while any file is missing.
+const pctOf=(okBytes,totalBytes,missingFiles,okFiles,totalFiles)=>{
+  let p=totalBytes>0?Math.floor(1000*okBytes/totalBytes)/10:(totalFiles?Math.floor(1000*okFiles/totalFiles)/10:100);
+  if(missingFiles>0&&p>=100)p=99.9;return p};
+const bkPct=b=>pctOf((b.total_bytes||0)-(b.missing_bytes||0),b.total_bytes||0,(b.n||0)-(b.have||0),b.have||0,b.n||0);
+const bkColor=b=>b.n==null?'var(--off)':!b.n||b.have>=b.n?'var(--ok)':bkPct(b)>=90?'var(--warn)':'var(--err)';
+const covPct=d=>pctOf((d.cov_bytes||0)-(d.cov_none_bytes||0),d.cov_bytes||0,d.cov_none||0,(d.cov_files||0)-(d.cov_none||0),d.cov_files||0);
 const memName=m=>(dname(m.id)||'?')+(m.path?' / '+m.path:'');
 const bkName=b=>(b.members&&b.members.length?b.members:[b]).map(memName).join(' + ');
 function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)return'';
@@ -406,10 +412,11 @@ function renderDriveHeader(){
   const tabs=[['files','Files'],['backups',d.role=='backup'?'Backup status':'Backups'],['info','Info']];
   el.innerHTML=`<div class="card dcard"><div class="dtop"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">${tagHTML(d)}
     <span style="flex:1"></span><button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button><button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>
-  <div class="dsum"><span id="dstat">${dstat(d)}</span>${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
+  <div class="dsum"><span id="dstat">${dstat(d)}</span>${d.last_scan&&d.status!='scanning'?` · <a class="lnk" data-tab="info" title="Show scan history">scanned ${ago(d.last_scan)}</a>`:''}${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
   <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
   ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:''}</div>`;
   document.querySelectorAll('#dh [data-tab]').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
+  if(driveTab=='info')loadScanLog(d);
   if(driveTab=='info')document.querySelectorAll('#dh details.more').forEach(x=>x.addEventListener('toggle',()=>{if(x.open&&!spaceLoaded){spaceLoaded=true;loadSpace(d)}}));
   spaceLoaded=false;
   const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes')?$('#notes').value:d.notes}).then(()=>{toast('Saved');loadDrives()});
@@ -557,7 +564,8 @@ let driveTab='files';
 const lastSeen=d=>d.online?'connected now':d.last_seen?`last connected ${ago(d.last_seen)}${d.last_seen_on?' on '+esc(d.last_seen_on):''}`:'';
 function infoHTML(d){
   return `<div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>Last connected<b>${d.online?'now':d.last_seen?ago(d.last_seen):'—'}</b>${d.last_seen_on&&!d.online?`<span class="mute">on ${esc(d.last_seen_on)}</span>`:''}</div></div>
-  <div style="margin:4px 0 10px">${typeRow(d)}</div>
+  <h3 style="margin-top:4px">Scan history</h3><div id="scanlog" class="mute">Loading…</div>
+  <div style="margin:12px 0 10px">${typeRow(d)}</div>
   <div class="mute" style="font-size:12px;margin-bottom:4px">📍 Where does this drive live? (shown in the drive list and in search results)</div>
   <textarea id="notes" rows="2" placeholder="e.g. Office, top drawer · client archive 2019–2023">${esc(d.notes)}</textarea>
   <div class="mute" style="margin:6px 0 0;font-size:12px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')}</div>
@@ -566,6 +574,19 @@ function infoHTML(d){
   <div class="row" style="margin-top:14px">${d.status=='error'&&/blocked/i.test(d.status_detail||'')?'<button id="priv">Open Privacy Settings</button>':''}<span style="flex:1"></span><button class="danger" id="forget">Forget drive</button></div>`;
 }
 let spaceLoaded=false;
+async function loadScanLog(d){
+  const rows=await api('scanLog',{id:d.id}).catch(()=>[]);const el=$('#scanlog');if(!el)return;
+  if(!Array.isArray(rows)||!rows.length){el.innerHTML='<span class="mute">No scans recorded yet.</span>';return}
+  const here=(window.__machine||'');
+  const tr=x=>`<tr><td>${new Date(x.at*1000).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}</td>
+    <td>${x.result=='error'?`<span class="errc">⚠ Failed</span>`:'<span class="okc">✓ Scanned</span>'}${x.detail?`<div class="path">${esc(x.detail)}</div>`:''}</td>
+    <td class="mute">${esc(x.machine||'')}</td>
+    <td class="r">${x.result=='error'?'':`${(x.files||0).toLocaleString()} files`}</td><td class="r">${x.result=='error'?'':hb(x.bytes)}</td>
+    <td class="r mute">${x.seconds?(x.seconds<90?Math.round(x.seconds)+' s':Math.round(x.seconds/60)+' min'):''}</td></tr>`;
+  const show=n=>{el.className='';el.innerHTML=`<table class="bktab">${rows.slice(0,n).map(tr).join('')}</table>`+(rows.length>n?`<a class="lnk" id="slmore" style="display:block;margin-top:4px;font-size:12px">Show all ${rows.length} scans</a>`:'');
+    if($('#slmore'))$('#slmore').onclick=()=>show(rows.length)};
+  show(5);
+}
 async function loadSpace(d){
   const r=await api('space',{id:d.id}).catch(()=>null);const b=$('#sp_big'),u=$('#sp_dup');if(!b||!r)return;
   const mx=Math.max(1,...(r.biggest||[]).map(x=>x.size));
@@ -596,9 +617,12 @@ function covHTML(d){
     <div class="mute" style="margin-top:8px;font-size:12px">Files count as backed up when a file with the same name and size is in the backup location. Each backup is only as current as its last catalog.</div>`;
   if(!covReady(d))return `<div style="margin-top:8px" class="status scanning">Checking backups…</div>`+bl;
   const n=d.cov_files||0;if(!n)return bl;
-  const c0=d.cov_none||0,c1=d.cov_one||0,c2=d.cov_two||0,p=x=>Math.round(1000*x/n)/10;
-  return `<div class="covbar"><i class="c2" style="width:${p(c2)}%"></i><i class="c1" style="width:${p(c1)}%"></i><i class="c0" style="width:${p(c0)}%"></i></div>
-  <div class="row covleg"><span><span class="cd c2"></span>2+ backups: ${c2.toLocaleString()} (${p(c2)}%)</span><span><span class="cd c1"></span>1 backup: ${c1.toLocaleString()} (${p(c1)}%)</span><span><span class="cd c0"></span>Not backed up: ${c0.toLocaleString()} files · ${hb(d.cov_none_bytes)}</span></div>
+  const c0=d.cov_none||0,c1=d.cov_one||0,c2=d.cov_two||0;
+  const byData=(d.cov_bytes||0)>0,T=byData?d.cov_bytes:n;
+  const v0=byData?(d.cov_none_bytes||0):c0,v1=byData?(d.cov_one_bytes||0):c1,v2=byData?(d.cov_two_bytes||0):c2;
+  const p=x=>Math.round(1000*x/T)/10,amt=(v,c)=>byData?`${hb(v)} (${p(v)}%) · ${c.toLocaleString()} file${c==1?'':'s'}`:`${c.toLocaleString()} files (${p(v)}%)`;
+  return `<div class="covbar"><i class="c2" style="width:${p(v2)}%"></i><i class="c1" style="width:${p(v1)}%"></i><i class="c0" style="width:${Math.max(p(v0),c0?0.4:0)}%"></i></div>
+  <div class="row covleg"><span><span class="cd c2"></span>2+ backups: ${amt(v2,c2)}</span><span><span class="cd c1"></span>1 backup: ${amt(v1,c1)}</span><span><span class="cd c0"></span>Not backed up: ${amt(v0,c0)}</span></div>
   <div class="row" style="margin-top:6px">${c0?`<button data-miss="0">Show files not backed up</button>`:'<span class="okc">✓ Every file has at least one backup</span>'}${c1?`<button data-miss="1">Show files with fewer than 2 backups</button>`:''}</div>`+bl;
 }
 async function openMissing(id,max,set,from){

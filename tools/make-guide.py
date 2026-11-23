@@ -55,12 +55,12 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.6'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.7'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
     c.setFillColor(INK); c.setFont('Helvetica-Bold',34); c.drawString(M,H-96*mm,'DriveDex')
-    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.6'); c.restoreState()
+    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.7'); c.restoreState()
 doc=BaseDocTemplate(OUT, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=M, bottomMargin=22*mm, title='DriveDex User Guide', author='DriveDex', subject='How to install and use DriveDex')
 doc.addPageTemplates([PageTemplate('cover',[Frame(M,22*mm,CW,H-128*mm-22*mm)],onPage=cover), PageTemplate('page',[Frame(M,22*mm,CW,H-M-22*mm)],onPage=footer)])
 
@@ -110,7 +110,7 @@ s+=[P('3  The drive list', h1),
 # 4
 s+=[P('4  A drive\'s page and browsing', h1),
     shot('dhead','The top of a drive\'s page: name, type, status, backup status, location, and the three tabs.'),
-    table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Main files / backup role, backup status, history and reminders (sections 6–9). On a backup drive this tab is called <b>Backup status</b>: what it backs up, how complete it is, and a link to the files it\'s missing.'),('<b>Info</b>','Size, last connected (and on which Mac), type, location notes, Forget drive. Biggest folders and possible duplicates are in collapsed sections; click to open.')], 26*mm),
+    table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Main files / backup role, backup status, history and reminders (sections 6–9). On a backup drive this tab is called <b>Backup status</b>: what it backs up, how complete it is, and a link to the files it\'s missing.'),('<b>Info</b>','Size, last connected (and on which Mac), <b>scan history</b> (every scan with date, Mac, files, size and duration, including failed ones), type, location notes, Forget drive. Biggest folders and possible duplicates are in collapsed sections; click to open.')], 26*mm),
     Spacer(1,6), P('Column view', h2),
     shot('cols','Column view. Dots show each file\'s backup status; ⊘ marks an excluded folder.', box=(0,0,1640,350)),
     table([('<b>&darr; &uarr;</b>','Move up and down'),('<b>&rarr;</b> or <b>Return</b>','Open the selected folder'),('<b>&larr;</b>','Back to the parent folder'),('<b>Type a name</b>','Jump to the first item starting with those letters')], 38*mm),
@@ -147,7 +147,7 @@ s+=[P('7  Is everything backed up?', h1),
     P('The DriveDex icon in the menu bar turns <font color="#d9822b"><b>orange</b></font> when something needs attention and <font color="#d33f3f"><b>red</b></font> when files have no backup at all. Its menu lists every main drive with its status; click one to open it.'),
     KeepTogether([P('A drive\'s Backups tab', h2),
     shot('backups','Overall bar, one row per backup (or set), reminder, excluded folders and history.', width=CW*0.8)]),
-    P('The bar shows all files: <font color="#2e9d58"><b>green</b></font> on 2+ backups, <font color="#d9822b"><b>amber</b></font> on exactly 1, <font color="#d33f3f"><b>red</b></font> on none. Each backup row shows how complete it is, when it was last fully <b>in sync</b>, and how old its catalog is. Click the amber <b>&#9888; missing</b> link to see exactly which files that backup lacks.'),
+    P('<b>Percentages are by data</b> (how many GB/TB have a copy); the number of files is shown next to them. A backup only shows 100% when nothing at all is missing. The bar shows all data: <font color="#2e9d58"><b>green</b></font> on 2+ backups, <font color="#d9822b"><b>amber</b></font> on exactly 1, <font color="#d33f3f"><b>red</b></font> on none. Each backup row shows how complete it is, when it was last fully <b>in sync</b>, and how old its catalog is. Click the amber <b>&#9888; missing</b> link to see exactly which files that backup lacks.'),
     shot('setmiss','Files missing from one backup set. Click a file to jump to its folder.', width=CW*0.7),
     P('From a backup drive', h2),
     P('Open a backup drive (or a NAS that holds a folder backup): its header says e.g. <b>&#9888; 233 files missing &rsaquo;</b>. Click it for the list of files that backup doesn\'t have. The <b>Backup status</b> tab shows each drive it backs up, how complete it is and when it was last in sync.'),

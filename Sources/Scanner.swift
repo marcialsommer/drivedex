@@ -298,6 +298,8 @@ final class Scanner {
             let secs = Date().timeIntervalSince(t0)
             let detail = job.errors > 0 ? "\(job.errors) folders couldn't be read" : ""
             db.finishScan(id: id, gen: gen, files: job.files, dirs: job.dirs, bytes: total, seconds: secs, detail: detail)
+            db.logScan(id, result: "ok", files: job.files, dirs: job.dirs, bytes: Int(total), seconds: secs, detail: detail,
+                       machine: SyncFolder.machine)
             let summary = "\(label): \(job.files.formatted()) files, \(job.dirs.formatted()) folders, " +
                 ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
             notify(oldGen == 0 ? "Catalogued new drive \(summary)" : "Updated \(summary)")
@@ -310,6 +312,8 @@ final class Scanner {
             db.deleteGen(id, gen)
             let msg = (error as? ScanError)?.message ?? error.localizedDescription
             db.setStatus(id, "error", msg)
+            db.logScan(id, result: "error", files: job.files, dirs: job.dirs, bytes: 0,
+                       seconds: Date().timeIntervalSince(t0), detail: msg, machine: SyncFolder.machine)
             notify("Couldn't scan \(label): \(msg)")
         }
     }

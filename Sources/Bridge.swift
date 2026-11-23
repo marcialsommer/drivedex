@@ -176,6 +176,10 @@ enum Bridge {
             }
             return ok
 
+        case "scanLog":
+            guard let id = int("id") else { return [Any]() }
+            return db.scanLog(id)
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))

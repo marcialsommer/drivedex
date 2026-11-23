@@ -113,6 +113,24 @@ final class DB {
         if addColumn("entries", "nkey", "TEXT") { exec("UPDATE entries SET nkey = name WHERE nkey IS NULL") }
         exec("CREATE INDEX IF NOT EXISTS entries_nkey_size ON entries(nkey, size)")
         addColumn("drives", "last_seen_on", "TEXT")   // v2.1: which Mac last had this drive connected
+        for c in ["cov_bytes", "cov_one_bytes", "cov_two_bytes"] { addColumn("drives", c, "INTEGER") }   // v2.1.7: % by data
+        // v2.1.7: a log of every scan, for every drive
+        exec("BEGIN IMMEDIATE")   // three connections open at launch; only one may create + fill the log
+        let hadLog = row("SELECT name FROM sqlite_master WHERE type='table' AND name='scan_log'") != nil
+        exec("""
+            CREATE TABLE IF NOT EXISTS scan_log(
+                id INTEGER PRIMARY KEY, drive_id INTEGER, at REAL, machine TEXT, result TEXT,
+                files INTEGER, dirs INTEGER, bytes INTEGER, seconds REAL, detail TEXT);
+            CREATE INDEX IF NOT EXISTS scan_log_drive ON scan_log(drive_id, at);
+            """)
+        if !hadLog {   // start each drive's log with the scan we already know about
+            exec("""
+                INSERT INTO scan_log(drive_id, at, machine, result, files, dirs, bytes, seconds, detail)
+                SELECT id, last_scan, last_seen_on, 'ok', file_count, dir_count, catalog_bytes, scan_seconds, ''
+                FROM drives WHERE last_scan IS NOT NULL
+                """)
+        }
+        exec("COMMIT")
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -261,6 +279,7 @@ final class DB {
         run("DELETE FROM backups WHERE main_id=? OR backup_id=?", [id, id])
         run("DELETE FROM excluded WHERE drive_id=?", [id])
         run("DELETE FROM backup_history WHERE main_id=? OR backup_id=?", [id, id])
+        run("DELETE FROM scan_log WHERE drive_id=?", [id])
         if hasFTS { run("DELETE FROM names WHERE rowid IN (SELECT id FROM entries WHERE drive_id=?)", [id]) }
         run("DELETE FROM entries WHERE drive_id=?", [id])
         run("DELETE FROM drives WHERE id=?", [id])
@@ -458,6 +477,7 @@ final class DB {
             FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
             ORDER BY COALESCE(NULLIF(d.label,''), d.name) COLLATE NOCASE
             """, [mainID])
+        let totalBytes = row("SELECT cov_bytes FROM drives WHERE id=?", [mainID])?["cov_bytes"] ?? NSNull()
         var order: [String] = []
         var sets: [String: [[String: Any]]] = [:]
         for r in rs {
@@ -477,7 +497,7 @@ final class DB {
                 "members": m.map { ["id": $0["id"] ?? NSNull(), "path": $0["path"] ?? "", "backup_scan": $0["backup_scan"] ?? NSNull()] },
                 "n": first["n"] ?? NSNull(), "have": first["have"] ?? NSNull(), "missing_bytes": first["missing_bytes"] ?? NSNull(),
                 "backup_scan": m.compactMap({ $0["backup_scan"] as? Double }).min().map { $0 as Any } ?? NSNull(),
-                "last_in_sync": lastSync,
+                "last_in_sync": lastSync, "total_bytes": totalBytes,
             ]
         }
     }
@@ -525,7 +545,7 @@ final class DB {
         run("UPDATE entries SET copies=NULL WHERE drive_id=? AND copies IS NOT NULL", [id])
         run("""
             UPDATE drives SET cov_files=NULL, cov_none=NULL, cov_one=NULL, cov_two=NULL, cov_none_bytes=NULL,
-            cov_state='' WHERE id=?
+            cov_bytes=NULL, cov_one_bytes=NULL, cov_two_bytes=NULL, cov_state='' WHERE id=?
             """, [id])
     }
 
@@ -560,9 +580,13 @@ final class DB {
         }
         let s = row("""
             SELECT SUM(copies>=0) AS n, SUM(copies=0) AS c0, SUM(copies=1) AS c1, SUM(copies>=2) AS c2,
-                   SUM(CASE WHEN copies=0 THEN size ELSE 0 END) AS nb, SUM(copies=-1) AS ex
+                   SUM(CASE WHEN copies=0 THEN size ELSE 0 END) AS nb, SUM(copies=-1) AS ex,
+                   SUM(CASE WHEN copies>=0 THEN size ELSE 0 END) AS tb,
+                   SUM(CASE WHEN copies=1 THEN size ELSE 0 END) AS b1, SUM(CASE WHEN copies>=2 THEN size ELSE 0 END) AS b2
             FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1
             """, [mainID, gen]) ?? [:]
+        run("UPDATE drives SET cov_bytes=?, cov_one_bytes=?, cov_two_bytes=? WHERE id=?",
+            [s["tb"] as? Int ?? 0, s["b1"] as? Int ?? 0, s["b2"] as? Int ?? 0, mainID])
         run("""
             UPDATE drives SET cov_files=?, cov_none=?, cov_one=?, cov_two=?, cov_none_bytes=?, cov_excluded=?,
             cov_state='ok' WHERE id=?
@@ -613,7 +637,7 @@ final class DB {
     }
 
     func mainsNeedingCoverage() -> [Int] {
-        rows("SELECT DISTINCT main_id FROM backups b JOIN drives d ON d.id=b.main_id WHERE d.cov_state='checking' OR d.cov_files IS NULL")
+        rows("SELECT DISTINCT main_id FROM backups b JOIN drives d ON d.id=b.main_id WHERE d.cov_state='checking' OR d.cov_files IS NULL OR d.cov_bytes IS NULL")
             .compactMap { $0["main_id"] as? Int }
     }
 
@@ -768,6 +792,11 @@ final class DB {
         finishScan(id: id, gen: gen, files: info["file_count"] as? Int ?? 0, dirs: info["dir_count"] as? Int ?? 0,
                    bytes: Int64(info["catalog_bytes"] as? Int ?? 0), seconds: info["scan_seconds"] as? Double ?? 0,
                    detail: "Scanned on \(machine)")
+        if row("SELECT 1 AS x FROM scan_log WHERE drive_id=? AND ABS(at - ?) < 1", [id, remoteScan]) == nil {
+            logScan(id, result: "ok", files: info["file_count"] as? Int ?? 0, dirs: info["dir_count"] as? Int ?? 0,
+                    bytes: info["catalog_bytes"] as? Int ?? 0, seconds: info["scan_seconds"] as? Double ?? 0,
+                    detail: "", machine: machine, at: remoteScan)
+        }
         run("""
             UPDATE drives SET last_scan=?, total_bytes=COALESCE(?, total_bytes), free_bytes=COALESCE(?, free_bytes),
             used_bytes=COALESCE(?, used_bytes), name=COALESCE(?, name),
@@ -916,5 +945,19 @@ final class DB {
             else { out.append((id, name, 0, sets.count > 1 ? "backed up \(sets.count)×" : "backed up")) }
         }
         return out
+    }
+
+    // MARK: - scan log
+
+    func logScan(_ id: Int, result: String, files: Int, dirs: Int, bytes: Int, seconds: Double, detail: String,
+                 machine: String, at: Double = Date().timeIntervalSince1970) {
+        run("""
+            INSERT INTO scan_log(drive_id, at, machine, result, files, dirs, bytes, seconds, detail)
+            VALUES(?,?,?,?,?,?,?,?,?)
+            """, [id, at, machine, result, files, dirs, bytes, seconds, detail])
+    }
+
+    func scanLog(_ id: Int, limit: Int = 100) -> [[String: Any]] {
+        rows("SELECT at, machine, result, files, dirs, bytes, seconds, detail FROM scan_log WHERE drive_id=? ORDER BY at DESC LIMIT ?", [id, limit])
     }
 }
