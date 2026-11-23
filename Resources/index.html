@@ -255,7 +255,7 @@ async function openSetup(){
   const rows=drives.map(d=>{const role=d.role||'';
     const mains=drives.filter(x=>x.id!=d.id&&x.role!='backup');
     return `<tr><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:6px"></span>${esc(d.display)}${tagHTML(d)}</td>
-      <td><div class="segs">${[['main','Main files'],['backup','Backup'],['','Other']].map(([v,l])=>`<button class="seg ${role==v?'on':''}" data-srole="${v}" data-id="${d.id}">${l}</button>`).join('')}</div></td>
+      <td><div class="segs">${[['main','Main files'],['backup','Backup']].map(([v,l])=>`<button class="seg ${role==v?'on':''}" data-srole="${v}" data-id="${d.id}">${l}</button>`).join('')}</div></td>
       <td>${role=='backup'?`<select class="sm" data-sbk="${d.id}"><option value="">backs up…</option>${mains.map(m=>`<option value="${m.id}" ${(d.backup_of||[]).includes(m.id)?'selected':''}>${esc(m.display)}</option>`).join('')}</select>${(d.backup_of||[]).length>1?' <span class="mute">+ more</span>':''}`:role=='main'?`<span class="mute">${(d.backed_up_by||[]).length?covShort(d):'no backup yet'}</span>`:''}</td></tr>`}).join('');
   $('#view').innerHTML=`<div class="card"><h2>Welcome to DriveDex</h2><div class="mute">Three quick steps. You can change everything later, and run this guide again from Settings.</div></div>
   ${step(1,'Do you use DriveDex on more than one Mac?',!!s.syncFolder,s.syncFolder?`<div>✓ Sharing through <b>${s.syncIsICloud?'iCloud Drive':esc(s.syncFolder)}</b>. Choose the same on your other Macs.</div>`:
@@ -263,7 +263,7 @@ async function openSetup(){
   ${step(2,'Add your drives',drives.length>0&&!pending.length,`<div class="mute" style="margin-bottom:8px">Connect your drives and NAS shares one after another. Each new drive appears here; click <b>Catalog it</b>.</div>
      ${pending.map(n=>`<div class="row" style="margin-bottom:6px"><b>${esc(n.name)}</b><button class="primary" data-gapprove="${esc(n.key)}">Catalog it</button><button data-gignore="${esc(n.key)}">Ignore</button></div>`).join('')}
      <div>${drives.length} drive${drives.length==1?'':'s'} catalogued${drives.some(d=>d.status=='scanning')?' · scanning…':''}.</div>`)}
-  ${step(3,'Which drives hold your originals, and which are backups?',drives.some(d=>d.role=='main'&&(d.backed_up_by||[]).length),drives.length?`<div class="mute" style="margin-bottom:8px">Mark each drive. For a backup, choose the drive it backs up. Folders as backup locations and backups split over several drives are set up on a drive's page.</div><table class="bktab">${rows}</table>`:'<div class="mute">Add a drive first.</div>')}
+  ${step(3,'Which drives hold your originals, and which are backups?',drives.some(d=>d.role=='main'&&(d.backed_up_by||[]).length),drives.length?`<div class="mute" style="margin-bottom:8px">Mark each drive as Main files or Backup (leave others unmarked). For a backup, choose the drive it backs up. Folders as backup locations and backups split over several drives are set up on a drive's page.</div><table class="bktab">${rows}</table>`:'<div class="mute">Add a drive first.</div>')}
   <div class="row" style="justify-content:flex-end"><button class="primary" id="g_done">Done</button></div>`;
   const again=()=>{loadDrives().then(()=>{if(state.mode=='setup')openSetup()})};
   if($('#g_icloud'))$('#g_icloud').onclick=()=>api('syncICloud').then(again).catch(e=>toast(e.message));
@@ -271,7 +271,7 @@ async function openSetup(){
   if($('#g_skip'))$('#g_skip').onclick=()=>{toast('OK. You can turn on sharing later in Settings.');$('#g_skip').closest('.setup').classList.add('done')};
   document.querySelectorAll('[data-gapprove]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.gapprove}).then(()=>setTimeout(again,800)));
   document.querySelectorAll('[data-gignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.gignore}).then(again));
-  document.querySelectorAll('[data-srole]').forEach(b=>b.onclick=()=>api('setRole',{id:+b.dataset.id,role:b.dataset.srole}).then(again));
+  document.querySelectorAll('[data-srole]').forEach(b=>b.onclick=()=>{const d=drives.find(x=>x.id==b.dataset.id)||{};api('setRole',{id:+b.dataset.id,role:(d.role||'')==b.dataset.srole?'':b.dataset.srole}).then(again)});
   document.querySelectorAll('[data-sbk]').forEach(sel=>sel.onchange=()=>{const d=drives.find(x=>x.id==sel.dataset.sbk);const v=+sel.value;
     api('setBackupOf',{id:d.id,mains:v?[...new Set([...(d.backup_of||[]).filter(x=>x!=v),v])]:[]}).then(again)});
   $('#g_done').onclick=()=>api('setSettings',{onboarded:true}).then(()=>{state={mode:'home'};loadDrives()});
@@ -409,7 +409,7 @@ function renderDriveHeader(){
   if($('#priv'))$('#priv').onclick=()=>api('openPrivacy');
   const redo=()=>{$('#dh').dataset.id='';loadDrives()};
   document.querySelectorAll('#dh [data-type]').forEach(b=>b.onclick=()=>api('setType',{id:d.id,type:d.type==b.dataset.type&&!d.type_auto?'':b.dataset.type}).then(redo));
-  document.querySelectorAll('#dh [data-role]').forEach(b=>b.onclick=()=>api('setRole',{id:d.id,role:b.dataset.role}).then(redo));
+  document.querySelectorAll('#dh [data-role]').forEach(b=>b.onclick=()=>api('setRole',{id:d.id,role:(d.role||'')==b.dataset.role&&b.closest('.segs')?'':b.dataset.role}).then(redo));
   document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);api('setBackupOf',{id:d.id,mains:ids}).then(()=>{toast(ids.length?'Saved. Checking backups…':'Saved');redo()})});
   if($('#sugapply'))$('#sugapply').onclick=()=>api('setBackupOf',{id:d.id,mains:[...new Set([...(d.backup_of||[]),...guessMains(d).map(x=>x.id)])]}).then(()=>{toast('Saved. Checking backups…');redo()});
   document.querySelectorAll('#dh [data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''));
@@ -467,7 +467,7 @@ document.addEventListener('contextmenu',e=>{
     it('Rescan now',()=>api('rescan',{id:d.id}).then(()=>{toast('Scan started');setTimeout(loadDrives,800)}).catch(x=>toast(x.message)),d.online?'':'dis'),
     it('Show in Finder',()=>api('reveal',{id:d.id,path:''}).catch(x=>toast(x.message)),d.online?'':'dis'),'-',
     ...TYPES.map(([v,l])=>it((d.type==v?'✓ ':'\u2003')+'Type: '+l,()=>api('setType',{id:d.id,type:d.type==v&&!d.type_auto?'':v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
-    ...[['main','Main files'],['backup','Backup'],['','Other']].map(([v,l])=>it((d.role||'')==v?'✓ '+l:'\u2003'+l,()=>api('setRole',{id:d.id,role:v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
+    ...[['main','Main files'],['backup','Backup']].map(([v,l])=>it((d.role||'')==v?'✓ '+l:'\u2003'+l,()=>api('setRole',{id:d.id,role:(d.role||'')==v?'':v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     it('Forget drive…',()=>forgetDrive(d),'red')];
   showCtx(e,items);
 });
@@ -487,7 +487,7 @@ document.addEventListener('keydown',e=>{if(e.key=='Escape')hideCtx()});
 window.addEventListener('blur',hideCtx);
 function roleHTML(d){
   const role=d.role||'';
-  const seg=[['main','Main files'],['backup','Backup'],['','Other']].map(([v,l])=>`<button class="seg ${role==v?'on':''}" data-role="${v}">${l}</button>`).join('');
+  const seg=[['main','Main files'],['backup','Backup']].map(([v,l])=>`<button class="seg ${role==v?'on':''}" data-role="${v}" title="${role==v?'Click again to clear':''}">${l}</button>`).join('');
   let body='';
   if(role=='backup'){
     const mine=d.backup_of||[];
