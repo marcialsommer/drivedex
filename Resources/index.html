@@ -73,6 +73,12 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .ci.sel{background:var(--acc);color:#fff}.ci.sel .chev{color:#fff}.ci.selp{background:var(--line)}
 .col.info{width:290px;padding:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;word-break:break-word}
 .col.info .big{font-size:44px;line-height:1}
+.fam{border:1px solid var(--line);border-radius:12px;margin:6px 2px 12px;padding:3px;background:var(--bg)}
+.fam>.drv{background:var(--panel)}.fam>.drv.sel{background:var(--accbg)}
+.kids{margin:2px 2px 4px 16px;border-left:2px solid var(--line);padding-left:4px}
+.drv.kid{padding:5px 8px;margin:1px 0}.drv.kid .t{font-weight:500;font-size:13px}.drv.kid .s{font-size:11.5px}
+.kn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
 .ticks{margin-left:auto;font-weight:700;font-size:13px;letter-spacing:-1px;white-space:nowrap}
 .bktab{width:100%;border-collapse:collapse;margin-top:10px;border:0;background:transparent}
 .bktab td,.bktab th{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:normal;font-size:13px}
@@ -98,7 +104,7 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let drives=[], state={mode:'home'}, sort={k:'name',d:1};
 const hb=n=>{n=+n||0;for(const u of['B','KB','MB','GB','TB']){if(n<1000||u=='TB')return u=='B'?n+' B':n.toFixed(1)+' '+u;n/=1000}};
-const ago=t=>{if(!t)return'never';const s=Date.now()/1000-t;if(s<90)return'just now';if(s<3600)return Math.round(s/60)+' min ago';if(s<86400)return Math.round(s/3600)+' h ago';const d=Math.round(s/86400);return d<60?d+' days ago':new Date(t*1000).toLocaleDateString()};
+const ago=t=>{if(!t)return'never';const s=Date.now()/1000-t;if(s<90)return'just now';if(s<3600)return Math.round(s/60)+' min ago';if(s<86400)return Math.round(s/3600)+' h ago';const d=Math.round(s/86400);return d==1?'1 day ago':d<60?d+' days ago':new Date(t*1000).toLocaleDateString()};
 const date=t=>t?new Date(t*1000).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'';
 const icon=e=>e.is_dir==1?'📁':e.is_dir==2?'📦':({jpg:'🖼',jpeg:'🖼',png:'🖼',heic:'🖼',tif:'🖼',tiff:'🖼',cr2:'🖼',cr3:'🖼',arw:'🖼',nef:'🖼',dng:'🖼',raf:'🖼',psd:'🖼',mov:'🎞',mp4:'🎞',mxf:'🎞',braw:'🎞',r3d:'🎞',avi:'🎞',mkv:'🎞',wav:'🎵',mp3:'🎵',aif:'🎵',aiff:'🎵',m4a:'🎵',pdf:'📕',zip:'🗜',dmg:'💿'}[(e.name.split('.').pop()||'').toLowerCase()]||'📄');
 const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)};
@@ -143,14 +149,27 @@ async function loadDrives(){
   sel.innerHTML='<option value="">All drives</option>'+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
   const newHTML=pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
     <div class="row"><button class="primary" data-approve="${esc(n.key)}">Catalog it</button><button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
-  let lastG=-1;
-  $('#drives').innerHTML=newHTML+(drives.length?drives.map(d=>{
-    const g=grpOf(d),head=g!=lastG&&(drives.some(x=>x.role)) ?`<div class="grp">${GROUPS[g][1]}</div>`:'';lastG=g;
+  const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
-    return head+`<div class="drv ${state.drive==d.id?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span>${esc(d.display)}${tagHTML(d)}${ticks(d)}</div>
-    <div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)?`<div class="s">${covShort(d)}</div>`:''}</div>`}).join(''):(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
-  document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
+    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${ticks(d)}</div>
+    <div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
+  // Families: each main drive with its backups underneath; everything else below.
+  const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
+  const fams=mains.map(m=>{inFamily.add(m.id);
+    const kids=(m.backup_status||[]).map(b=>{const mem=b.members&&b.members.length?b.members:[{id:b.id,path:b.path}];
+      return mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
+        const status=b.n==null?'<span class="mute">checking…</span>':`<span style="color:${bkColor(b)}">${!b.n||b.have>=b.n?'✓ ':''}${bkPct(b)}%</span>`;
+        return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
+          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
+          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${mem.length>1?'part of a set · ':''}catalog from ${ago(bd.last_scan)}</div></div>`}).join('')}).join('');
+    return `<div class="fam">${full(m)}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
+  const rest=drives.filter(d=>!inFamily.has(d.id));
+  $('#drives').innerHTML=newHTML+(drives.length?
+    (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
+    (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(full).join('')}`:'')
+    :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
+  document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,el.dataset.path||'',null,el.dataset.path||''));
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
   if(state.mode=='home')renderHome();
@@ -171,7 +190,7 @@ const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitiv
 async function listOf(drive,path){const k=drive+'\u0000'+path;if(lcache.has(k))return lcache.get(k);
   const r=(await api('list',{drive,path})).slice().sort(byName);lcache.set(k,r);return r}
 const joinP=(a,b)=>a?a+'/'+b:b;
-function openDrive(id,path,hl){state={mode:'drive',drive:id,path,hl,sel:hl||null};$('#q').value='';render();loadDrives()}
+function openDrive(id,path,hl,kidPath){state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';render();loadDrives()}
 function drawCrumbs(){
   const parts=state.path?state.path.split('/'):[];
   $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
