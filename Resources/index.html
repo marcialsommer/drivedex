@@ -163,7 +163,7 @@ th[data-hk]{cursor:pointer}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
 .pill.safe{background:#e2f4e8;color:#1f7a43}.pill.copy{background:#fdf0e1;color:#a65a12}.pill.wait{background:var(--bg);color:var(--mute)}.pill.err{background:#fbe5e5;color:#b02b2b}
 @media (prefers-color-scheme:dark){.pill.safe{background:#1d3a28;color:#7fd8a0}.pill.copy{background:#3d2c17;color:#f0b26b}.pill.err{background:#3d1c1c;color:#f08a8a}}
-.shtab td{vertical-align:middle}.shtab input.cl{font:inherit;font-weight:600;border:1px solid transparent;border-radius:6px;padding:2px 5px;background:transparent;color:var(--ink);width:170px}
+.shtab td{vertical-align:middle}.shtab th{white-space:normal}.dbtn{margin-top:5px;padding:3px 9px;font-size:12px}.shtab input.cl{font:inherit;font-weight:600;border:1px solid transparent;border-radius:6px;padding:2px 5px;background:transparent;color:var(--ink);width:140px}
 .shtab input.cl:hover,.shtab input.cl:focus{border-color:var(--line);background:var(--bg)}
 .dests{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:10px}
 .dests>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px}.dests b{display:block;font-size:13.5px}
@@ -1020,7 +1020,7 @@ $('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Rescanning conne
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
 let settingsReturn=null;
 // ---- Shoot mode: memory cards checked against a main folder and its backups. DriveDex never copies anything.
-let shootsData={shoots:[],active:''},shootTimer=null,shootBusy=false,shootMiss=null;
+let deepTimer=null,shootsData={shoots:[],active:''},shootTimer=null,shootBusy=false,shootMiss=null;
 const activeShoot=()=>(shootsData.shoots||[]).find(s=>s.uuid==shootsData.active&&!s.done);
 function enterPage(st){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';
   clearInterval(shootTimer);shootTimer=null;state=st;document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));if($('#shootsitem'))$('#shootsitem').classList.add('sel')}
@@ -1115,25 +1115,45 @@ async function drawShoot(uuid){
     if(!x.missing)return '<td class="r okc">✓ all</td>';
     const done=c.bytes?Math.min(99.9,Math.floor(1000*(c.bytes-x.missing_bytes)/c.bytes)/10):0;
     return `<td class="r"><a class="lnk warnc" data-miss="${esc(c.key)}" data-j="${j}">${x.missing.toLocaleString()} missing</a><div class="path">${done}% copied</div></td>`};
-  const stPill=c=>c.state=='safe'?'<span class="pill safe">✓ Safe to format</span>':c.state=='copying'?'<span class="pill copy">Not safe yet</span>':c.state=='scanning'?'<span class="pill wait">Reading card…</span>':c.state=='empty'?'<span class="pill wait">Empty card</span>':c.state=='error'?`<span class="pill err" title="${esc(c.detail||'')}">Couldn't read</span>`:'<span class="pill wait">Waiting</span>';
+  const deepPct=l=>l&&l.total?Math.min(99,Math.floor(100*(l.done||0)/l.total)):0;
+  const deepLiveText=l=>!l?'':l.phase=='queued'?'Deep check queued':l.phase=='listing'?'Deep check: listing files…':`Deep check ${deepPct(l)}%`;
+  const deepPill=c=>{const d=c.deep;
+    if(c.deep_live)return `<span class="pill wait" data-deeplive="${esc(c.key)}" title="${esc((c.deep_live.file||''))}">${deepLiveText(c.deep_live)}</span>`;
+    if(!d||!c.deep_valid)return '';
+    const bad=(d.problems||[]).length;
+    return d.state=='verified'?'<span class="pill safe" title="Every file on the card has an identical copy in the main folder and every backup folder (contents compared).">✓ Verified · safe to format</span>'
+      :d.state=='partial'?'<span class="pill copy" title="Every file matches on the drives that were connected. Connect the others and check again.">✓ Matches on connected drives</span>'
+      :d.state=='problems'?`<a class="pill err lnk" data-deepres="${esc(c.key)}">⚠ ${bad>=300?'300+':bad} problem${bad==1?'':'s'} found</a>`:''};
+  const deepNote=c=>{const d=c.deep;if(c.deep_live||!d)return'';
+    if(!c.deep_valid)return '<div class="path">deep check is out of date: the card changed</div>';
+    return `<div class="path">deep check ${ago(d.at)}${d.mac?' on '+esc(d.mac):''}${d.stopped?' · '+esc(d.stopped):''}${d.seconds?' · took '+fmtDur(d.seconds):''}</div>`};
+  const fmtDur=t=>t<90?Math.round(t)+' s':t<5400?Math.round(t/60)+' min':(t/3600).toFixed(1)+' h';
+  const stPill=c=>deepPill(c)||stPillBasic(c);
+  const stPillBasic=c=>c.state=='safe'?'<span class="pill safe">✓ Safe to format</span>':c.state=='copying'?'<span class="pill copy">Not safe yet</span>':c.state=='scanning'?'<span class="pill wait">Reading card…</span>':c.state=='empty'?'<span class="pill wait">Empty card</span>':c.state=='error'?`<span class="pill err" title="${esc(c.detail||'')}">Couldn't read</span>`:'<span class="pill wait">Waiting</span>';
   const finalNote=c=>s.done&&c.final&&c.final.state!=c.state?`<div class="path">at the end of the shoot: ${c.final.state=='safe'?'safe':'not safe'}, ${(c.final.files||0).toLocaleString()} files</div>`:'';
   const nSafe=st.safe||0;
   const head=`<div class="card"><div class="row"><h2 style="margin:0">${esc(s.name)}</h2>${s.done?'<span class="pill wait">Done</span>':active?'<span class="pill err">● Active on this Mac</span>':'<span class="pill wait">Paused</span>'}<span style="flex:1"></span>
       ${s.done?'<button id="sh_reopen">Reopen</button>':active?'<button id="sh_pause" title="Stop adding new drives to this shoot">Pause</button>':'<button class="primary" id="sh_act">Make active</button>'}
       <button id="sh_check">Check now</button><button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
     <div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div>
-    <div class="mute">${active?'Plug in a memory card and it is added here automatically. ':''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
+    <div class="mute">${active?'Plug in a memory card and it is added here automatically. ':''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). For certainty, click <b>Deep check</b>: DriveDex reads every file on the card and each copy and compares their contents. Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
     <div class="dests">${dests.map((d,j)=>`<div><span class="mute">${j==0?'Main':'Backup '+j}</span><b>${esc(d.name)}</b>${esc(d.path||'whole drive')}<div class="path">${d.error?`<span class="warnc">${esc(d.error)}</span>`:d.live?'<span class="okc">● connected, checked live</span>':`not connected · catalog from ${d.last_scan?ago(d.last_scan):'never'}`}</div></div>`).join('')}</div></div>`;
   const table=cards.length?`<table class="shtab"><tr><th>Card</th><th class="r">Size</th>${dests.map((d,j)=>`<th class="r">${j==0?'Main':'Backup '+j}<div class="path">${esc(d.name)}</div></th>`).join('')}<th>Status</th><th></th></tr>
     ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
       <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>`:'<span class="mute">—</span>'}</td>
       ${c.files!=null&&c.files>0?dests.map((d,j)=>cell(c,j)).join(''):dests.map(()=>'<td class="r mute">—</td>').join('')}
-      <td>${stPill(c)}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
+      <td style="white-space:normal;min-width:150px">${stPill(c)}${deepNote(c)}${c.deep_live?`<div><button class="sm dbtn" data-deepstop="${esc(c.key)}">Stop deep check</button></div>`:c.online&&c.files>0&&!s.done?`<div><button class="sm dbtn" data-deep="${esc(c.key)}" title="Read every file on the card and each copy, and compare their contents. Takes about as long as copying the card.">${c.deep&&c.deep_valid?'Deep check again':'Deep check'}</button></div>`:''}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
     :`<div class="card empty" style="padding:30px">${active?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;
   const others=realDrives().filter(d=>!Shoots_destKeys(s).includes(d.key));
   const add=s.done?'':`<div class="row" style="margin-top:10px"><span class="mute">A card that DriveDex already knew as a normal drive?</span><select class="sm" id="sh_addcard"><option value="">Add it as a card…</option>${others.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('')}</select></div>`;
   let miss='';
-  if(shootMiss){const c=cards.find(x=>x.key==shootMiss.key),x=c&&(c.dests||[])[shootMiss.j];
+  if(shootMiss&&shootMiss.deep){const c=cards.find(x=>x.key==shootMiss.key),d=c&&c.deep;
+    if(d&&(d.problems||[]).length){const dn=j=>j<0?'the card':(j==0?'main':'backup '+j)+' ('+esc(dests[j]?dests[j].name:'?')+')';
+      miss=`<div class="card" id="missbox"><div class="row"><b>${esc(c.label)}: deep check problems</b><span style="flex:1"></span><button class="sm" id="missclose">Close</button></div>
+        <div class="mute" style="font-size:12.5px;margin-top:4px">${(d.dests||[]).map((x,j)=>`${j==0?'Main':'Backup '+j}: ${x.connected?`${x.ok.toLocaleString()} identical${x.different?`, <span class="errc">${x.different} different</span>`:''}${x.missing?`, <span class="warnc">${x.missing} missing</span>`:''}`:'not connected'}`).join(' · ')}</div>
+        <div class="misslist">${d.problems.map(f=>`<div>📄 ${esc(f.name)} <span class="mute">· ${hb(f.size)} · ${esc(f.parent||'/')}</span> · <b>${dn(f.dest)}</b>: ${esc(f.reason)}</div>`).join('')}</div></div>`}
+    else shootMiss=null}
+  else if(shootMiss){const c=cards.find(x=>x.key==shootMiss.key),x=c&&(c.dests||[])[shootMiss.j];
     if(x&&x.missing)miss=`<div class="card" id="missbox"><div class="row"><b>${esc(c.label)}: ${x.missing.toLocaleString()} file${x.missing==1?'':'s'} not in ${shootMiss.j==0?'the main folder':'backup '+shootMiss.j} (${esc(dests[shootMiss.j].name)} › ${esc(dests[shootMiss.j].path||'whole drive')}) · ${hb(x.missing_bytes)}</b><span style="flex:1"></span><button class="sm" id="missclose">Close</button></div>
       <div class="misslist">${x.sample.map(f=>`<div>📄 ${esc(f.name)} <span class="mute">· ${hb(f.size)} · ${esc(f.parent||'/')}</span></div>`).join('')}${x.missing>x.sample.length?`<div class="mute">and ${(x.missing-x.sample.length).toLocaleString()} more</div>`:''}</div></div>`;
     else shootMiss=null}
@@ -1158,6 +1178,17 @@ async function drawShoot(uuid){
   if($('#sh_addcard'))$('#sh_addcard').onchange=()=>{const v=+$('#sh_addcard').value;if(v)api('shootCard',{uuid,op:'add',id:v}).then(()=>{toast('Added as a card');re()})};
   document.querySelectorAll('[data-miss]').forEach(a=>a.onclick=()=>{shootMiss={key:a.dataset.miss,j:+a.dataset.j};drawShoot(uuid).then(()=>{const m=$('#missbox');if(m)m.scrollIntoView({block:'nearest'})})});
   if($('#missclose'))$('#missclose').onclick=()=>{shootMiss=null;$('#missbox').remove()};
+  document.querySelectorAll('[data-deepres]').forEach(a=>a.onclick=()=>{shootMiss={key:a.dataset.deepres,deep:true};drawShoot(uuid).then(()=>{const m=$('#missbox');if(m)m.scrollIntoView({block:'nearest'})})});
+  document.querySelectorAll('[data-deep]').forEach(b=>b.onclick=()=>api('deepStart',{uuid,key:b.dataset.deep}).then(()=>{toast('Deep check started. It reads every file, so it takes about as long as copying the card. You can keep working.');drawShoot(uuid)}).catch(e=>toast(e.message)));
+  document.querySelectorAll('[data-deepstop]').forEach(b=>b.onclick=()=>api('deepStop',{key:b.dataset.deepstop}).then(()=>{toast('Stopping the deep check…');setTimeout(()=>drawShoot(uuid),1200)}));
+  // While a deep check runs, update its progress every 1.5 s (the full page refresh is slower).
+  clearInterval(deepTimer);
+  if(cards.some(c=>c.deep_live))deepTimer=setInterval(async()=>{
+    if(state.mode!='shoot'||state.uuid!=uuid){clearInterval(deepTimer);return}
+    const live=await api('deepState').catch(()=>null);if(!live)return;
+    let finished=false;
+    document.querySelectorAll('[data-deeplive]').forEach(el=>{const l=live[el.dataset.deeplive];if(!l){finished=true;return}el.textContent=deepLiveText(l);el.title=l.file||''});
+    if(finished){clearInterval(deepTimer);drawShoot(uuid)}},1500);
 }
 const Shoots_destKeys=s=>[(s.main||{}).key,...(s.backups||[]).map(b=>b.key)].filter(Boolean);
 function goHome(){clearInterval(shootTimer);prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';state={mode:'home'};renderHome();loadDrives()}

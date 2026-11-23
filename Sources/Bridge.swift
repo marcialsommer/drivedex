@@ -258,6 +258,17 @@ enum Bridge {
             Shoots.put(db, s)
             return ok
 
+        case "deepStart":
+            if let e = DeepCheck.shared.start(shoot: str("uuid"), card: str("key")) { return err(e) }
+            return ok
+
+        case "deepStop":
+            DeepCheck.shared.stop(str("key"))
+            return ok
+
+        case "deepState":
+            return DeepCheck.shared.state()
+
         case "shootStatus":
             return Shoots.status(db, str("uuid"))
 

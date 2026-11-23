@@ -70,6 +70,12 @@ Key facts:
   drives become cards (no "new drive" prompt, always re-read). `Shoots.status` compares card files (name+size) with
   each destination folder: live walk if connected, else catalog. Cards are hidden from the sidebar (`d.card`).
   DriveDex never copies files; the owner may later want copying/offload built in.
+- Deep check (`Sources/DeepCheck.swift`, `Sources/XXH64.swift`): per card, reads every card file and each
+  candidate copy (same name+size) in each connected destination with `F_NOCACHE`, compares XXH64; one check at a
+  time on its own queue; result saved as `cards[i]["deep"]` (state verified/partial/problems/stopped, per-dest
+  counts, up to 300 problems); valid while card bytes+files are unchanged (`deep_valid`). Live progress via bridge
+  `deepState`. Stops on eject. `Tests/main.swift` checks XXH64 against official vectors in build.sh (build fails
+  if wrong). Next idea: read Hedge/Silverstack MHL files to count their copies as verified.
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

@@ -156,12 +156,14 @@ enum Shoots {
         }
 
         let queued = Scanner.shared.queueState().queued
+        let deepLive = DeepCheck.shared.state()
         var cards: [[String: Any]] = []
         var safeCount = 0
         for c in s["cards"] as? [[String: Any]] ?? [] {
             let key = c["key"] as? String ?? ""
             var out = c
             out["online"] = online[key] != nil
+            if let l = deepLive[key] { out["deep_live"] = l }
             guard let d = db.row("SELECT id, gen, status, status_detail, last_scan FROM drives WHERE key=?", [key]) else {
                 out["state"] = "waiting"; cards.append(out); continue
             }
@@ -190,6 +192,11 @@ enum Shoots {
                             "sample": missing.prefix(200).map { ["name": $0.name, "parent": $0.parent, "size": $0.size] as [String: Any] }])
             }
             if dests.isEmpty { safe = false }
+            // A deep check result still applies while the card holds the same data.
+            if let deep = c["deep"] as? [String: Any] {
+                out["deep_valid"] = (deep["bytes"] as? NSNumber)?.int64Value == total && (deep["files"] as? NSNumber)?.intValue == files.count
+                if out["deep_valid"] as? Bool == true, deep["state"] as? String == "problems" { safe = false }
+            }
             if safe { safeCount += 1 }
             out["state"] = files.isEmpty ? "empty" : safe ? "safe" : "copying"
             out["files"] = files.count; out["bytes"] = total; out["dests"] = per

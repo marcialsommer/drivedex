@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 trap 'echo "::error title=build.sh failed::line $LINENO: $BASH_COMMAND"' ERR
-VERSION="${VERSION:-2.5.5}"
+VERSION="${VERSION:-2.6}"
 BUILD="${BUILD:-1}"
 OUT=build
 APP="$OUT/DriveDex.app"
@@ -11,6 +11,9 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 
 SDK="$(xcrun --show-sdk-path)"
 swift --version
+# The deep check relies on XXH64 being exactly right: test it before building.
+swiftc -O -sdk "$SDK" Sources/XXH64.swift Tests/main.swift -o "$OUT/xxh64-test" 2>&1 | sed -E 's#^(.*error: .*)$#::error title=XXH64 test build::\1#'
+"$OUT/xxh64-test"
 for ARCH in arm64 x86_64; do
   # Errors are also re-emitted as GitHub annotations so they show up on the run page.
   if ! swiftc -O -target "$ARCH-apple-macos13.0" -sdk "$SDK" Sources/*.swift -o "$OUT/DriveDex-$ARCH" \
