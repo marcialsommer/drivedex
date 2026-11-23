@@ -167,7 +167,7 @@ s+=[P('7  Is everything backed up?', h1),
 s+=[P('8  Folders that don\'t need a backup', h1),
     side('fmenu', 44*mm, '<b>Right-click a folder &rarr; Exclude from backup check.</b> It stays visible, greyed out with <b>⊘</b>, and its files (including subfolders) no longer count as missing. Right-click again &rarr; <b>Include in backup check</b> to undo. Excluded folders are also listed on the Backups tab.'),
     P('9  Backup reminders', h1),
-    P('If you rotate backup drives (for example two NAS backup drives swapped between home and office), in the <b>Reminder</b> section of the main drive\'s Backups tab, set <b>Remind me when a backup hasn\'t been updated for</b> 3 days, 1 week, 2 weeks or 1 month on the main drive\'s Backups tab. You get a notification (at most once a day), it appears under <b>Needs attention</b>, and the backup is marked <font color="#d9822b"><b>Due</b></font>. Connecting the backup resets it.'),
+    P('If you rotate backup drives (for example two NAS backup drives swapped between home and office), in the <b>Reminder</b> section of the main drive\'s Backups tab, set <b>Remind me when a backup hasn\'t been updated for</b> to 3 days, 1 week, 2 weeks or 1 month. You get a notification (at most once a day), it appears under <b>Needs attention</b>, and the backup is marked <font color="#d9822b"><b>Due</b></font>. Connecting the backup resets it.'),
     P('10  Space and duplicates', h1),
     shot('info','Info tab: biggest folders, and large files that also exist on other (non-backup) drives.', width=CW*0.85),
     PageBreak()]
