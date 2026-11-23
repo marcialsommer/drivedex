@@ -29,6 +29,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest build/DriveDex.dmg \
+          gh release create latest build/DriveDex.dmg --latest --draft=false \
             --title "DriveDex (build ${{ github.run_number }})" \
             --notes "Download DriveDex.dmg below, open it, and drag DriveDex into Applications."
+          # Make sure the release is published (not left as a draft).
+          sleep 5
+          gh release edit latest --draft=false --latest || true
