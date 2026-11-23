@@ -55,6 +55,26 @@ You only do steps 2–3 once. DriveDex isn't signed with a paid Apple developer 
 
 Requires **macOS 13 Ventura or newer** (Apple Silicon or Intel). The [user guide](docs/DriveDex-Guide.pdf) explains everything step by step.
 
+## How it works, and what it doesn't do
+
+**DriveDex reads each drive's table of contents, never the files themselves.** Every drive keeps an index of what's on it: for each file its name, size and dates. DriveDex asks macOS for that index, folder by folder, and saves it. That's why scanning is fast (seconds to minutes, even for many terabytes) and why it works on drives that aren't connected: it's looking at its saved copy.
+
+**How the backup check decides a file is backed up:** a backup drive (or backup folder) has a file with the **same name and the same size**, in any folder. With *Strict backup check* in Settings the modification date must match too. This is fast and catches what usually goes wrong (files never copied, a copy that stopped halfway, a forgotten folder), but it has limits:
+
+- **It doesn't read file contents.** A copy that is damaged but still the same size counts as backed up. DriveDex can't tell you a file will open.
+- **A renamed file counts as missing**, because names are compared.
+- **It's a snapshot.** A drive's catalog is only as current as its last scan. A backup that hasn't been connected for a while may have changed (or failed) since. DriveDex shows how old each catalog is.
+- Hidden files are skipped unless you turn them on, and app/library bundles (for example Final Cut libraries) count as one item.
+
+Shoot mode uses the same rule: a memory card is "safe to format" when every file on it is in the main folder and every backup folder with the same name and size.
+
+**DriveDex doesn't copy, back up or repair anything.** It never writes to your drives. For the copying itself, use a dedicated tool:
+
+- **Backups of drives and folders:** [Carbon Copy Cloner](https://bombich.com) (reliable for years, with scheduled and incremental backups), ChronoSync, or Time Machine.
+- **Memory cards on a shoot:** an offload tool that compares checksums (a fingerprint of each file's actual contents), such as Hedge OffShoot, ShotPut Pro or Pomfort Silverstack.
+
+Then let DriveDex keep the overview: what's on which drive, and whether anything has been missed.
+
 ## Privacy
 
 - DriveDex only stores **names, sizes and dates** of files and folders. It never opens or uploads your files.

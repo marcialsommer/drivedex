@@ -69,7 +69,7 @@ s+=[P("Know what's on every drive, and whether it's backed up.", st(fontName='He
     P('DriveDex keeps a catalog of every drive and NAS share you connect to your Mac. Once a drive is added, it is re-catalogued automatically whenever you plug it in. Browse and search all your drives (even ones in a drawer), see which drives back up which, get told when something isn\'t backed up, and share the whole catalog between your Macs.'),
     P('DriveDex only records file and folder <b>names, sizes and dates</b>. It never opens or reads the contents of your files.'),
     P('In this guide', h2)]
-toc=['Install and update','Adding drives','The drive list','A drive\'s page and browsing','Searching','Setting up your backups','Is everything backed up?','Folders that don\'t need a backup','Backup reminders','Space and duplicates','Shoot mode: memory cards','Sharing between your Macs','Settings and shortcuts','Questions and troubleshooting']
+toc=['Install and update','Adding drives','The drive list','A drive\'s page and browsing','Searching','Setting up your backups','Is everything backed up?','Folders that don\'t need a backup','Backup reminders','Space and duplicates','Shoot mode: memory cards','How it works and its limits','Sharing between your Macs','Settings and shortcuts','Questions and troubleshooting']
 half=(len(toc)+1)//2; cw=CW/2
 rows=[[P(f'<font color="#2f6fdf"><b>{i+1}</b></font>'),P(toc[i]),P(f'<font color="#2f6fdf"><b>{i+1+half}</b></font>') if i+half<len(toc) else '',P(toc[i+half]) if i+half<len(toc) else ''] for i in range(half)]
 t=Table(rows, colWidths=[8*mm, cw-12*mm, 8*mm, cw-4*mm]); t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0)]))
@@ -199,7 +199,16 @@ s+=bullets(['Use a folder your Mac keeps in sync in the background. Don\'t edit 
             '<b>Stop sharing</b> keeps everything already on this Mac.'])
 s+=[PageBreak()]
 # 12
-s+=[P('13  Settings and shortcuts', h1),
+s+=[P('13  How it works and its limits', h1),
+    P('DriveDex reads each drive\'s <b>table of contents</b> (file names, sizes and dates), never the files themselves. That\'s why scanning is fast and why it works on drives that aren\'t connected.'),
+    P('A file counts as <b>backed up</b> when a backup has a file with the <b>same name and size</b>, in any folder (with Strict backup check, also the same date). This catches files that were never copied, copies that stopped halfway and forgotten folders, but:'),
+    ]
+s+=bullets(['It doesn\'t read file contents: a damaged copy of the same size counts as backed up.',
+            'A renamed file counts as missing.',
+            'A catalog is a snapshot from the last scan; a backup that hasn\'t been connected for a while may have changed since.'])
+s+=[note('<b>DriveDex doesn\'t copy or back up anything.</b> Use a dedicated tool for that: Carbon Copy Cloner, ChronoSync or Time Machine for drive and folder backups, and an offload tool that compares checksums (Hedge OffShoot, ShotPut Pro, Silverstack) for memory cards. DriveDex then shows what\'s on which drive and whether anything was missed.', colors.HexColor('#fff7e8')),
+    PageBreak()]
+s+=[P('14  Settings and shortcuts', h1),
     table([('<b>Open DriveDex at login</b>','Keep on: DriveDex only catalogs drives while running.'),
            ('<b>Show DriveDex in the menu bar</b>','Turn off to hide the menu-bar icon. DriveDex keeps running; open it from Applications or Spotlight.'),('<b>Notifications</b>','When scans finish or fail, and for reminders and updates.'),
            ('<b>Ask before cataloguing new drives</b>','On: new drives wait for <b>Catalog it</b>.'),
@@ -211,7 +220,7 @@ s+=[P('13  Settings and shortcuts', h1),
     table([('<b>&#8984; ,</b>','Settings (press again, or click Settings again, to go back)'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view'),('<b>&#8984; [</b> / <b>&#8984; ]</b>','Back / forward (also &#8984;&larr; / &#8984;&rarr;, and the Go menu)'),('<b>&#8679;&#8984; O</b>','Overview'),('<b>&#8984; Z</b>','Undo the last backup-link change')], 38*mm),
     PageBreak()]
 # 13
-s+=[P('14  Questions and troubleshooting', h1)]
+s+=[P('15  Questions and troubleshooting', h1)]
 faq=[('"The disk couldn\'t be ejected because DriveDex is using it."','DriveDex lets go of a drive the moment you eject it (a scan in progress is stopped and the previous catalog kept), so this shouldn\'t happen any more. You can also eject from DriveDex: the <b>&#9167;</b> button next to each connected drive. If macOS still says "one or more programs may be using it" without naming DriveDex, it\'s usually Spotlight indexing a newly connected drive: wait a minute and try again.'),
      ('A drive shows "macOS blocked access".','Info tab &rarr; <b>Open Privacy Settings</b> and allow DriveDex (or add it under Full Disk Access). Then <b>Rescan now</b>.'),
      ('I plugged in a drive and nothing happened.','Look for the <b>New drive</b> card. Otherwise check DriveDex is running (menu-bar icon); a drive scanned within the last hour is skipped (use <b>Rescan now</b>).'),
