@@ -434,6 +434,14 @@ final class DB {
         }
     }
 
+    /// The folder `copyPath` on `copyID` is a copy of `mainPath` on `mainID` (a partial backup, set up from the copy's side).
+    func setCopyOf(copyID: Int, copyPath: String, mainID: Int, mainPath: String) {
+        run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path, grp, source_path) VALUES(?,?,?,'',?)",
+            [mainID, copyID, copyPath, mainPath])
+        run("UPDATE drives SET role='main' WHERE id=? AND COALESCE(role,'')=''", [mainID])
+        run("UPDATE drives SET role='backup' WHERE id=? AND COALESCE(role,'')=''", [copyID])
+    }
+
     /// Use a folder on `driveID` as the backup location of `mainID` (on == false removes it).
     func setFolderBackup(driveID: Int, path: String, mainID: Int, on: Bool) {
         if on {

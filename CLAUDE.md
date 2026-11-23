@@ -49,7 +49,8 @@ Key facts:
   anywhere in the backup location; strict mode also requires mtime within 2.5 s. Locations in the same `grp`
   form a backup set (one backup). Each backup drive gives one location per main drive (whole drive or a folder). A backup can also be
   *partial* (`backups.source_path`): only that folder of the main drive is compared (`sourceScopeSQL`), with its own
-  `cov_total_bytes`; set via folder right-click "This folder is also backed up on…", synced as `scopes` in meta.
+  `cov_total_bytes`; set via folder right-click "This folder is backed up on…" (from the original) or "…is a copy of the one on…"
+  (from the copy: `setCopyOf`, finds the same-named folder on the main drive), synced as `scopes` in meta.
 - Backup percentages are **by data** (bytes: `cov_bytes`, `cov_one_bytes`, `cov_two_bytes`, per set `total_bytes` −
   `missing_bytes`), never 100% while a file is missing; file counts are shown alongside.
 - Every scan (local, failed, or imported from another Mac) is written to `scan_log`; shown on the Info tab.

@@ -101,6 +101,7 @@ button.x{border:0;background:transparent;color:var(--mute);padding:0 4px;font-si
 .setgrp{border-left:2px solid var(--acc);margin:4px 0 6px 2px;padding-left:4px;border-radius:2px}
 .sethead{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--mute);padding:4px 8px 2px;cursor:pointer}
 .sethead:hover{color:var(--ink)}.setgrp .drv.kid{margin-left:6px}
+.scope{font-size:10.5px;font-weight:600;color:var(--acc);border:1px dashed var(--acc);border-radius:4px;padding:0 5px;margin-left:6px;white-space:nowrap}
 #navgrip{flex:none;width:6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;z-index:20;position:relative}
 #navgrip:hover,#navgrip.on{background:var(--acc);opacity:.35}
 .kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
@@ -287,9 +288,9 @@ async function loadDrives(){
       const isSet=mem.length>1;
       const rows=mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
-          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${isSet?'':`<span class="ticks">${status}</span>`}</div>
+          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${!isSet&&b.source?`<span class="scope" title="Only this folder of ${esc(m.display)} is compared: ${esc(b.source)}">only ${esc(b.source.split('/').pop())}</span>`:''}${isSet?'':`<span class="ticks">${status}</span>`}</div>
           ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
-          <div class="s">${!isSet&&b.source?`<b>only ${esc(b.source)}</b><br>`:''}${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
+          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
       // A backup split over several drives: one heading with the combined percentage, the drives indented below.
       return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives${b.source?` · only ${esc(b.source.split('/').pop())}`:''}</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
     const nk=(m.backup_status||[]).length;
@@ -560,11 +561,19 @@ document.addEventListener('contextmenu',e=>{
       own?{label:'Include in backup check',fn:()=>setExcl(d,path,false)}
          :x?{label:`Inside excluded “${x.split('/').pop()}”`,fn:()=>{},cls:'dis'}
          :{label:'Exclude from backup check',fn:()=>setExcl(d,path,true)},
-      {label:'This folder is also backed up on…',fn:()=>{
+      {label:'This folder is backed up on…  (this is the original)',fn:()=>{
         const cands=drives.filter(x=>x.id!=d.id);
         showCtx(e,[{label:`Which drive holds a copy of “${fe.dataset.n}”?`,fn:()=>{},cls:'dis'},'-',
-          ...cands.map(x=>({label:x.display,fn:()=>api('setBackupScope',{main:d.id,backup:x.id,path}).then(()=>{
-            toast(`“${x.display}” now counts as a backup of only “${fe.dataset.n}”. Checking…`);$('#dh')&&($('#dh').dataset.id='');loadDrives()}).catch(er=>toast(er.message))}))]);
+          ...cands.map(x=>({label:x.display,fn:()=>{
+            if(x.role=='main'&&d.role!='main'&&confirm(`Is “${fe.dataset.n}” on ${d.display} a copy of a folder on ${x.display}?\n\n${x.display} is one of your main drives, so usually it holds the original. OK = yes, this is a copy. Cancel = no, ${x.display} holds the backup.`))
+              return copyOf(d,path,x,e);
+            api('setBackupScope',{main:d.id,backup:x.id,path}).then(()=>{
+              toast(`“${x.display}” now counts as a backup of only “${fe.dataset.n}”. Checking…`);$('#dh')&&($('#dh').dataset.id='');loadDrives()}).catch(er=>toast(er.message))}}))]);
+        return 'keep'}},
+      {label:'This folder is a copy of the one on…  (this is the backup)',fn:()=>{
+        const cands=drives.filter(x=>x.id!=d.id);
+        showCtx(e,[{label:`Which drive has the original “${fe.dataset.n}”?`,fn:()=>{},cls:'dis'},'-',
+          ...cands.map(x=>({label:x.display,fn:()=>copyOf(d,path,x,e)}))]);
         return 'keep'}},
       {label:'Use as backup location…',fn:()=>{state.path=path;state.sel=null;state.hl=null;viewMode=='columns'?navCols():render();toast('Choose the drive it backs up in the bar above the files')}}];
     showCtx(e,items);return}
@@ -579,6 +588,19 @@ document.addEventListener('contextmenu',e=>{
     it('Forget drive…',()=>forgetDrive(d),'red')];
   showCtx(e,items);
 });
+// "path" on drive d is a copy of the folder with the same name on drive main: find it, ask if several.
+async function copyOf(d,path,main,e){
+  const name=path.split('/').pop();
+  const r=await api('search',{q:name,kind:'folders',drive:main.id}).catch(()=>({results:[]}));
+  const hits=(r.results||[]).filter(x=>x.name.toLowerCase()==name.toLowerCase()).map(x=>joinP(x.parent,x.name));
+  const link=mp=>api('setCopyOf',{copy:d.id,copyPath:path,main:main.id,mainPath:mp}).then(()=>{
+    toast(`“${name}” on ${d.display} now counts as a copy of “${mp}” on ${main.display}. Only that folder is compared. Checking…`);
+    $('#dh')&&($('#dh').dataset.id='');loadDrives()}).catch(er=>toast(er.message));
+  if(!hits.length){toast(`There's no folder called “${name}” on ${main.display}. Rescan it, or set it up from ${main.display}'s side.`);return}
+  if(hits.length==1)return link(hits[0]);
+  showCtx(e,[{label:`Several folders called “${name}” on ${main.display}. Which one?`,fn:()=>{},cls:'dis'},'-',...hits.slice(0,20).map(h=>({label:h,fn:()=>link(h)}))]);
+  return 'keep';
+}
 function showCtx(e,items){
   const m=$('#ctx');m.innerHTML=items.map((x,i)=>x=='-'?'<hr>':`<div class="${x.cls||''}" data-i="${i}">${esc(x.label)}</div>`).join('');
   // Ignore the button release / trackpad tap that opened the menu: only real left clicks a moment later count.
