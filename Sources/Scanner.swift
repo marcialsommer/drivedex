@@ -347,7 +347,8 @@ final class Scanner {
             }
             total += size
             job.batch.append(Entry(driveID: job.id, gen: job.gen, parent: rel, name: name, kind: kind, size: size,
-                                   mtime: v.contentModificationDate?.timeIntervalSince1970 ?? 0, items: count))
+                                   mtime: v.contentModificationDate?.timeIntervalSince1970 ?? 0, items: count,
+                                   matchKey: matchKey(name)))
             if job.batch.count >= 5000 { flush(job) }
         }
         return (total, children)
@@ -358,6 +359,9 @@ final class Scanner {
         guard let en = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: [],
                                                       errorHandler: { _, _ in true }) else { return 0 }
         for case let u as URL in en {
+            // Skip helper files that differ between a Mac disk and a NAS copy of the same bundle.
+            let n = u.lastPathComponent
+            if n.hasPrefix("._") || skipNames.contains(n) { continue }
             t += Int64((try? u.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
         }
         return t

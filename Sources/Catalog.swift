@@ -37,6 +37,24 @@ enum Settings {
 
 struct Entry {
     var driveID: Int, gen: Int, parent: String, name: String, kind: Int, size: Int64, mtime: Double, items: Int
+    var matchKey: String = ""
+}
+
+/// The form of a file name used to compare main drives with their backups. Removes differences that are
+/// invisible to people: Unicode normalization ("ü" stored as one or two characters, common between a Mac
+/// and a NAS) and the stand-in characters SMB shares use for : ? * | " < > \ and trailing spaces/dots.
+func matchKey(_ name: String) -> String {
+    let s = name.precomposedStringWithCanonicalMapping
+    guard s.unicodeScalars.contains(where: { $0.value >= 0xF001 && $0.value <= 0xF029 }) else { return s }
+    let map: [UInt32: String] = [0xF020: "\"", 0xF021: "*", 0xF022: ":", 0xF023: "<", 0xF024: ">", 0xF025: "?",
+                                 0xF026: "\\", 0xF027: "|", 0xF028: " ", 0xF029: "."]
+    var out = ""
+    for u in s.unicodeScalars {
+        if let m = map[u.value] { out += m }
+        else if u.value >= 0xF001 && u.value <= 0xF01F, let c = Unicode.Scalar(u.value - 0xF000) { out.unicodeScalars.append(c) }
+        else { out.unicodeScalars.append(u) }
+    }
+    return out
 }
 
 /// Thin SQLite wrapper. Each instance must be used from one queue only.
@@ -89,6 +107,9 @@ final class DB {
         addColumn("backup_history", "grp", "TEXT")
         addColumn("backup_history", "label", "TEXT")
         addColumn("drives", "sort_order", "INTEGER")   // v1.9: user-defined order in the drive list
+        // v1.9: normalized names for matching backups (filled properly on the next scan)
+        if addColumn("entries", "nkey", "TEXT") { exec("UPDATE entries SET nkey = name WHERE nkey IS NULL") }
+        exec("CREATE INDEX IF NOT EXISTS entries_nkey_size ON entries(nkey, size)")
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -96,9 +117,11 @@ final class DB {
 
     deinit { sqlite3_close(h) }
 
-    private func addColumn(_ table: String, _ column: String, _ type: String) {
+    @discardableResult
+    private func addColumn(_ table: String, _ column: String, _ type: String) -> Bool {
         let cols = rows("PRAGMA table_info(\(table))").compactMap { $0["name"] as? String }
-        if !cols.contains(column) { exec("ALTER TABLE \(table) ADD COLUMN \(column) \(type)") }
+        if cols.contains(column) { return false }
+        return exec("ALTER TABLE \(table) ADD COLUMN \(column) \(type)")
     }
 
     @discardableResult
@@ -165,7 +188,7 @@ final class DB {
     func insert(_ batch: [Entry]) {
         guard !batch.isEmpty else { return }
         exec("BEGIN")
-        if let s = prepare("INSERT INTO entries(drive_id,gen,parent,name,is_dir,size,mtime,items) VALUES(?,?,?,?,?,?,?,?)", []) {
+        if let s = prepare("INSERT INTO entries(drive_id,gen,parent,name,is_dir,size,mtime,items,nkey) VALUES(?,?,?,?,?,?,?,?,?)", []) {
             for e in batch {
                 sqlite3_reset(s)
                 sqlite3_bind_int64(s, 1, Int64(e.driveID))
@@ -176,6 +199,7 @@ final class DB {
                 sqlite3_bind_int64(s, 6, e.size)
                 sqlite3_bind_double(s, 7, e.mtime)
                 sqlite3_bind_int64(s, 8, Int64(e.items))
+                sqlite3_bind_text(s, 9, e.matchKey.isEmpty ? e.name : e.matchKey, -1, TRANSIENT)
                 sqlite3_step(s)
             }
             sqlite3_finalize(s)
@@ -500,7 +524,7 @@ final class DB {
         run("""
             UPDATE entries SET copies = (
                 SELECT COUNT(DISTINCT \(setOf)) FROM entries b
-                WHERE b.name = entries.name AND b.size = entries.size AND b.is_dir <> 1 AND (\(cond)))
+                WHERE b.nkey = entries.nkey AND b.size = entries.size AND b.is_dir <> 1 AND (\(cond)))
             WHERE drive_id = ? AND gen = ? AND is_dir <> 1
             """, [mainID, gen])
         for p in excludedPaths(mainID) {
@@ -533,7 +557,7 @@ final class DB {
             let scope = members.map { scopeSQL($0) }.joined(separator: " OR ")
             let r = row("""
                 SELECT COUNT(*) AS n, SUM(f) AS have, SUM(CASE WHEN f THEN 0 ELSE size END) AS mb FROM (
-                    SELECT entries.size AS size, EXISTS(SELECT 1 FROM entries b WHERE b.name = entries.name
+                    SELECT entries.size AS size, EXISTS(SELECT 1 FROM entries b WHERE b.nkey = entries.nkey
                         AND b.size = entries.size AND b.is_dir <> 1 AND (\(scope))) AS f
                     FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0)
                 """, [mainID, gen]) ?? [:]
@@ -610,7 +634,7 @@ final class DB {
         let scope = members.map { scopeSQL($0) }.joined(separator: " OR ")
         let base = """
             FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0 AND NOT EXISTS(
-                SELECT 1 FROM entries b WHERE b.name = entries.name AND b.size = entries.size AND b.is_dir <> 1 AND (\(scope)))
+                SELECT 1 FROM entries b WHERE b.nkey = entries.nkey AND b.size = entries.size AND b.is_dir <> 1 AND (\(scope)))
             """
         let args: [Any?] = [mainID, gen]
         let total = row("SELECT COUNT(*) AS n, SUM(size) AS bytes \(base)", args) ?? [:]
@@ -675,11 +699,11 @@ final class DB {
         run("ATTACH DATABASE ? AS x", [path])
         defer { exec("DETACH DATABASE x") }
         guard exec("""
-            CREATE TABLE x.entries(parent TEXT, name TEXT, is_dir INTEGER, size INTEGER, mtime REAL, items INTEGER);
+            CREATE TABLE x.entries(parent TEXT, name TEXT, is_dir INTEGER, size INTEGER, mtime REAL, items INTEGER, nkey TEXT);
             CREATE TABLE x.info(k TEXT PRIMARY KEY, v);
             """) else { return false }
         exec("BEGIN")
-        run("INSERT INTO x.entries SELECT parent, name, is_dir, size, mtime, items FROM entries WHERE drive_id=? AND gen=?", [id, gen])
+        run("INSERT INTO x.entries SELECT parent, name, is_dir, size, mtime, items, nkey FROM entries WHERE drive_id=? AND gen=?", [id, gen])
         for k in ["key", "name", "kind", "source", "fs", "total_bytes", "free_bytes", "used_bytes", "file_count",
                   "dir_count", "catalog_bytes", "last_scan", "scan_seconds", "first_seen", "media"] {
             run("INSERT INTO x.info(k, v) VALUES(?, ?)", [k, d[k]])
@@ -713,7 +737,8 @@ final class DB {
             gen = 1
         }
         exec("BEGIN")
-        run("INSERT INTO entries(drive_id, gen, parent, name, is_dir, size, mtime, items) SELECT ?, ?, parent, name, is_dir, size, mtime, items FROM y.entries", [id, gen])
+        let hasKey = rows("PRAGMA y.table_info(entries)").contains { $0["name"] as? String == "nkey" }
+        run("INSERT INTO entries(drive_id, gen, parent, name, is_dir, size, mtime, items, nkey) SELECT ?, ?, parent, name, is_dir, size, mtime, items, \(hasKey ? "COALESCE(nkey, name)" : "name") FROM y.entries", [id, gen])
         exec("COMMIT")
         let machine = info["machine"] as? String ?? "another Mac"
         finishScan(id: id, gen: gen, files: info["file_count"] as? Int ?? 0, dirs: info["dir_count"] as? Int ?? 0,
