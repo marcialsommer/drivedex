@@ -98,13 +98,17 @@ enum Shoots {
     private static func fileKey(_ name: String, _ size: Int64) -> String { matchKey(name) + "\u{0}" + String(size) }
 
     /// Reads the files in a folder on a connected drive (names and sizes only).
-    private static func walkLive(_ root: URL, into set: inout Set<String>) -> Bool {
+    private static func walkLive(_ root: URL, mount: URL, into set: inout Set<String>) -> Bool {
+        if Scanner.shared.isEjecting(mount) { return false }
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: root.path, isDirectory: &isDir), isDir.boolValue else { return false }
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
         guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys, options: [],
                                                       errorHandler: { _, _ in true }) else { return false }
+        var count = 0
         for case let u as URL in en {
+            count += 1
+            if count % 200 == 0 && Scanner.shared.isEjecting(mount) { return false }   // being ejected: let go
             let n = u.lastPathComponent
             if n.hasPrefix("._") || n == ".DS_Store" { continue }
             guard let v = try? u.resourceValues(forKeys: Set(keys)), v.isRegularFile == true else { continue }
@@ -131,7 +135,7 @@ enum Shoots {
             if let v = online[key] {
                 let root = path.isEmpty ? v.url : v.url.appendingPathComponent(path, isDirectory: true)
                 var set = Set<String>()
-                if walkLive(root, into: &set) { dest.have = set; dest.live = true }
+                if walkLive(root, mount: v.url, into: &set) { dest.have = set; dest.live = true }
                 else { dest.error = "Folder “\(path)” not found yet" ; dest.live = true }
             } else if let id = d?["id"] as? Int, let gen = d?["gen"] as? Int {
                 let sql: String; let args: [Any?]

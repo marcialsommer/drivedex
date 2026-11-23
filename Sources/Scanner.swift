@@ -34,12 +34,14 @@ private let entryKeySet = Set(entryKeys)
 enum ScanError: Error {
     case disconnected
     case stopped
+    case ejected
     case cannotRead(Error)
 
     var message: String {
         switch self {
         case .disconnected: return "The drive was disconnected during the scan."
         case .stopped: return "Scan stopped."
+        case .ejected: return "Stopped because the drive was ejected."
         case .cannotRead(let e):
             let ns = e as NSError
             let denied = (ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoPermissionError)
@@ -74,6 +76,9 @@ final class Scanner {
     private var stopKeys = Set<String>()                 // scans the user asked to stop / dequeue
     private var stoppedAt: [String: Double] = [:]        // when the user last stopped a drive's scan   // new drives waiting for the user's OK
     private var timer: Timer?
+    private var ejecting = Set<String>()                 // mount paths the user is ejecting: let go of them at once
+    private var currentMount: String?                    // mount path of the drive being scanned
+    private var daSession: DASession?
 
     // MARK: - volumes
 
@@ -166,6 +171,7 @@ final class Scanner {
     // MARK: - lifecycle
 
     func start() {
+        watchEjects()
         queue.async {
             self.db.recoverInterruptedScans()
             for id in self.db.mainsNeedingCoverage() { self.recompute(id) }
@@ -287,6 +293,40 @@ final class Scanner {
         }
     }
 
+    /// When the user ejects a drive, macOS asks every program first. If DriveDex is scanning that drive,
+    /// stop the scan right away (keeping the previous catalog) so the eject isn't blocked.
+    private func watchEjects() {
+        guard let s = DASessionCreate(kCFAllocatorDefault) else { return }
+        DASessionSetDispatchQueue(s, DispatchQueue(label: "drivedex.eject"))
+        let ctx = Unmanaged.passUnretained(self).toOpaque()
+        DARegisterDiskUnmountApprovalCallback(s, nil, { disk, ctx in
+            guard let ctx = ctx,
+                  let desc = DADiskCopyDescription(disk) as NSDictionary?,
+                  let url = desc[kDADiskDescriptionVolumePathKey as String] as? URL else { return nil }
+            Unmanaged<Scanner>.fromOpaque(ctx).takeUnretainedValue().letGo(url.standardizedFileURL.path)
+            return nil   // never object to an eject
+        }, ctx)
+        daSession = s
+    }
+
+    private func letGo(_ path: String) {
+        lock.lock(); ejecting.insert(path); lock.unlock()
+        // Wait (briefly) until a running scan of this drive has stopped reading it.
+        for _ in 0..<30 {
+            lock.lock(); let busy = currentMount == path; lock.unlock()
+            if !busy { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 20) { [weak self] in
+            self?.lock.lock(); self?.ejecting.remove(path); self?.lock.unlock()
+        }
+    }
+
+    func isEjecting(_ mount: URL) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return ejecting.contains(mount.standardizedFileURL.path)
+    }
+
     private func isCancelled(_ mount: URL) -> Bool {
         lock.lock(); defer { lock.unlock() }
         return cancelled.contains(mount.standardizedFileURL.path)
@@ -317,6 +357,9 @@ final class Scanner {
         let labelText = d["label"] as? String ?? ""
         let label = labelText.isEmpty ? v.name : labelText
         lock.lock(); cancelled.remove(v.url.standardizedFileURL.path); lock.unlock()
+        if isEjecting(v.url) { return }
+        lock.lock(); currentMount = v.url.standardizedFileURL.path; lock.unlock()
+        defer { lock.lock(); currentMount = nil; lock.unlock() }
 
         let job = ScanJob(id: id, gen: gen, mount: v.url, includeHidden: Settings.includeHidden, key: v.key)
         db.setStatus(id, "scanning", "starting")
@@ -342,6 +385,13 @@ final class Scanner {
             if db.row("SELECT role FROM drives WHERE id=?", [id])?["role"] as? String == "main" { mains.append(id) }
             for m in Set(mains) { recompute(m) }
             exportToSync([id])
+        } catch ScanError.ejected {
+            job.batch.removeAll()
+            db.deleteGen(id, gen)
+            db.setStatus(id, "ok", "Last scan stopped: the drive was ejected")
+            db.logScan(id, result: "stopped", files: job.files, dirs: job.dirs, bytes: 0,
+                       seconds: Date().timeIntervalSince(t0), detail: "Stopped because the drive was ejected. The previous catalog was kept.",
+                       machine: SyncFolder.machine)
         } catch ScanError.stopped {
             job.batch.removeAll()
             db.deleteGen(id, gen)
@@ -371,6 +421,7 @@ final class Scanner {
 
     /// Returns (total size, number of direct children).
     private func walk(_ job: ScanJob, _ rel: String, _ url: URL, depth: Int) throws -> (Int64, Int) {
+        if isEjecting(job.mount) { throw ScanError.ejected }
         if isCancelled(job.mount) { throw ScanError.disconnected }
         if isStopped(job.key) { throw ScanError.stopped }
         let items: [URL]
@@ -383,7 +434,8 @@ final class Scanner {
         }
         var total: Int64 = 0
         var children = 0
-        for item in items {
+        for (n, item) in items.enumerated() {
+            if n % 200 == 199 && isEjecting(job.mount) { throw ScanError.ejected }
             let name = item.lastPathComponent
             if skipNames.contains(name) || name.hasPrefix("._") || (!job.includeHidden && name.hasPrefix(".")) { continue }
             guard let v = try? item.resourceValues(forKeys: entryKeySet) else { job.errors += 1; continue }
@@ -392,7 +444,7 @@ final class Scanner {
             var size: Int64 = 0, kind = 0, count = 0
             if v.isDirectory == true {
                 if v.isPackage == true || packageExts.contains(item.pathExtension.lowercased()) {
-                    size = packageSize(item); kind = 2; job.files += 1
+                    size = packageSize(item, mount: job.mount); kind = 2; job.files += 1
                 } else {
                     kind = 1; job.dirs += 1
                     if depth < 200 {
@@ -411,11 +463,14 @@ final class Scanner {
         return (total, children)
     }
 
-    private func packageSize(_ url: URL) -> Int64 {
+    private func packageSize(_ url: URL, mount: URL) -> Int64 {
         var t: Int64 = 0
         guard let en = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey], options: [],
                                                       errorHandler: { _, _ in true }) else { return 0 }
+        var n = 0
         for case let u as URL in en {
+            n += 1
+            if n % 200 == 0 && isEjecting(mount) { break }   // the user is ejecting: let go now
             // Skip helper files that differ between a Mac disk and a NAS copy of the same bundle.
             let n = u.lastPathComponent
             if n.hasPrefix("._") || skipNames.contains(n) { continue }
