@@ -79,6 +79,7 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .drv.kid{padding:5px 8px;margin:1px 0}.drv.kid .t{font-weight:500;font-size:13px}.drv.kid .s{font-size:11.5px}
 .kn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
+.exm{color:var(--mute);margin-left:4px;font-size:12px}.isex .nm,.isex td.n{opacity:.55}
 .ticks{margin-left:auto;font-weight:700;font-size:13px;letter-spacing:-1px;white-space:nowrap}
 .bktab{width:100%;border-collapse:collapse;margin-top:10px;border:0;background:transparent}
 .bktab td,.bktab th{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:normal;font-size:13px}
@@ -209,7 +210,8 @@ async function drawColumns(){
   if(state!==me)return;
   const all=extra?paths.concat([joinP(state.path,selItem.name)]):paths;state.colPaths=all;
   const dot=e=>e.is_dir==1||e.copies==null?'':`<span class="cd ${e.copies<0?'':e.copies>=2?'c2':e.copies==1?'c1':'c0'}" title="${e.copies<0?'Excluded':e.copies+' backup'+(e.copies==1?'':'s')}"></span>`;
-  const col=(rows,i,selName)=>`<div class="col">${rows.length?rows.map(e=>`<div class="ci ${e.name==selName?(i==paths.length-1?'sel':'selp'):''}" data-ci="${i}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><span class="ic">${icon(e)}</span><span class="nm">${esc(e.name)}</span>${dot(e)}${e.is_dir==1?'<span class="chev">›</span>':''}</div>`).join(''):'<div class="mute" style="padding:8px">Empty folder</div>'}</div>`;
+  const dd=cur(),cp=i=>i<paths.length?paths[i]:joinP(state.path,selItem?selItem.name:'');
+  const col=(rows,i,selName)=>`<div class="col">${rows.length?rows.map(e=>{const ex=exclOf(dd,joinP(cp(i),e.name));return `<div class="ci ${e.name==selName?(i==paths.length-1?'sel':'selp'):''} ${ex?'isex':''}" data-ci="${i}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><span class="ic">${icon(e)}</span><span class="nm">${esc(e.name)}</span>${ex?'<span class="exm" title="Excluded from the backup check">⊘</span>':''}${ex?'':dot(e)}${e.is_dir==1?'<span class="chev">›</span>':''}</div>`}).join(''):'<div class="mute" style="padding:8px">Empty folder</div>'}</div>`;
   let html=paths.map((p,i)=>col(lists[i],i,i<parts.length?parts[i]:state.sel)).join('');
   if(extra)html+=col(extra,paths.length,null);
   else if(selItem){const k=selItem.copies;
@@ -314,6 +316,17 @@ function hideCtx(){$('#ctx').style.display='none'}
 document.addEventListener('contextmenu',e=>{
   if(e.target.closest('input,textarea'))return;   // keep copy/paste menu in text fields
   e.preventDefault();
+  const fe=e.target.closest('.ci[data-d="1"],#list tr[data-n][data-d="1"]');
+  if(fe&&state.mode=='drive'){
+    const d=cur(),base=fe.classList.contains('ci')?(state.colPaths||[''])[+fe.dataset.ci]:state.path,path=joinP(base,fe.dataset.n);
+    const x=exclOf(d,path),own=(d.excluded||[]).includes(path);
+    const items=[{label:'Open',fn:()=>{state.path=path;state.sel=null;state.hl=null;viewMode=='columns'?navCols():render()}},
+      {label:'Show in Finder',fn:()=>api('reveal',{id:d.id,path}).catch(e=>toast(e.message)),cls:d.online?'':'dis'},'-',
+      own?{label:'Include in backup check',fn:()=>setExcl(d,path,false)}
+         :x?{label:`Inside excluded “${x.split('/').pop()}”`,fn:()=>{},cls:'dis'}
+         :{label:'Exclude from backup check',fn:()=>setExcl(d,path,true)},
+      {label:'Use as backup location…',fn:()=>{state.path=path;state.sel=null;state.hl=null;viewMode=='columns'?navCols():render();toast('Choose the drive it backs up in the bar above the files')}}];
+    showCtx(e,items);return}
   const el=e.target.closest('.drv,.drvrow');if(!el){hideCtx();return}
   const d=drives.find(x=>x.id==el.dataset.id);if(!d)return;
   const it=(label,fn,cls='')=>({label,fn,cls});
@@ -323,11 +336,19 @@ document.addEventListener('contextmenu',e=>{
     ...TYPES.map(([v,l])=>it((d.type==v?'✓ ':'\u2003')+'Type: '+l,()=>api('setType',{id:d.id,type:v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     ...[['main','Main files'],['backup','Backup'],['','Other']].map(([v,l])=>it((d.role||'')==v?'✓ '+l:'\u2003'+l,()=>api('setRole',{id:d.id,role:v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     it('Forget drive…',()=>forgetDrive(d),'red')];
-  const m=$('#ctx');m.innerHTML=items.map((x,i)=>x=='-'?'<hr>':`<div class="${x.cls}" data-i="${i}">${esc(x.label)}</div>`).join('');
+  showCtx(e,items);
+});
+function showCtx(e,items){
+  const m=$('#ctx');m.innerHTML=items.map((x,i)=>x=='-'?'<hr>':`<div class="${x.cls||''}" data-i="${i}">${esc(x.label)}</div>`).join('');
   m.querySelectorAll('div[data-i]').forEach(n=>n.onclick=()=>{hideCtx();items[+n.dataset.i].fn()});
   m.style.display='block';const r=m.getBoundingClientRect();
   m.style.left=Math.min(e.clientX,innerWidth-r.width-8)+'px';m.style.top=Math.min(e.clientY,innerHeight-r.height-8)+'px';
-});
+}
+function setExcl(d,path,on){
+  api('setExcluded',{id:d.id,path,on}).then(async()=>{
+    toast(on?(hasBackups(d)?'Excluded from the backup check':'Excluded. It will be skipped once this drive has backups assigned'):'Included in the backup check again');
+    await loadDrives();viewMode=='columns'?navCols():render()}).catch(e=>toast(e.message));
+}
 document.addEventListener('click',e=>{if(!e.target.closest('#ctx'))hideCtx()});
 document.addEventListener('keydown',e=>{if(e.key=='Escape')hideCtx()});
 window.addEventListener('blur',hideCtx);
@@ -429,7 +450,7 @@ function bindSort(redraw){document.querySelectorAll('th[data-k]').forEach(t=>t.o
 function drawList(){
   const rows=state.rows;if(!rows.length){$('#list').className='empty';$('#list').textContent=cur().last_scan?'This folder is empty.':'Not scanned yet.';return}
   $('#list').className='';
-  $('#list').innerHTML=`<table>${th('name','Name')}${th('size','Size','r')}${state.cov?'<th class="r">Backups</th>':''}${th('mtime','Modified','r hide-sm')}${sorter(rows).map(e=>`<tr class="${e.is_dir==1?'click':''} ${state.hl==e.name?'hl':''}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}${e.is_dir==1?` <span class="mute">· ${e.items} item${e.items==1?'':'s'}</span>`:''}</td><td class="r">${hb(e.size)}</td>${covCell(e)}<td class="r hide-sm">${date(e.mtime)}</td></tr>`).join('')}</table>`;
+  $('#list').innerHTML=`<table>${th('name','Name')}${th('size','Size','r')}${state.cov?'<th class="r">Backups</th>':''}${th('mtime','Modified','r hide-sm')}${sorter(rows).map(e=>{const ex=exclOf(cur(),joinP(state.path,e.name));return `<tr class="${e.is_dir==1?'click':''} ${state.hl==e.name?'hl':''} ${ex?'isex':''}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}${ex?'<span class="exm" title="Excluded from the backup check">⊘</span>':''}${e.is_dir==1?` <span class="mute">· ${e.items} item${e.items==1?'':'s'}</span>`:''}</td><td class="r">${hb(e.size)}</td>${covCell(e)}<td class="r hide-sm">${date(e.mtime)}</td></tr>`}).join('')}</table>`;
   bindSort(drawList);
   document.querySelectorAll('#list tr[data-n]').forEach(tr=>{if(tr.dataset.d==1)tr.onclick=()=>{state.path=state.path?state.path+'/'+tr.dataset.n:tr.dataset.n;state.hl=null;render()}});
   const h=document.querySelector('tr.hl');if(h)h.scrollIntoView({block:'center'});
