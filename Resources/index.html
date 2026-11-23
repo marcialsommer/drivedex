@@ -65,6 +65,14 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 #ctx div.dis{opacity:.4;pointer-events:none}#ctx div.red{color:var(--err)}#ctx div.red:hover{color:#fff;background:var(--err)}#ctx hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 .tag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:1px;border:1px solid currentColor;opacity:.85}
 .tag.ssd{color:#8a4fd8}.tag.hdd{color:#b5762a}.tag.nas{color:#2f8fa8}.tag.other{color:var(--mute)}
+.crumbrow{display:flex;align-items:center;gap:10px;margin:8px 0 12px}.crumbrow .crumbs{flex:1;margin:0}
+.cols{display:flex;height:min(64vh,600px);border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow-x:auto;overflow-y:hidden;outline:none}
+.col{flex:none;width:250px;border-right:1px solid var(--line);overflow-y:auto;padding:4px}
+.ci{display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:5px;white-space:nowrap}
+.ci .nm{flex:1;overflow:hidden;text-overflow:ellipsis}.ci .chev{color:var(--mute);font-size:15px;line-height:1}
+.ci.sel{background:var(--acc);color:#fff}.ci.sel .chev{color:#fff}.ci.selp{background:var(--line)}
+.col.info{width:290px;padding:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;word-break:break-word}
+.col.info .big{font-size:44px;line-height:1}
 .ticks{margin-left:auto;font-weight:700;font-size:13px;letter-spacing:-1px;white-space:nowrap}
 .bktab{width:100%;border-collapse:collapse;margin-top:10px;border:0;background:transparent}
 .bktab td,.bktab th{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:normal;font-size:13px}
@@ -121,7 +129,8 @@ const TYPES=[['hdd','HDD'],['ssd','SSD'],['nas','NAS'],['other','Other']];
 const tagHTML=d=>d.type?`<span class="tag ${d.type}">${d.type=='other'?'OTHER':d.type.toUpperCase()}</span>`:'';
 const bkColor=b=>b.n==null?'var(--off)':!b.n||b.have>=b.n?'var(--ok)':b.have/b.n>=0.9?'var(--warn)':'var(--err)';
 const bkPct=b=>b.n?Math.floor(1000*b.have/b.n)/10:100;
-const bkName=b=>(dname(b.id)||'?')+(b.path?' / '+b.path:'');
+const memName=m=>(dname(m.id)||'?')+(m.path?' / '+m.path:'');
+const bkName=b=>(b.members&&b.members.length?b.members:[b]).map(memName).join(' + ');
 function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)return'';
   return `<span class="ticks" title="${esc(bs.map(b=>bkName(b)+': '+(b.n==null?'checking':bkPct(b)+'% backed up')+(b.last_in_sync?', last in sync '+date(b.last_in_sync):'')).join('\n'))}">${bs.map(b=>`<span style="color:${bkColor(b)}">✓</span>`).join('')}</span>`}
 const GROUPS=[['main','Main files'],['backup','Backups'],['','Other']];
@@ -156,15 +165,79 @@ function renderHome(){
   ${drives.map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc(d.notes).slice(0,60)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${ago(d.last_scan)}</td></tr>`).join('')}</table>`;
   document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
 }
-function openDrive(id,path,hl){state={mode:'drive',drive:id,path,hl};$('#q').value='';render();loadDrives()}
-async function render(){
-  if(state.mode!='drive')return;
-  $('#view').innerHTML=`<div id="dh"></div><div class="crumbs" id="crumbs"></div><div id="exbar"></div><div id="list" class="empty">Loading…</div>`;
-  drawExBar();
-  renderDriveHeader();
+let viewMode=(()=>{try{return localStorage.getItem('dd_view')||'columns'}catch(e){return'columns'}})();
+const lcache=new Map();
+const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'});
+async function listOf(drive,path){const k=drive+'\u0000'+path;if(lcache.has(k))return lcache.get(k);
+  const r=(await api('list',{drive,path})).slice().sort(byName);lcache.set(k,r);return r}
+const joinP=(a,b)=>a?a+'/'+b:b;
+function openDrive(id,path,hl){state={mode:'drive',drive:id,path,hl,sel:hl||null};$('#q').value='';render();loadDrives()}
+function drawCrumbs(){
   const parts=state.path?state.path.split('/'):[];
   $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
-  document.querySelectorAll('#crumbs a').forEach(a=>a.onclick=()=>{state.path=a.dataset.p;state.hl=null;render()});
+  document.querySelectorAll('#crumbs a').forEach(a=>a.onclick=()=>{const ps=state.path.split('/');state.path=a.dataset.p;state.hl=null;
+    state.sel=a.dataset.p==state.path&&ps.length>(a.dataset.p?a.dataset.p.split('/').length:0)?null:null;viewMode=='columns'?navCols():render()});
+}
+function navCols(){drawCrumbs();drawExBar();drawColumns()}
+async function drawColumns(){
+  const me=state,parts=state.path?state.path.split('/'):[];
+  const paths=[''].concat(parts.map((_,i)=>parts.slice(0,i+1).join('/')));
+  const lists=await Promise.all(paths.map(p=>listOf(state.drive,p)));
+  if(state!==me)return;
+  const last=lists[lists.length-1],selItem=last.find(e=>e.name==state.sel);
+  let extra=null;
+  if(selItem&&selItem.is_dir==1)extra=await listOf(state.drive,joinP(state.path,selItem.name));
+  if(state!==me)return;
+  const all=extra?paths.concat([joinP(state.path,selItem.name)]):paths;state.colPaths=all;
+  const dot=e=>e.is_dir==1||e.copies==null?'':`<span class="cd ${e.copies<0?'':e.copies>=2?'c2':e.copies==1?'c1':'c0'}" title="${e.copies<0?'Excluded':e.copies+' backup'+(e.copies==1?'':'s')}"></span>`;
+  const col=(rows,i,selName)=>`<div class="col">${rows.length?rows.map(e=>`<div class="ci ${e.name==selName?(i==paths.length-1?'sel':'selp'):''}" data-ci="${i}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><span class="ic">${icon(e)}</span><span class="nm">${esc(e.name)}</span>${dot(e)}${e.is_dir==1?'<span class="chev">›</span>':''}</div>`).join(''):'<div class="mute" style="padding:8px">Empty folder</div>'}</div>`;
+  let html=paths.map((p,i)=>col(lists[i],i,i<parts.length?parts[i]:state.sel)).join('');
+  if(extra)html+=col(extra,paths.length,null);
+  else if(selItem){const k=selItem.copies;
+    html+=`<div class="col info"><div class="big">${icon(selItem)}</div><b>${esc(selItem.name)}</b>
+      <div class="mute">${hb(selItem.size)} · modified ${date(selItem.mtime)}</div>
+      ${k==null?'':k<0?'<div class="mute">⊘ Excluded from the backup check</div>':`<div><span class="cd ${k>=2?'c2':k==1?'c1':'c0'}"></span>${k==0?'Not backed up':k==1?'On 1 backup':'On '+k+' backups'}</div>`}
+      <div class="path">${esc(joinP(state.path,selItem.name))}</div>
+      <button id="inforeveal" ${cur().online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>`}
+  const box=$('#list');box.className='';box.innerHTML=`<div class="cols" id="cols">${html}</div>`;
+  box.querySelectorAll('.ci').forEach(el=>{
+    el.onclick=()=>{const i=+el.dataset.ci;state.path=all[i];state.sel=el.dataset.n;state.hl=null;navCols()};
+    el.ondblclick=()=>{if(el.dataset.d==1)colKey('ArrowRight')};
+  });
+  if($('#inforeveal'))$('#inforeveal').onclick=()=>api('reveal',{id:state.drive,path:joinP(state.path,state.sel)}).catch(e=>toast(e.message));
+  const c=$('#cols');c.scrollLeft=c.scrollWidth;
+  const sel=box.querySelector('.ci.sel');if(sel)sel.scrollIntoView({block:'nearest'});
+}
+let typeBuf='',typeT;
+async function colKey(k){
+  const last=await listOf(state.drive,state.path);
+  let i=last.findIndex(x=>x.name==state.sel);
+  if(k=='ArrowDown'){if(!last.length)return;i=Math.min(last.length-1,i+1);state.sel=last[i].name}
+  else if(k=='ArrowUp'){if(!last.length)return;i=i<0?0:Math.max(0,i-1);state.sel=last[i].name}
+  else if(k=='ArrowRight'||k=='Enter'){const it=last[i];if(!it||it.is_dir!=1)return;
+    state.path=joinP(state.path,it.name);const ch=await listOf(state.drive,state.path);state.sel=ch.length?ch[0].name:null}
+  else if(k=='ArrowLeft'){if(!state.path)return;const ps=state.path.split('/');state.sel=ps.pop();state.path=ps.join('/')}
+  else if(k.length==1){clearTimeout(typeT);typeBuf+=k.toLowerCase();typeT=setTimeout(()=>typeBuf='',900);
+    const hit=last.find(x=>x.name.toLowerCase().startsWith(typeBuf));if(!hit)return;state.sel=hit.name}
+  state.hl=null;navCols();
+}
+document.addEventListener('keydown',e=>{
+  if(e.metaKey&&e.key==','){e.preventDefault();openSettings();return}
+  if(state.mode!='drive'||viewMode!='columns'||e.metaKey||e.ctrlKey||e.altKey)return;
+  const t=document.activeElement.tagName;if(t=='INPUT'||t=='TEXTAREA'||t=='SELECT')return;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter'].includes(e.key)||(e.key.length==1&&e.key!=' '&&e.key!='/')){e.preventDefault();colKey(e.key)}
+});
+async function render(){
+  if(state.mode!='drive')return;
+  $('#view').innerHTML=`<div id="dh"></div><div class="crumbrow"><div class="crumbs" id="crumbs"></div>
+    <div class="segs">${[['columns','Columns'],['list','List']].map(([v,l])=>`<button class="seg ${viewMode==v?'on':''}" data-view="${v}">${l}</button>`).join('')}</div></div>
+    <div id="exbar"></div><div id="list" class="empty">Loading…</div>`;
+  document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{viewMode=b.dataset.view;try{localStorage.setItem('dd_view',viewMode)}catch(e){}render()});
+  lcache.clear();
+  drawExBar();
+  renderDriveHeader();
+  drawCrumbs();
+  if(viewMode=='columns'){if(state.hl){state.sel=state.hl}await drawColumns();return}
   const want=covReady(cur()),me=state;
   const [rows,cov]=await Promise.all([api('list',{drive:state.drive,path:state.path}),want?api('folderCoverage',{drive:state.drive,path:state.path}):Promise.resolve(null)]);
   if(state!==me)return;
@@ -192,6 +265,11 @@ function renderDriveHeader(){
   document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);api('setBackupOf',{id:d.id,mains:ids}).then(()=>{toast(ids.length?'Saved. Checking backups…':'Saved');redo()})});
   if($('#sugapply'))$('#sugapply').onclick=()=>api('setBackupOf',{id:d.id,mains:[...new Set([...(d.backup_of||[]),...guessMains(d).map(x=>x.id)])]}).then(()=>{toast('Saved. Checking backups…');redo()});
   document.querySelectorAll('#dh [data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''));
+  document.querySelectorAll('#dh [data-missset]').forEach(a=>a.onclick=()=>openMissing(d.id,0,a.dataset.missset));
+  document.querySelectorAll('#dh [data-split]').forEach(b=>b.onclick=()=>{const set=(d.backup_status||[]).find(x=>x.set==b.dataset.split);
+    api('setBackupSet',{main:d.id,ids:set.members.map(m=>m.id),on:false}).then(()=>{toast('Split. Checking backups…');redo()})});
+  document.querySelectorAll('#dh [data-combine]').forEach(sel=>sel.onchange=()=>{if(!sel.value)return;const other=(d.backup_status||[]).find(x=>x.set==sel.value);
+    api('setBackupSet',{main:d.id,ids:[+sel.dataset.combine,...other.members.map(m=>m.id)],on:true}).then(()=>{toast('Combined into one backup set. Checking…');redo()})});
   if($('#remind'))$('#remind').onchange=()=>api('setReminder',{id:d.id,days:+$('#remind').value}).then(()=>{toast('Reminder saved');redo()});
   if($('#hist'))loadHistory(d);
   document.querySelectorAll('#dh [data-goto]').forEach(a=>a.onclick=()=>{state.path=a.dataset.goto;state.hl=null;render()});
@@ -259,12 +337,15 @@ function covHTML(d){
   const exl=`<div style="margin-top:8px;font-size:12px"><span class="mute">Excluded from the check${d.cov_excluded?` (${d.cov_excluded.toLocaleString()} files)`:''}: </span>${ex.length?ex.map(p=>`<span class="xchip"><a data-goto="${esc(p)}">${esc(p)}</a><button data-unex="${esc(p)}" title="Check this folder again">×</button></span>`).join(''):'<span class="mute">none. Open a folder and choose “Exclude from backup check” if it doesn\'t need a backup.</span>'}</div>`;
   const bs=d.backup_status||[],rd=d.remind_days||0,now=Date.now()/1000;
   const due=bs.filter(b=>rd&&now-(b.backup_scan||0)>rd*86400);
-  const tab=`<table class="bktab"><tr><th>Backup location</th><th>Backed up</th><th>Missing</th><th>Last in sync</th><th>Catalog from</th></tr>${bs.map(b=>{const miss=(b.n||0)-(b.have||0);
-    return `<tr><td><a class="lnk" data-open="${b.id}">${esc(dname(b.id)||'?')}</a>${b.path?`<span class="mute"> / ${esc(b.path)}</span>`:''}</td>
+  const tab=`<table class="bktab"><tr><th>Backup</th><th>Backed up</th><th>Missing</th><th>Last in sync</th><th>Catalog from</th><th></th></tr>${bs.map(b=>{const miss=(b.n||0)-(b.have||0),mem=b.members&&b.members.length?b.members:[b];
+    const names=mem.map(m=>`<a class="lnk" data-open="${m.id}">${esc(dname(m.id)||'?')}</a>${m.path?`<span class="mute"> / ${esc(m.path)}</span>`:''}`).join(' + ');
+    const act=mem.length>1?`<button class="sm" data-split="${esc(b.set)}" title="Treat these as separate backups again">Split</button>`
+      :bs.length>1?`<select class="sm" data-combine="${b.id}" title="Use when one backup is spread over several drives"><option value="">Combine with…</option>${bs.filter(x=>x.set!=b.set).map(x=>`<option value="${esc(x.set)}">${esc(bkName(x))}</option>`).join('')}</select>`:'';
+    return `<tr><td>${names}${mem.length>1?' <span class="tag other" title="One backup spread over several locations">SET</span>':''}</td>
     <td>${b.n==null?'<span class="mute">checking…</span>':`<span class="minibar"><i style="width:${bkPct(b)}%;background:${bkColor(b)}"></i></span>${bkPct(b)}%`}</td>
-    <td>${b.n==null?'':miss?`<span class="errc">${miss.toLocaleString()} files · ${hb(b.missing_bytes)}</span>`:'<span class="okc">✓ none</span>'}</td>
+    <td>${b.n==null?'':miss?`<a class="lnk warnc" data-missset="${esc(b.set)}" title="Show which files this backup doesn't have">⚠ ${miss.toLocaleString()} files · ${hb(b.missing_bytes)} ›</a>`:'<span class="okc">✓ none</span>'}</td>
     <td>${b.last_in_sync?date(b.last_in_sync):'<span class="mute">not yet</span>'}</td>
-    <td class="${due.includes(b)?'warnc':''}">${ago(b.backup_scan)}</td></tr>`}).join('')}</table>`;
+    <td class="${due.includes(b)?'warnc':''}">${ago(b.backup_scan)}</td><td>${act}</td></tr>`}).join('')}</table>`;
   const rem=`<div class="row" style="margin-top:8px;font-size:12px"><span class="mute">Remind me when a backup hasn't been updated for</span>
     <select class="sm" id="remind">${[[0,'never'],[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([v,l])=>`<option value="${v}" ${rd==v?'selected':''}>${l}</option>`).join('')}</select>
     ${due.length?`<span class="warnc">⏰ Due: ${due.map(b=>esc(dname(b.id)||'?')).join(', ')}</span>`:''}</div>`;
@@ -277,16 +358,17 @@ function covHTML(d){
   <div class="row covleg"><span><span class="cd c2"></span>2+ backups: ${c2.toLocaleString()} (${p(c2)}%)</span><span><span class="cd c1"></span>1 backup: ${c1.toLocaleString()} (${p(c1)}%)</span><span><span class="cd c0"></span>Not backed up: ${c0.toLocaleString()} files · ${hb(d.cov_none_bytes)}</span></div>
   <div class="row" style="margin-top:6px">${c0?`<button data-miss="0">Show files not backed up</button>`:'<span class="okc">✓ Every file has at least one backup</span>'}${c1?`<button data-miss="1">Show files with fewer than 2 backups</button>`:''}</div>`+bl;
 }
-async function openMissing(id,max){
-  state={mode:'missing',drive:id,max};$('#q').value='';
+async function openMissing(id,max,set){
+  state={mode:'missing',drive:id,max,set};$('#q').value='';
   const d=cur();$('#view').innerHTML='<div class="empty">Loading…</div>';
-  const r=await api('missing',{drive:id,max});
-  const title=max==0?'not backed up':'with fewer than 2 backups';
+  const r=set?await api('missingFromSet',{drive:id,set}):await api('missing',{drive:id,max});
+  const sb=set&&(d.backup_status||[]).find(x=>x.set==set);
+  const title=set?`missing from ${sb?bkName(sb):'this backup'}`:max==0?'not backed up':'with fewer than 2 backups';
   $('#view').innerHTML=`<div class="card"><div class="crumbs" style="margin:0 0 6px"><a id="back">${esc(d.display)}</a> / Files ${title}</div>
   <h2>${r.total.toLocaleString()} file${r.total==1?'':'s'} ${title} · ${hb(r.bytes)}</h2>
   <div class="mute">${r.total>r.rows.length?`Showing the first ${r.rows.length.toLocaleString()}. `:''}Click a file to open its folder.</div>
   ${r.folders.length?`<h3>Folders with the most</h3><div>${r.folders.map(f=>`<span class="chip" data-p="${esc(f.parent)}">${esc(f.parent||'/')} · ${f.n.toLocaleString()}</span>`).join('')}</div>`:''}</div>
-  ${r.rows.length?`<table><tr><th>Name</th><th class="r">Backups</th><th class="r">Size</th><th class="r hide-sm">Modified</th></tr>${r.rows.map(e=>`<tr class="click" data-p="${esc(e.parent)}" data-n="${esc(e.name)}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}<div class="path">${esc(e.parent||'/')}</div></td><td class="r"><span class="cd ${e.copies==1?'c1':'c0'}"></span>${e.copies}</td><td class="r">${hb(e.size)}</td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join('')}</table>`:''}`;
+  ${r.rows.length?`<table><tr><th>Name</th><th class="r">Backups</th><th class="r">Size</th><th class="r hide-sm">Modified</th></tr>${r.rows.map(e=>`<tr class="click" data-p="${esc(e.parent)}" data-n="${esc(e.name)}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}<div class="path">${esc(e.parent||'/')}</div></td><td class="r"><span class="cd ${e.copies>=2?'c2':e.copies==1?'c1':'c0'}"></span>${e.copies}</td><td class="r">${hb(e.size)}</td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join('')}</table>`:''}`;
   $('#back').onclick=()=>openDrive(id,'');
   document.querySelectorAll('#view .chip[data-p]').forEach(c=>c.onclick=()=>openDrive(id,c.dataset.p));
   document.querySelectorAll('#view tr[data-n]').forEach(tr=>tr.onclick=()=>openDrive(id,tr.dataset.p,tr.dataset.n));

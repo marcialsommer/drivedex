@@ -114,9 +114,23 @@ enum Bridge {
             Scanner.shared.exportMeta([id])
             return ok
 
+        case "setBackupSet":
+            guard let main = int("main") else { return err("missing drive") }
+            let ids = (a["ids"] as? [Any] ?? []).compactMap { ($0 as? Int) ?? Int("\($0)") }
+            let changed = db.setBackupSet(mainID: main, backupIDs: ids, on: a["on"] as? Bool ?? true)
+            db.markChecking([main])
+            db.touchMeta(changed)
+            Scanner.shared.recomputeCoverage([main])
+            Scanner.shared.exportMeta(changed)
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))
+
+        case "missingFromSet":
+            guard let id = int("drive") else { return err("missing drive") }
+            return db.missingFromSet(id, setKey: str("set"))
 
         case "missing":
             guard let id = int("drive") else { return err("missing drive") }

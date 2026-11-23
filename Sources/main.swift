@@ -56,6 +56,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    @objc func openSettings() {
+        showWindow()
+        webView.evaluateJavaScript("openSettings()", completionHandler: nil)
+    }
+
+    @objc func focusSearch() {
+        showWindow()
+        webView.evaluateJavaScript("document.querySelector('#q').focus()", completionHandler: nil)
+    }
+
     @objc func rescanConnected() { Scanner.shared.scanAllConnected(force: true) }
 
     func buildWindow() {
@@ -100,6 +110,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About DriveDex", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Rescan Connected Drives", action: #selector(rescanConnected), keyEquivalent: "r").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide DriveDex", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
@@ -116,6 +128,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Find…", action: #selector(focusSearch), keyEquivalent: "f").target = self
         editItem.submenu = edit
         main.addItem(editItem)
 
