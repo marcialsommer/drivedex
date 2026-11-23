@@ -23,6 +23,7 @@ enum Settings {
             "includeHidden": false,
             "skipDiskImages": true,
             "notify": true,
+            "askNew": true,
         ])
     }
     static var rescanAfterHours: Double { d.double(forKey: "rescanAfterHours") }
@@ -31,6 +32,7 @@ enum Settings {
     static var includeHidden: Bool { d.bool(forKey: "includeHidden") }
     static var skipDiskImages: Bool { d.bool(forKey: "skipDiskImages") }
     static var notify: Bool { d.bool(forKey: "notify") }
+    static var askNew: Bool { d.bool(forKey: "askNew") }
 }
 
 struct Entry {

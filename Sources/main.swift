@@ -5,7 +5,7 @@ import WebKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandlerWithReply,
-    UNUserNotificationCenterDelegate {
+    WKUIDelegate, UNUserNotificationCenterDelegate {
     var window: NSWindow!
     var webView: WKWebView!
     var statusItem: NSStatusItem!
@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let config = WKWebViewConfiguration()
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "api")
         webView = WKWebView(frame: .zero, configuration: config)
+        webView.uiDelegate = self   // makes confirm()/alert() in the page show real dialogs
         webView.setValue(false, forKey: "drawsBackground")
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1150, height: 740),
@@ -173,6 +174,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             let result = Bridge.handle(action, args)
             DispatchQueue.main.async { replyHandler(result, nil) }
         }
+    }
+
+    // MARK: - page dialogs (confirm / alert)
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let alert = NSAlert()
+        let parts = message.components(separatedBy: "\n\n")
+        alert.messageText = parts.first ?? message
+        if parts.count > 1 { alert.informativeText = parts.dropFirst().joined(separator: "\n\n") }
+        alert.addButton(withTitle: message.hasPrefix("Forget") ? "Forget" : "OK")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { completionHandler($0 == .alertFirstButtonReturn) }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.beginSheetModal(for: window) { _ in completionHandler() }
     }
 
     // MARK: - notifications

@@ -65,6 +65,7 @@ final class Scanner {
     private let lock = NSLock()
     private var pending = Set<String>()
     private var cancelled = Set<String>()
+    private var pendingNew: [String: VolumeInfo] = [:]   // new drives waiting for the user's OK
     private var timer: Timer?
 
     // MARK: - volumes
@@ -96,10 +97,10 @@ final class Scanner {
         if let session = DASessionCreate(kCFAllocatorDefault),
            let disk = DADiskCreateFromVolumePath(kCFAllocatorDefault, session, url as CFURL),
            let desc = DADiskCopyDescription(disk) as NSDictionary? {
-            let proto = desc[kDADiskDescriptionDeviceProtocolKey as String] as? String ?? ""
-            let model = desc[kDADiskDescriptionDeviceModelKey as String] as? String ?? ""
+            let proto = (desc[kDADiskDescriptionDeviceProtocolKey as String] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            let model = (desc[kDADiskDescriptionDeviceModelKey as String] as? String ?? "").trimmingCharacters(in: .whitespaces)
             let media = desc[kDADiskDescriptionMediaNameKey as String] as? String ?? ""
-            info.isDiskImage = proto == "Disk Image" || model == "Disk Image"
+            info.isDiskImage = proto == "Disk Image" || proto == "Virtual Interface" || model.contains("Disk Image")
             info.source = [model.trimmingCharacters(in: .whitespaces), proto].filter { !$0.isEmpty }.joined(separator: " · ")
             if info.source.isEmpty { info.source = media }
         }
@@ -115,7 +116,11 @@ final class Scanner {
         if folder.hasPrefix(".") { return nil }
         let ignore = Settings.ignoreVolumes
         if ignore.contains(folder) { return nil }
-        guard let v = volumeInfo(url) else { return nil }
+        guard var v = volumeInfo(url) else { return nil }
+        // App installers (.dmg with an "Applications" shortcut) are never worth cataloguing.
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: url.appendingPathComponent("Applications").path)) == "/Applications" {
+            v.isDiskImage = true
+        }
         if v.isDiskImage && Settings.skipDiskImages { return nil }
         if ignore.contains(v.name) { return nil }
         return v
@@ -150,7 +155,11 @@ final class Scanner {
         }
         nc.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: nil) { [weak self] n in
             guard let self = self, let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
-            self.lock.lock(); self.cancelled.insert(url.standardizedFileURL.path); self.lock.unlock()
+            let path = url.standardizedFileURL.path
+            self.lock.lock()
+            self.cancelled.insert(path)
+            self.pendingNew = self.pendingNew.filter { $0.value.url.standardizedFileURL.path != path }
+            self.lock.unlock()
         }
         timer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
             self?.scanAllConnected(force: false)
@@ -164,14 +173,34 @@ final class Scanner {
         }
     }
 
-    func enqueue(_ v: VolumeInfo, force: Bool) {
+    /// New drives that are connected but not catalogued yet because DriveDex is waiting for the user's OK.
+    func pendingDrives() -> [[String: Any]] {
+        lock.lock(); defer { lock.unlock() }
+        return pendingNew.values.sorted { $0.name < $1.name }.map {
+            ["key": $0.key, "name": $0.name, "kind": $0.kind, "total": $0.total ?? 0, "used": ($0.total ?? 0) - ($0.free ?? 0)]
+        }
+    }
+
+    func approve(_ key: String) {
+        lock.lock(); let v = pendingNew.removeValue(forKey: key); lock.unlock()
+        if let v = v { enqueue(v, force: true, approved: true) }
+    }
+
+    func ignore(_ key: String) {
+        lock.lock(); let v = pendingNew.removeValue(forKey: key); lock.unlock()
+        guard let v = v else { return }
+        var names = Settings.ignoreVolumes
+        if !names.contains(v.name) { names.append(v.name); Settings.d.set(names, forKey: "ignoreVolumes") }
+    }
+
+    func enqueue(_ v: VolumeInfo, force: Bool, approved: Bool = false) {
         lock.lock()
         if pending.contains(v.key) { lock.unlock(); return }
         pending.insert(v.key)
         lock.unlock()
         queue.async {
             defer { self.lock.lock(); self.pending.remove(v.key); self.lock.unlock() }
-            self.scan(v, force: force)
+            self.scan(v, force: force, approved: approved)
         }
     }
 
@@ -188,7 +217,15 @@ final class Scanner {
 
     // MARK: - scanning
 
-    private func scan(_ v: VolumeInfo, force: Bool) {
+    private func scan(_ v: VolumeInfo, force: Bool, approved: Bool) {
+        if !approved && Settings.askNew && db.row("SELECT id FROM drives WHERE key=?", [v.key]) == nil {
+            lock.lock()
+            let isNew = pendingNew[v.key] == nil
+            pendingNew[v.key] = v
+            lock.unlock()
+            if isNew { notify("New drive “\(v.name)” connected. Open DriveDex to add it to your catalog.", force: true) }
+            return
+        }
         let id = db.upsertDrive(v)
         guard let d = db.row("SELECT * FROM drives WHERE id=?", [id]) else { return }
         let lastScan = d["last_scan"] as? Double ?? 0
@@ -286,8 +323,8 @@ final class Scanner {
         return t
     }
 
-    private func notify(_ text: String) {
-        guard Settings.notify else { return }
+    private func notify(_ text: String, force: Bool = false) {
+        guard Settings.notify || force else { return }
         let c = UNMutableNotificationContent()
         c.title = "DriveDex"
         c.body = text

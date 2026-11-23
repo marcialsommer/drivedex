@@ -45,6 +45,17 @@ enum Bridge {
             Scanner.shared.exportMeta(mains)
             return ok
 
+        case "pending":
+            return Scanner.shared.pendingDrives()
+
+        case "approveDrive":
+            Scanner.shared.approve(str("key"))
+            return ok
+
+        case "ignoreDrive":
+            Scanner.shared.ignore(str("key"))
+            return ok
+
         case "setRole":
             guard let id = int("id") else { return err("missing id") }
             let role = ["main", "backup"].contains(str("role")) ? str("role") : ""
@@ -149,6 +160,7 @@ enum Bridge {
             if let v = a["includeHidden"] as? Bool { d.set(v, forKey: "includeHidden") }
             if let v = a["skipDiskImages"] as? Bool { d.set(v, forKey: "skipDiskImages") }
             if let v = a["notify"] as? Bool { d.set(v, forKey: "notify") }
+            if let v = a["askNew"] as? Bool { d.set(v, forKey: "askNew") }
             if let v = a["ignoreVolumes"] as? [String] {
                 d.set(v.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, forKey: "ignoreVolumes")
             }
@@ -192,6 +204,7 @@ enum Bridge {
             "includeHidden": Settings.includeHidden,
             "skipDiskImages": Settings.skipDiskImages,
             "notify": Settings.notify,
+            "askNew": Settings.askNew,
             "ignoreVolumes": Settings.ignoreVolumes,
             "openAtLogin": status == "enabled",
             "loginStatus": status,
