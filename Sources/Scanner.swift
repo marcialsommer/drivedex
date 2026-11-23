@@ -163,7 +163,9 @@ final class Scanner {
         }
         timer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
             self?.scanAllConnected(force: false)
+            self?.checkReminders()
         }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 60) { [weak self] in self?.checkReminders() }
         DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in self?.scanAllConnected(force: false) }
     }
 
@@ -208,6 +210,19 @@ final class Scanner {
     func recomputeCoverage(_ ids: [Int]) {
         guard !ids.isEmpty else { return }
         queue.async { for id in Set(ids) { self.db.recomputeCoverage(id) } }
+    }
+
+    /// Notify (at most about once a day per backup) when a backup is older than its main drive's reminder interval.
+    func checkReminders() {
+        queue.async {
+            var last = Settings.d.dictionary(forKey: "remindedAt") as? [String: Double] ?? [:]
+            let now = Date().timeIntervalSince1970
+            for r in self.db.dueReminders() where now - (last[r.key] ?? 0) > 20 * 3600 {
+                self.notify("Backup reminder: “\(r.backup)” (backup of \(r.main)) was last updated \(r.days) days ago. Time to connect or swap it.", force: true)
+                last[r.key] = now
+            }
+            Settings.d.set(last, forKey: "remindedAt")
+        }
     }
 
     private func isCancelled(_ mount: URL) -> Bool {

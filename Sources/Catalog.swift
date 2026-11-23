@@ -71,6 +71,16 @@ final class DB {
         exec("CREATE TABLE IF NOT EXISTS backups(main_id INTEGER, backup_id INTEGER, PRIMARY KEY(main_id, backup_id))")
         exec("CREATE TABLE IF NOT EXISTS excluded(drive_id INTEGER, path TEXT, PRIMARY KEY(drive_id, path))")
         addColumn("drives", "cov_excluded", "INTEGER")
+        // v1.4: folder backup locations, per-backup status, history, reminders
+        addColumn("backups", "backup_path", "TEXT DEFAULT ''")
+        for c in ["cov_n", "cov_have", "cov_missing_bytes"] { addColumn("backups", c, "INTEGER") }
+        exec("""
+            CREATE TABLE IF NOT EXISTS backup_history(
+                id INTEGER PRIMARY KEY, main_id INTEGER, backup_id INTEGER, at REAL,
+                n INTEGER, have INTEGER, missing_bytes INTEGER, main_scan REAL, backup_scan REAL);
+            CREATE INDEX IF NOT EXISTS backup_history_pair ON backup_history(main_id, backup_id, at);
+            """)
+        addColumn("drives", "remind_days", "INTEGER DEFAULT 0")
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -215,6 +225,7 @@ final class DB {
     func forget(_ id: Int) {
         run("DELETE FROM backups WHERE main_id=? OR backup_id=?", [id, id])
         run("DELETE FROM excluded WHERE drive_id=?", [id])
+        run("DELETE FROM backup_history WHERE main_id=? OR backup_id=?", [id, id])
         if hasFTS { run("DELETE FROM names WHERE rowid IN (SELECT id FROM entries WHERE drive_id=?)", [id]) }
         run("DELETE FROM entries WHERE drive_id=?", [id])
         run("DELETE FROM drives WHERE id=?", [id])
@@ -225,9 +236,12 @@ final class DB {
         for r in rows("SELECT drive_id, path FROM excluded ORDER BY path") {
             if let id = r["drive_id"] as? Int, let p = r["path"] as? String { excl[id, default: []].append(p) }
         }
-        for r in rows("SELECT main_id, backup_id FROM backups") {
+        var folderBackups: [Int: [[String: Any]]] = [:]
+        for r in rows("SELECT main_id, backup_id, COALESCE(backup_path,'') AS path FROM backups") {
             guard let m = r["main_id"] as? Int, let b = r["backup_id"] as? Int else { continue }
-            backupOf[b, default: []].append(m)
+            let path = r["path"] as? String ?? ""
+            if path.isEmpty { backupOf[b, default: []].append(m) }
+            else { folderBackups[b, default: []].append(["main": m, "path": path]) }
             backedUpBy[m, default: []].append(b)
         }
         return rows("SELECT * FROM drives ORDER BY COALESCE(NULLIF(label,''), name) COLLATE NOCASE").map { r in
@@ -241,6 +255,8 @@ final class DB {
             d["backup_of"] = backupOf[id] ?? []
             d["backed_up_by"] = backedUpBy[id] ?? []
             d["excluded"] = excl[id] ?? []
+            d["folder_backups"] = folderBackups[id] ?? []
+            if !(backedUpBy[id] ?? []).isEmpty { d["backup_status"] = backupStatus(id) }
             return d
         }
     }
@@ -298,8 +314,9 @@ final class DB {
     func setRole(_ id: Int, _ role: String) -> [Int] {
         var affected: [Int] = []
         if role != "backup" {
-            affected += mainsBackedUpBy(id)
-            run("DELETE FROM backups WHERE backup_id=?", [id])
+            affected += rows("SELECT main_id FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [id])
+                .compactMap { $0["main_id"] as? Int }
+            run("DELETE FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [id])
         }
         if role == "main" {
             affected.append(id)
@@ -313,16 +330,74 @@ final class DB {
 
     /// Marks `backupID` as a backup of exactly `mains`. Returns the mains to recompute.
     func setBackupOf(_ backupID: Int, _ mains: [Int]) -> [Int] {
-        let old = mainsBackedUpBy(backupID)
-        run("DELETE FROM backups WHERE backup_id=?", [backupID])
+        let old = rows("SELECT main_id FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [backupID])
+            .compactMap { $0["main_id"] as? Int }
+        run("DELETE FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [backupID])
         run("DELETE FROM backups WHERE main_id=?", [backupID])
         clearCoverage(backupID)
         run("UPDATE drives SET role='backup' WHERE id=?", [backupID])
         for m in mains where m != backupID {
-            run("INSERT OR IGNORE INTO backups(main_id, backup_id) VALUES(?,?)", [m, backupID])
+            run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path) VALUES(?,?,'')", [m, backupID])
             run("UPDATE drives SET role='main' WHERE id=?", [m])
         }
         return Array(Set(old + mains))
+    }
+
+    /// Use a folder on `driveID` as the backup location of `mainID` (on == false removes it).
+    func setFolderBackup(driveID: Int, path: String, mainID: Int, on: Bool) {
+        if on {
+            run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path) VALUES(?,?,?)", [mainID, driveID, path])
+            run("UPDATE drives SET role='main' WHERE id=?", [mainID])
+        } else {
+            run("DELETE FROM backups WHERE main_id=? AND backup_id=? AND backup_path=?", [mainID, driveID, path])
+        }
+    }
+
+    /// SQL condition matching rows `b` of entries inside one backup location (whole drive or a folder).
+    private func scopeSQL(_ bk: [String: Any]) -> String {
+        let id = bk["id"] as? Int ?? -1, gen = bk["gen"] as? Int ?? -1
+        let path = bk["path"] as? String ?? ""
+        if path.isEmpty { return "(b.drive_id=\(id) AND b.gen=\(gen))" }
+        let q = { (s: String) in "'" + s.replacingOccurrences(of: "'", with: "''") + "'" }
+        return "(b.drive_id=\(id) AND b.gen=\(gen) AND (b.parent=\(q(path)) OR (b.parent >= \(q(path + "/")) AND b.parent < \(q(path + "0")))))"
+    }
+
+    /// Per-backup status of a main drive.
+    func backupStatus(_ mainID: Int) -> [[String: Any]] {
+        rows("""
+            SELECT b.backup_id AS id, COALESCE(b.backup_path,'') AS path, b.cov_n AS n, b.cov_have AS have,
+                   b.cov_missing_bytes AS missing_bytes, d.last_scan AS backup_scan,
+                   (SELECT MAX(h.backup_scan) FROM backup_history h WHERE h.main_id=b.main_id AND h.backup_id=b.backup_id
+                      AND h.n > 0 AND h.have = h.n) AS last_in_sync
+            FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
+            ORDER BY COALESCE(NULLIF(d.label,''), d.name) COLLATE NOCASE
+            """, [mainID])
+    }
+
+    func history(_ mainID: Int, limit: Int = 60) -> [[String: Any]] {
+        rows("""
+            SELECT h.backup_id, COALESCE(NULLIF(d.label,''), d.name) AS backup, h.at, h.n, h.have, h.missing_bytes,
+                   h.main_scan, h.backup_scan
+            FROM backup_history h LEFT JOIN drives d ON d.id = h.backup_id
+            WHERE h.main_id=? ORDER BY h.at DESC LIMIT ?
+            """, [mainID, limit])
+    }
+
+    /// Backups older than their main drive's reminder interval.
+    func dueReminders() -> [(main: String, backup: String, days: Int, key: String)] {
+        let now = Date().timeIntervalSince1970
+        return rows("""
+            SELECT m.id AS mid, b.backup_id AS bid, m.remind_days AS rd, COALESCE(NULLIF(m.label,''), m.name) AS mname,
+                   COALESCE(NULLIF(d.label,''), d.name) AS bname, d.last_scan AS bscan
+            FROM drives m JOIN backups b ON b.main_id = m.id JOIN drives d ON d.id = b.backup_id
+            WHERE m.remind_days > 0
+            """).compactMap { r in
+            guard let rd = r["rd"] as? Int, rd > 0 else { return nil }
+            let age = now - (r["bscan"] as? Double ?? 0)
+            guard age > Double(rd) * 86400 else { return nil }
+            return (r["mname"] as? String ?? "", r["bname"] as? String ?? "", Int(age / 86400),
+                    "\(r["mid"] as? Int ?? 0)-\(r["bid"] as? Int ?? 0)")
+        }
     }
 
     func excludedPaths(_ id: Int) -> [String] {
@@ -349,11 +424,13 @@ final class DB {
     /// For every file on a main drive, count how many of its backup drives hold a file with the same name and size.
     func recomputeCoverage(_ mainID: Int) {
         guard let d = row("SELECT gen FROM drives WHERE id=?", [mainID]), let gen = d["gen"] as? Int else { return }
-        let bks = rows("SELECT d.id AS id, d.gen AS gen FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?", [mainID])
+        let bks = rows("""
+            SELECT d.id AS id, d.gen AS gen, COALESCE(b.backup_path,'') AS path
+            FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
+            """, [mainID])
         if bks.isEmpty { clearCoverage(mainID); return }
         run("UPDATE drives SET cov_state='checking' WHERE id=?", [mainID])
-        let cond = bks.map { "(b.drive_id=\($0["id"] as? Int ?? -1) AND b.gen=\($0["gen"] as? Int ?? -1))" }
-            .joined(separator: " OR ")
+        let cond = bks.map { scopeSQL($0) }.joined(separator: " OR ")
         exec("BEGIN")
         run("""
             UPDATE entries SET copies = (
@@ -377,6 +454,33 @@ final class DB {
             cov_state='ok' WHERE id=?
             """, [s["n"] as? Int ?? 0, s["c0"] as? Int ?? 0, s["c1"] as? Int ?? 0, s["c2"] as? Int ?? 0,
                   s["nb"] as? Int ?? 0, s["ex"] as? Int ?? 0, mainID])
+        // How complete is each backup location on its own? Keep a history of changes.
+        let mainScan = row("SELECT last_scan FROM drives WHERE id=?", [mainID])?["last_scan"] as? Double ?? 0
+        for b in bks {
+            guard let bid = b["id"] as? Int else { continue }
+            let r = row("""
+                SELECT COUNT(*) AS n, SUM(f) AS have, SUM(CASE WHEN f THEN 0 ELSE size END) AS mb FROM (
+                    SELECT entries.size AS size, EXISTS(SELECT 1 FROM entries b WHERE b.name = entries.name
+                        AND b.size = entries.size AND b.is_dir <> 1 AND \(scopeSQL(b))) AS f
+                    FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0)
+                """, [mainID, gen]) ?? [:]
+            let n = r["n"] as? Int ?? 0, have = r["have"] as? Int ?? 0, mb = r["mb"] as? Int ?? 0
+            run("UPDATE backups SET cov_n=?, cov_have=?, cov_missing_bytes=? WHERE main_id=? AND backup_id=?",
+                [n, have, mb, mainID, bid])
+            let backupScan = row("SELECT last_scan FROM drives WHERE id=?", [bid])?["last_scan"] as? Double ?? 0
+            let last = row("""
+                SELECT n, have, main_scan, backup_scan FROM backup_history
+                WHERE main_id=? AND backup_id=? ORDER BY at DESC LIMIT 1
+                """, [mainID, bid])
+            let changed = last == nil || last?["n"] as? Int != n || last?["have"] as? Int != have
+                || last?["backup_scan"] as? Double != backupScan || last?["main_scan"] as? Double != mainScan
+            if changed {
+                run("""
+                    INSERT INTO backup_history(main_id, backup_id, at, n, have, missing_bytes, main_scan, backup_scan)
+                    VALUES(?,?,?,?,?,?,?,?)
+                    """, [mainID, bid, Date().timeIntervalSince1970, n, have, mb, mainScan, backupScan])
+            }
+        }
         exec("COMMIT")
     }
 
@@ -438,14 +542,20 @@ final class DB {
 
     /// Editable, user-facing info about a drive, shared between Macs.
     func metaDict(_ id: Int) -> [String: Any]? {
-        guard let d = row("SELECT key, name, label, notes, role, meta_updated FROM drives WHERE id=?", [id]),
+        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days FROM drives WHERE id=?", [id]),
               let key = d["key"] as? String else { return nil }
-        let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=?", [id])
+        let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.backup_path,'')=''", [id])
             .compactMap { $0["key"] as? String }
+        let folders: [[String: Any]] = rows("SELECT d.key AS key, b.backup_path AS path FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.backup_path,'')<>''", [id])
+            .compactMap { r in
+                guard let k = r["key"] as? String, let p = r["path"] as? String else { return nil }
+                return ["main": k, "path": p]
+            }
         return [
             "key": key, "name": d["name"] as? String ?? "", "label": d["label"] as? String ?? "",
             "notes": d["notes"] as? String ?? "", "role": d["role"] as? String ?? "",
-            "backup_of": mains, "excluded": excludedPaths(id),
+            "backup_of": mains, "folder_backups": folders, "excluded": excludedPaths(id),
+            "remind_days": d["remind_days"] as? Int ?? 0,
             "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
         ]
     }
@@ -530,10 +640,18 @@ final class DB {
         run("DELETE FROM backups WHERE backup_id=?", [id])
         for mk in m["backup_of"] as? [String] ?? [] {
             if let mid = row("SELECT id FROM drives WHERE key=?", [mk])?["id"] as? Int {
-                run("INSERT OR IGNORE INTO backups(main_id, backup_id) VALUES(?,?)", [mid, id])
+                run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path) VALUES(?,?,'')", [mid, id])
                 affected.append(mid)
             }
         }
+        for f in m["folder_backups"] as? [[String: Any]] ?? [] {
+            if let mk = f["main"] as? String, let path = f["path"] as? String,
+               let mid = row("SELECT id FROM drives WHERE key=?", [mk])?["id"] as? Int {
+                run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path) VALUES(?,?,?)", [mid, id, path])
+                affected.append(mid)
+            }
+        }
+        if let rd = m["remind_days"] as? Int { run("UPDATE drives SET remind_days=? WHERE id=?", [rd, id]) }
         if let ex = m["excluded"] as? [String] {
             run("DELETE FROM excluded WHERE drive_id=?", [id])
             for p in ex { setExcluded(id, p, true) }

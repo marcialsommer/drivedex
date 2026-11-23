@@ -63,6 +63,12 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 #ctx{position:fixed;z-index:50;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:5px;display:none}
 #ctx div{padding:6px 10px;border-radius:5px;cursor:default}#ctx div:hover{background:var(--acc);color:#fff}
 #ctx div.dis{opacity:.4;pointer-events:none}#ctx div.red{color:var(--err)}#ctx div.red:hover{color:#fff;background:var(--err)}#ctx hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.ticks{margin-left:auto;font-weight:700;font-size:13px;letter-spacing:-1px;white-space:nowrap}
+.bktab{width:100%;border-collapse:collapse;margin-top:10px;border:0;background:transparent}
+.bktab td,.bktab th{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:normal;font-size:13px}
+.bktab th{font-size:11px;cursor:default}.minibar{display:inline-block;width:70px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;vertical-align:middle;margin-right:6px}.minibar i{display:block;height:100%}
+.hist{margin-top:6px;font-size:12px}.hist div{display:flex;gap:10px;padding:4px 0;border-bottom:1px solid var(--line)}.hist div span:first-child{color:var(--mute);min-width:118px}
+select.sm{padding:3px 6px;font-size:12px}
 .okc{color:var(--ok)}.warnc{color:var(--warn)}.errc{color:var(--err)}
 a.lnk{color:var(--acc);cursor:pointer}
 body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-user-select:text}
@@ -105,9 +111,15 @@ function covShort(d){
   if(!covReady(d))return '<span class="mute">Checking backups…</span>';
   const n=d.cov_files||0;if(!n)return '';
   const pct=Math.floor(1000*(n-(d.cov_none||0))/n)/10;
+  if(!d.cov_none&&(d.backed_up_by||[]).length<2)return '<span class="okc">✓ Backed up</span>';
   return d.cov_none?`<span class="errc">${pct}% backed up</span>`:d.cov_one?`<span class="warnc">100% backed up · ${(d.cov_two||0)==n?'':Math.floor(100*(d.cov_two||0)/n)+'% twice'}</span>`:'<span class="okc">✓ Backed up twice</span>';
 }
 let prevCov={};
+const bkColor=b=>b.n==null?'var(--off)':!b.n||b.have>=b.n?'var(--ok)':b.have/b.n>=0.9?'var(--warn)':'var(--err)';
+const bkPct=b=>b.n?Math.floor(1000*b.have/b.n)/10:100;
+const bkName=b=>(dname(b.id)||'?')+(b.path?' / '+b.path:'');
+function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)return'';
+  return `<span class="ticks" title="${esc(bs.map(b=>bkName(b)+': '+(b.n==null?'checking':bkPct(b)+'% backed up')+(b.last_in_sync?', last in sync '+date(b.last_in_sync):'')).join('\n'))}">${bs.map(b=>`<span style="color:${bkColor(b)}">✓</span>`).join('')}</span>`}
 const GROUPS=[['main','Main files'],['backup','Backups'],['','Other']];
 const grpOf=d=>d.role=='main'?0:d.role=='backup'?1:2;
 let pending=[];
@@ -123,7 +135,7 @@ async function loadDrives(){
     const g=grpOf(d),head=g!=lastG&&(drives.some(x=>x.role)) ?`<div class="grp">${GROUPS[g][1]}</div>`:'';lastG=g;
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
-    return head+`<div class="drv ${state.drive==d.id?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span>${esc(d.display)}</div>
+    return head+`<div class="drv ${state.drive==d.id?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span>${esc(d.display)}${ticks(d)}</div>
     <div class="s">${d.kind=='network'?'🌐 ':''}${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)?`<div class="s">${covShort(d)}</div>`:''}</div>`}).join(''):(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
   document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
@@ -175,11 +187,21 @@ function renderDriveHeader(){
   document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);api('setBackupOf',{id:d.id,mains:ids}).then(()=>{toast(ids.length?'Saved. Checking backups…':'Saved');redo()})});
   if($('#sugapply'))$('#sugapply').onclick=()=>api('setBackupOf',{id:d.id,mains:[...new Set([...(d.backup_of||[]),...guessMains(d).map(x=>x.id)])]}).then(()=>{toast('Saved. Checking backups…');redo()});
   document.querySelectorAll('#dh [data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''));
+  if($('#remind'))$('#remind').onchange=()=>api('setReminder',{id:d.id,days:+$('#remind').value}).then(()=>{toast('Reminder saved');redo()});
+  if($('#hist'))loadHistory(d);
   document.querySelectorAll('#dh [data-goto]').forEach(a=>a.onclick=()=>{state.path=a.dataset.goto;state.hl=null;render()});
   document.querySelectorAll('#dh [data-unex]').forEach(b=>b.onclick=()=>api('setExcluded',{id:d.id,path:b.dataset.unex,on:false}).then(()=>{toast('Included in the backup check again');redo();drawExBarSoon()}));
   document.querySelectorAll('#dh [data-miss]').forEach(b=>b.onclick=()=>openMissing(d.id,+b.dataset.miss));
   $('#reveal').onclick=()=>api('reveal',{id:d.id,path:state.path}).catch(e=>toast(e.message));
   $('#forget').onclick=()=>forgetDrive(d);
+}
+async function loadHistory(d){
+  const h=await api('history',{drive:d.id}).catch(()=>[]);const el=$('#hist');if(!el)return;
+  if(!h.length){el.innerHTML='<span class="mute">No checks yet.</span>';return}
+  const row=x=>{const miss=x.n-x.have;const st=!x.n||miss<=0?'<span class="okc">✓ In sync</span>':`<span class="${x.have/x.n>=0.9?'warnc':'errc'}">Out of sync · ${miss.toLocaleString()} files missing (${hb(x.missing_bytes)})</span>`;
+    return `<div><span>${new Date(x.at*1000).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}</span><span style="min-width:150px">${esc(x.backup||'?')}</span>${st}</div>`};
+  const show=n=>{el.innerHTML=h.slice(0,n).map(row).join('')+(h.length>n?`<a class="lnk" id="histmore" style="display:block;margin-top:4px">Show all ${h.length}</a>`:'');if($('#histmore'))$('#histmore').onclick=()=>show(h.length)};
+  show(6);
 }
 function forgetDrive(d){
   if(!confirm(`Forget “${d.display}”?\n\nIts catalog, notes and backup settings are removed from DriveDex${'\u00a0'}(and from your other Macs if you share). Nothing on the drive itself is touched. If you connect it again, DriveDex will ask before cataloguing it.`))return;
@@ -226,7 +248,19 @@ function covHTML(d){
   if(!bk.length)return `<div class="mute" style="margin-top:8px">No backup drive assigned yet. Open a backup drive, set it to <b>Backup</b> and tick “${esc(d.display)}”.</div>`;
   const ex=d.excluded||[];
   const exl=`<div style="margin-top:8px;font-size:12px"><span class="mute">Excluded from the check${d.cov_excluded?` (${d.cov_excluded.toLocaleString()} files)`:''}: </span>${ex.length?ex.map(p=>`<span class="xchip"><a data-goto="${esc(p)}">${esc(p)}</a><button data-unex="${esc(p)}" title="Check this folder again">×</button></span>`).join(''):'<span class="mute">none. Open a folder and choose “Exclude from backup check” if it doesn\'t need a backup.</span>'}</div>`;
-  const bl=exl+`<div class="mute" style="margin-top:8px;font-size:12px">Backed up on ${bk.map(x=>`<a class="lnk" data-open="${x.id}">${esc(x.display)}</a> (catalog from ${ago(x.last_scan)})`).join(', ')}. Files count as backed up when a file with the same name and size is on the backup drive.</div>`;
+  const bs=d.backup_status||[],rd=d.remind_days||0,now=Date.now()/1000;
+  const due=bs.filter(b=>rd&&now-(b.backup_scan||0)>rd*86400);
+  const tab=`<table class="bktab"><tr><th>Backup location</th><th>Backed up</th><th>Missing</th><th>Last in sync</th><th>Catalog from</th></tr>${bs.map(b=>{const miss=(b.n||0)-(b.have||0);
+    return `<tr><td><a class="lnk" data-open="${b.id}">${esc(dname(b.id)||'?')}</a>${b.path?`<span class="mute"> / ${esc(b.path)}</span>`:''}</td>
+    <td>${b.n==null?'<span class="mute">checking…</span>':`<span class="minibar"><i style="width:${bkPct(b)}%;background:${bkColor(b)}"></i></span>${bkPct(b)}%`}</td>
+    <td>${b.n==null?'':miss?`<span class="errc">${miss.toLocaleString()} files · ${hb(b.missing_bytes)}</span>`:'<span class="okc">✓ none</span>'}</td>
+    <td>${b.last_in_sync?date(b.last_in_sync):'<span class="mute">not yet</span>'}</td>
+    <td class="${due.includes(b)?'warnc':''}">${ago(b.backup_scan)}</td></tr>`}).join('')}</table>`;
+  const rem=`<div class="row" style="margin-top:8px;font-size:12px"><span class="mute">Remind me when a backup hasn't been updated for</span>
+    <select class="sm" id="remind">${[[0,'never'],[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([v,l])=>`<option value="${v}" ${rd==v?'selected':''}>${l}</option>`).join('')}</select>
+    ${due.length?`<span class="warnc">⏰ Due: ${due.map(b=>esc(dname(b.id)||'?')).join(', ')}</span>`:''}</div>`;
+  const bl=tab+rem+exl+`<div style="margin-top:10px"><b style="font-size:13px">History</b><div class="hist" id="hist"><span class="mute">Loading…</span></div></div>
+    <div class="mute" style="margin-top:8px;font-size:12px">Files count as backed up when a file with the same name and size is in the backup location. Each backup is only as current as its last catalog.</div>`;
   if(!covReady(d))return `<div style="margin-top:8px" class="status scanning">Checking backups…</div>`+bl;
   const n=d.cov_files||0;if(!n)return bl;
   const c0=d.cov_none||0,c1=d.cov_one||0,c2=d.cov_two||0,p=x=>Math.round(1000*x/n)/10;
@@ -251,12 +285,22 @@ async function openMissing(id,max){
 const exclOf=(d,path)=>(d.excluded||[]).find(x=>path==x||path.startsWith(x+'/'));
 function drawExBar(){
   const d=cur(),el=$('#exbar');if(!el)return;
-  if(!hasBackups(d)||!state.path){el.innerHTML='';return}
+  if(!state.path){el.innerHTML='';return}
+  const here=(d.folder_backups||[]).filter(f=>f.path==state.path);
+  const others=drives.filter(x=>x.id!=d.id&&!here.some(f=>f.main==x.id));
+  const fb=`<div class="exbar">This folder is a backup of: ${here.map(f=>`<span class="xchip"><a data-open="${f.main}">${esc(dname(f.main)||'?')}</a><button data-unfb="${f.main}" title="Not a backup any more">×</button></span>`).join('')||'<span>nothing</span>'}
+    ${others.length?`<select class="sm" id="addfb"><option value="">Add a drive…</option>${others.map(x=>`<option value="${x.id}">${esc(x.display)}</option>`).join('')}</select>`:''}</div>`;
+  const setFB=(main,on)=>api('setFolderBackup',{id:d.id,path:state.path,main,on}).then(()=>{toast(on?`Saved. Checking ${dname(main)}'s backups…`:'Removed');loadDrives();drawExBarSoon()}).catch(e=>toast(e.message));
+  const wire=()=>{if($('#addfb'))$('#addfb').onchange=()=>{const v=+$('#addfb').value;if(v)setFB(v,true)};
+    el.querySelectorAll('[data-unfb]').forEach(b=>b.onclick=()=>setFB(+b.dataset.unfb,false));
+    el.querySelectorAll('[data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''))};
+  if(!hasBackups(d)){el.innerHTML=fb;wire();return}
   const x=exclOf(d,state.path);
   const setEx=(path,on)=>api('setExcluded',{id:d.id,path,on}).then(()=>{toast(on?'Excluded from the backup check':'Included in the backup check again');$('#dh').dataset.id='';loadDrives();drawExBarSoon()});
-  if(x==state.path)el.innerHTML=`<div class="exbar">⊘ This folder is excluded from the backup check: its files don't count as missing. <button id="exoff">Check it again</button></div>`;
-  else if(x)el.innerHTML=`<div class="exbar">⊘ Inside “${esc(x.split('/').pop())}”, which is excluded from the backup check. <button id="exoff">Check it again</button></div>`;
-  else el.innerHTML=`<div class="exbar">Don't need this folder backed up? <button id="exon">Exclude from backup check</button></div>`;
+  if(x==state.path)el.innerHTML=fb+`<div class="exbar">⊘ This folder is excluded from the backup check: its files don't count as missing. <button id="exoff">Check it again</button></div>`;
+  else if(x)el.innerHTML=fb+`<div class="exbar">⊘ Inside “${esc(x.split('/').pop())}”, which is excluded from the backup check. <button id="exoff">Check it again</button></div>`;
+  else el.innerHTML=fb+`<div class="exbar">${here.length?`This folder holds another drive's backup, so it may not need backing up itself.`:`Don't need this folder backed up?`} <button id="exon">Exclude from backup check</button></div>`;
+  wire();
   if($('#exon'))$('#exon').onclick=()=>setEx(state.path,true);
   if($('#exoff'))$('#exoff').onclick=()=>setEx(x,false);
 }

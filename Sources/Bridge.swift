@@ -85,6 +85,27 @@ enum Bridge {
             Scanner.shared.exportMeta([id])
             return ok
 
+        case "history":
+            guard let id = int("drive") else { return [Any]() }
+            return db.history(id)
+
+        case "setReminder":
+            guard let id = int("id") else { return err("missing id") }
+            db.run("UPDATE drives SET remind_days=? WHERE id=?", [max(0, int("days") ?? 0), id])
+            db.touchMeta([id])
+            Scanner.shared.exportMeta([id])
+            Scanner.shared.checkReminders()
+            return ok
+
+        case "setFolderBackup":
+            guard let id = int("id"), let main = int("main"), main != id else { return err("Choose another drive.") }
+            db.setFolderBackup(driveID: id, path: str("path"), mainID: main, on: a["on"] as? Bool ?? true)
+            db.markChecking([main])
+            db.touchMeta([id, main])
+            Scanner.shared.recomputeCoverage([main])
+            Scanner.shared.exportMeta([id, main])
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))
