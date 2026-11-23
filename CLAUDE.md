@@ -90,6 +90,8 @@ When a change affects what users see, update in the same commit/build and tell t
 - Drive types are only HDD / SSD / NAS; roles only Main files / Backup / Not marked. Roles are a dropdown and
   every role change goes through `changeRole()` in index.html, which asks before removing backup links
   (the user once lost a setup by mis-clicking). Keep destructive changes behind a confirmation.
+  Context-menu items ignore clicks within 350 ms of opening (a right-click release once triggered a
+  rescan); toasts stay ≥5 s and while hovered.
 - Feedback arrives as GitHub issues (Settings → Feedback); issues are public.
 - The owner shares the app with others: keep the README and guide current and friendly.
 
