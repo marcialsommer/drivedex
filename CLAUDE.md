@@ -47,7 +47,9 @@ Key facts:
   change either (users would lose their catalog/permissions). Add DB columns only via `addColumn` migrations.
 - Backup matching = same normalized name (`nkey`: Unicode NFC + SMB stand-in characters undone) and same size,
   anywhere in the backup location; strict mode also requires mtime within 2.5 s. Locations in the same `grp`
-  form a backup set (one backup). Each backup drive gives one location per main drive (whole drive or a folder).
+  form a backup set (one backup). Each backup drive gives one location per main drive (whole drive or a folder). A backup can also be
+  *partial* (`backups.source_path`): only that folder of the main drive is compared (`sourceScopeSQL`), with its own
+  `cov_total_bytes`; set via folder right-click "This folder is also backed up on…", synced as `scopes` in meta.
 - Backup percentages are **by data** (bytes: `cov_bytes`, `cov_one_bytes`, `cov_two_bytes`, per set `total_bytes` −
   `missing_bytes`), never 100% while a file is missing; file counts are shown alongside.
 - Every scan (local, failed, or imported from another Mac) is written to `scan_log`; shown on the Info tab.

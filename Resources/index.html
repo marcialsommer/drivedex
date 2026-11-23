@@ -286,9 +286,9 @@ async function loadDrives(){
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
           <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${isSet?'':`<span class="ticks">${status}</span>`}</div>
           ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
-          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
+          <div class="s">${!isSet&&b.source?`<b>only ${esc(b.source)}</b><br>`:''}${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
       // A backup split over several drives: one heading with the combined percentage, the drives indented below.
-      return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
+      return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives${b.source?` · only ${esc(b.source.split('/').pop())}`:''}</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
@@ -510,6 +510,7 @@ function renderDriveHeader(){
   document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);api('setBackupOf',{id:d.id,mains:ids}).then(()=>{toast(ids.length?'Saved. Checking backups…':'Saved');redo()})});
   if($('#sugapply'))$('#sugapply').onclick=()=>api('setBackupOf',{id:d.id,mains:[...new Set([...(d.backup_of||[]),...guessMains(d).map(x=>x.id)])]}).then(()=>{toast('Saved. Checking backups…');redo()});
   document.querySelectorAll('#dh [data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''));
+  document.querySelectorAll('#dh [data-unscope]').forEach(a=>a.onclick=()=>api('setBackupScope',{main:d.id,backup:+a.dataset.unscope,path:''}).then(()=>{toast('Now comparing the whole drive. Checking…');redo()}));
   document.querySelectorAll('#dh [data-missfrom]').forEach(a=>a.onclick=e=>{e.preventDefault();openMissing(+a.dataset.missfrom,0,a.dataset.set,d.id)});
   document.querySelectorAll('#dh [data-missset]').forEach(a=>a.onclick=()=>openMissing(d.id,0,a.dataset.missset));
   document.querySelectorAll('#dh [data-split]').forEach(b=>b.onclick=()=>{const set=(d.backup_status||[]).find(x=>x.set==b.dataset.split);
@@ -556,6 +557,12 @@ document.addEventListener('contextmenu',e=>{
       own?{label:'Include in backup check',fn:()=>setExcl(d,path,false)}
          :x?{label:`Inside excluded “${x.split('/').pop()}”`,fn:()=>{},cls:'dis'}
          :{label:'Exclude from backup check',fn:()=>setExcl(d,path,true)},
+      {label:'This folder is also backed up on…',fn:()=>{
+        const cands=drives.filter(x=>x.id!=d.id);
+        showCtx(e,[{label:`Which drive holds a copy of “${fe.dataset.n}”?`,fn:()=>{},cls:'dis'},'-',
+          ...cands.map(x=>({label:x.display,fn:()=>api('setBackupScope',{main:d.id,backup:x.id,path}).then(()=>{
+            toast(`“${x.display}” now counts as a backup of only “${fe.dataset.n}”. Checking…`);$('#dh')&&($('#dh').dataset.id='');loadDrives()}).catch(er=>toast(er.message))}))]);
+        return 'keep'}},
       {label:'Use as backup location…',fn:()=>{state.path=path;state.sel=null;state.hl=null;viewMode=='columns'?navCols():render();toast('Choose the drive it backs up in the bar above the files')}}];
     showCtx(e,items);return}
   const el=e.target.closest('.drv,.drvrow');if(!el){hideCtx();return}
@@ -571,7 +578,7 @@ document.addEventListener('contextmenu',e=>{
 });
 function showCtx(e,items){
   const m=$('#ctx');m.innerHTML=items.map((x,i)=>x=='-'?'<hr>':`<div class="${x.cls||''}" data-i="${i}">${esc(x.label)}</div>`).join('');
-  m.querySelectorAll('div[data-i]').forEach(n=>n.onclick=()=>{hideCtx();items[+n.dataset.i].fn()});
+  m.querySelectorAll('div[data-i]').forEach(n=>n.onclick=ev=>{ev.stopPropagation();const r=items[+n.dataset.i].fn();if(r!=='keep')hideCtx()});
   m.style.display='block';const r=m.getBoundingClientRect();
   m.style.left=Math.min(e.clientX,innerWidth-r.width-8)+'px';m.style.top=Math.min(e.clientY,innerHeight-r.height-8)+'px';
 }
@@ -630,7 +637,7 @@ function backupHeadline(d){
 function backupStatusHTML(d){
   const r=backupRoles(d);if(!r.length)return'';
   return `<div class="bstat"><h3 style="margin-top:0">${d.role=='backup'?'Backup status':'This drive also holds backups'}</h3><table class="bktab">${r.map(x=>{const b=x.set,miss=(b.n||0)-(b.have||0);
-    return `<tr><td>Backup of <a class="lnk" data-open="${x.main.id}">${esc(x.main.display)}</a>${x.path?`<div class="path">📁 ${esc(x.path)}</div>`:''}${x.multi?`<div class="path">part of a set: ${esc(bkName(b))}</div>`:''}</td>
+    return `<tr><td>Backup of <a class="lnk" data-open="${x.main.id}">${esc(x.main.display)}</a>${b.source?`<div class="path">only ${esc(b.source)}</div>`:''}${x.path?`<div class="path">📁 ${esc(x.path)}</div>`:''}${x.multi?`<div class="path">part of a set: ${esc(bkName(b))}</div>`:''}</td>
     <td>${b.n==null?'<span class="mute">checking…</span>':`<span class="minibar"><i style="width:${bkPct(b)}%;background:${bkColor(b)}"></i></span>${bkPct(b)}%`}</td>
     <td>${b.n==null?'':miss?`<a class="lnk warnc" data-missfrom="${x.main.id}" data-set="${esc(b.set)}">⚠ ${miss.toLocaleString()} files missing · ${hb(b.missing_bytes)} ›</a>`:'<span class="okc">✓ complete</span>'}</td>
     <td class="mute">${b.last_in_sync?'last in sync '+date(b.last_in_sync):'not in sync yet'}</td></tr>`}).join('')}</table></div>`;
@@ -685,7 +692,7 @@ function covHTML(d){
     const names=mem.map(m=>`<a class="lnk" data-open="${m.id}">${esc(dname(m.id)||'?')}</a>${m.path?`<span class="mute"> / ${esc(m.path)}</span>`:''}`).join(' + ');
     const act=mem.length>1?`<button class="sm" data-split="${esc(b.set)}" title="Treat these as separate backups again">Split</button>`
       :bs.length>1?`<select class="sm" data-combine="${b.id}" title="Use when one backup is spread over several drives"><option value="">Combine with…</option>${bs.filter(x=>x.set!=b.set).map(x=>`<option value="${esc(x.set)}">${esc(bkName(x))}</option>`).join('')}</select>`:'';
-    return `<tr><td>${names}${mem.length>1?' <span class="tag other" title="One backup spread over several locations">SET</span>':''}</td>
+    return `<tr><td>${names}${mem.length>1?' <span class="tag other" title="One backup spread over several locations">SET</span>':''}${b.source?`<div class="path">only 📁 ${esc(b.source)} · <a class="lnk" data-unscope="${b.id}">compare whole drive</a></div>`:''}</td>
     <td>${b.n==null?'<span class="mute">checking…</span>':`<span class="minibar"><i style="width:${bkPct(b)}%;background:${bkColor(b)}"></i></span>${bkPct(b)}%`}</td>
     <td>${b.n==null?'':miss?`<a class="lnk warnc" data-missset="${esc(b.set)}" title="Show which files this backup doesn't have">⚠ ${miss.toLocaleString()} files · ${hb(b.missing_bytes)} ›</a>`:'<span class="okc">✓ none</span>'}</td>
     <td>${b.last_in_sync?date(b.last_in_sync):'<span class="mute">not yet</span>'}</td>

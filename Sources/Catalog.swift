@@ -106,6 +106,8 @@ final class DB {
         addColumn("drives", "media_user", "TEXT DEFAULT ''")
         // v1.6: backup sets (a backup split across several drives/folders)
         addColumn("backups", "grp", "TEXT DEFAULT ''")
+        addColumn("backups", "source_path", "TEXT DEFAULT ''")   // v2.3: backup holds only this folder of the main drive
+        addColumn("backups", "cov_total_bytes", "INTEGER")
         addColumn("backup_history", "grp", "TEXT")
         addColumn("backup_history", "label", "TEXT")
         addColumn("drives", "sort_order", "INTEGER")   // v1.9: user-defined order in the drive list
@@ -406,19 +408,30 @@ final class DB {
 
     /// Marks `backupID` as a backup of exactly `mains`. Returns the mains to recompute.
     func setBackupOf(_ backupID: Int, _ mains: [Int]) -> [Int] {
-        var keepSet: [Int: String] = [:]
-        let oldRows = rows("SELECT main_id, COALESCE(grp,'') AS grp FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [backupID])
-        for r in oldRows { if let m = r["main_id"] as? Int { keepSet[m] = r["grp"] as? String ?? "" } }
+        var keepSet: [Int: String] = [:], keepSrc: [Int: String] = [:]
+        let oldRows = rows("SELECT main_id, COALESCE(grp,'') AS grp, COALESCE(source_path,'') AS src FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [backupID])
+        for r in oldRows { if let m = r["main_id"] as? Int { keepSet[m] = r["grp"] as? String ?? ""; keepSrc[m] = r["src"] as? String ?? "" } }
         let old = oldRows.compactMap { $0["main_id"] as? Int }
         run("DELETE FROM backups WHERE backup_id=? AND COALESCE(backup_path,'')=''", [backupID])
         run("DELETE FROM backups WHERE main_id=?", [backupID])
         clearCoverage(backupID)
         run("UPDATE drives SET role='backup' WHERE id=?", [backupID])
         for m in mains where m != backupID {
-            run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path, grp) VALUES(?,?,'',?)", [m, backupID, keepSet[m] ?? ""])
+            run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path, grp, source_path) VALUES(?,?,'',?,?)", [m, backupID, keepSet[m] ?? "", keepSrc[m] ?? ""])
             run("UPDATE drives SET role='main' WHERE id=?", [m])
         }
         return Array(Set(old + mains))
+    }
+
+    /// Say that `backupID` only holds `path` of `mainID` ("" = the whole drive). Links the drive as a backup if needed.
+    func setBackupScope(mainID: Int, backupID: Int, path: String) {
+        if row("SELECT 1 AS x FROM backups WHERE main_id=? AND backup_id=?", [mainID, backupID]) == nil {
+            run("INSERT INTO backups(main_id, backup_id, backup_path, grp, source_path) VALUES(?,?,'','',?)", [mainID, backupID, path])
+            run("UPDATE drives SET role='main' WHERE id=?", [mainID])
+            run("UPDATE drives SET role='backup' WHERE id=? AND COALESCE(role,'')=''", [backupID])
+        } else {
+            run("UPDATE backups SET source_path=? WHERE main_id=? AND backup_id=?", [path, mainID, backupID])
+        }
     }
 
     /// Use a folder on `driveID` as the backup location of `mainID` (on == false removes it).
@@ -462,6 +475,14 @@ final class DB {
         return backupIDs
     }
 
+    /// Main-drive files a backup set is compared against: everything, or only one folder (partial backup).
+    /// All members of a set share the scope; if they disagree the whole drive is used.
+    private func sourceScopeSQL(_ members: [[String: Any]]) -> String {
+        let srcs = Set(members.map { $0["src"] as? String ?? "" })
+        guard srcs.count == 1, let src = srcs.first, !src.isEmpty else { return "" }
+        return " AND (parent = \(sqlQuote(src)) OR (parent >= \(sqlQuote(src + "/")) AND parent < \(sqlQuote(src + "0"))))"
+    }
+
     /// SQL condition matching rows `b` of entries inside one backup location (whole drive or a folder).
     private func scopeSQL(_ bk: [String: Any]) -> String {
         let id = bk["id"] as? Int ?? -1, gen = bk["gen"] as? Int ?? -1
@@ -475,6 +496,7 @@ final class DB {
     func backupStatus(_ mainID: Int) -> [[String: Any]] {
         let rs = rows("""
             SELECT b.backup_id AS id, COALESCE(b.backup_path,'') AS path, COALESCE(b.grp,'') AS grp, d.key AS key,
+                   COALESCE(b.source_path,'') AS src, b.cov_total_bytes AS set_bytes,
                    b.cov_n AS n, b.cov_have AS have, b.cov_missing_bytes AS missing_bytes, d.last_scan AS backup_scan
             FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
             ORDER BY COALESCE(NULLIF(d.label,''), d.name) COLLATE NOCASE
@@ -499,7 +521,8 @@ final class DB {
                 "members": m.map { ["id": $0["id"] ?? NSNull(), "path": $0["path"] ?? "", "backup_scan": $0["backup_scan"] ?? NSNull()] },
                 "n": first["n"] ?? NSNull(), "have": first["have"] ?? NSNull(), "missing_bytes": first["missing_bytes"] ?? NSNull(),
                 "backup_scan": m.compactMap({ $0["backup_scan"] as? Double }).min().map { $0 as Any } ?? NSNull(),
-                "last_in_sync": lastSync, "total_bytes": totalBytes,
+                "last_in_sync": lastSync, "total_bytes": (first["set_bytes"] as? Int).map { $0 as Any } ?? totalBytes,
+                "source": first["src"] ?? "",
             ]
         }
     }
@@ -558,6 +581,7 @@ final class DB {
         var historyGrew = false
         let bks = rows("""
             SELECT d.id AS id, d.gen AS gen, COALESCE(b.backup_path,'') AS path, COALESCE(b.grp,'') AS grp,
+                   COALESCE(b.source_path,'') AS src,
                    d.key AS key, COALESCE(NULLIF(d.label,''), d.name) AS name, COALESCE(d.last_scan, 0) AS scan
             FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
             ORDER BY COALESCE(NULLIF(d.label,''), d.name) COLLATE NOCASE
@@ -607,14 +631,14 @@ final class DB {
             let members = sets[k] ?? []
             let scope = members.map { scopeSQL($0) }.joined(separator: " OR ")
             let r = row("""
-                SELECT COUNT(*) AS n, SUM(f) AS have, SUM(CASE WHEN f THEN 0 ELSE size END) AS mb FROM (
+                SELECT COUNT(*) AS n, SUM(f) AS have, SUM(CASE WHEN f THEN 0 ELSE size END) AS mb, SUM(size) AS tb FROM (
                     SELECT entries.size AS size, EXISTS(SELECT 1 FROM entries b WHERE \(matchSQL) AND b.is_dir <> 1 AND (\(scope))) AS f
-                    FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0)
+                    FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0\(sourceScopeSQL(members)))
                 """, [mainID, gen]) ?? [:]
-            let n = r["n"] as? Int ?? 0, have = r["have"] as? Int ?? 0, mb = r["mb"] as? Int ?? 0
+            let n = r["n"] as? Int ?? 0, have = r["have"] as? Int ?? 0, mb = r["mb"] as? Int ?? 0, tb = r["tb"] as? Int ?? 0
             for m in members {
-                run("UPDATE backups SET cov_n=?, cov_have=?, cov_missing_bytes=? WHERE main_id=? AND backup_id=?",
-                    [n, have, mb, mainID, m["id"] as? Int ?? -1])
+                run("UPDATE backups SET cov_n=?, cov_have=?, cov_missing_bytes=?, cov_total_bytes=? WHERE main_id=? AND backup_id=?",
+                    [n, have, mb, tb, mainID, m["id"] as? Int ?? -1])
             }
             // A set is only as current as its oldest member's catalog.
             let backupScan = members.map { $0["scan"] as? Double ?? 0 }.min() ?? 0
@@ -677,13 +701,14 @@ final class DB {
     func missingFromSet(_ mainID: Int, setKey: String, limit: Int = 3000) -> [String: Any] {
         guard let d = row("SELECT gen FROM drives WHERE id=?", [mainID]), let gen = d["gen"] as? Int else { return [:] }
         let members = rows("""
-            SELECT d.id AS id, d.gen AS gen, COALESCE(b.backup_path,'') AS path, COALESCE(b.grp,'') AS grp, d.key AS key
+            SELECT d.id AS id, d.gen AS gen, COALESCE(b.backup_path,'') AS path, COALESCE(b.grp,'') AS grp, d.key AS key,
+                   COALESCE(b.source_path,'') AS src
             FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
             """, [mainID]).filter { Self.setKey($0) == setKey }
         guard !members.isEmpty else { return ["total": 0, "bytes": 0, "rows": [Any](), "folders": [Any]()] }
         let scope = members.map { scopeSQL($0) }.joined(separator: " OR ")
         let base = """
-            FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0 AND NOT EXISTS(
+            FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0\(sourceScopeSQL(members)) AND NOT EXISTS(
                 SELECT 1 FROM entries b WHERE \(matchSQL) AND b.is_dir <> 1 AND (\(scope)))
             """
         let args: [Any?] = [mainID, gen]
@@ -732,6 +757,11 @@ final class DB {
             "key": key, "name": d["name"] as? String ?? "", "label": d["label"] as? String ?? "",
             "notes": d["notes"] as? String ?? "", "role": d["role"] as? String ?? "",
             "backup_of": mains, "folder_backups": folders, "excluded": excludedPaths(id),
+            "scopes": Dictionary(rows("SELECT d.key AS key, b.source_path AS src FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.source_path,'')<>''", [id])
+                .compactMap { r -> (String, String)? in
+                    guard let k = r["key"] as? String, let p = r["src"] as? String else { return nil }
+                    return (k, p)
+                }, uniquingKeysWith: { a, _ in a }),
             "sets": Dictionary(rows("SELECT d.key AS key, b.grp AS grp FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.grp,'')<>''", [id])
                 .compactMap { r -> (String, String)? in
                     guard let k = r["key"] as? String, let g = r["grp"] as? String else { return nil }
@@ -841,6 +871,13 @@ final class DB {
                let mid = row("SELECT id FROM drives WHERE key=?", [mk])?["id"] as? Int {
                 run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path) VALUES(?,?,?)", [mid, id, path])
                 affected.append(mid)
+            }
+        }
+        if let scopes = m["scopes"] as? [String: String] {
+            for (mk, src) in scopes {
+                if let mid = row("SELECT id FROM drives WHERE key=?", [mk])?["id"] as? Int {
+                    run("UPDATE backups SET source_path=? WHERE main_id=? AND backup_id=?", [src, mid, id])
+                }
             }
         }
         if let sets = m["sets"] as? [String: String] {

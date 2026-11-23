@@ -186,6 +186,15 @@ enum Bridge {
             Scanner.shared.stopAll()
             return ok
 
+        case "setBackupScope":
+            guard let main = int("main"), let bk = int("backup"), main != bk else { return err("Choose another drive.") }
+            db.setBackupScope(mainID: main, backupID: bk, path: str("path"))
+            db.markChecking([main])
+            db.touchMeta([main, bk])
+            Scanner.shared.recomputeCoverage([main])
+            Scanner.shared.exportMeta([main, bk])
+            return ok
+
         case "folderInfo":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderInfo(id, str("path"))
