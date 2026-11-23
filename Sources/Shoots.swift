@@ -88,7 +88,9 @@ enum Shoots {
     // MARK: - checking
 
     private struct Dest {
-        let key: String, name: String, path: String, online: Bool, live: Bool, lastScan: Double?
+        let key: String, name: String, path: String, online: Bool
+        var live: Bool
+        let lastScan: Double?
         var have: Set<String> = []
         var error: String = ""
     }
