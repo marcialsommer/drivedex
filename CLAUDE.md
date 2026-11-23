@@ -69,7 +69,9 @@ Key facts:
   While a shoot is active on this Mac (`Settings activeShoot`), `Scanner.scan` calls `Shoots.claimCard` first: new local
   drives become cards only if the shoot has `autoAdd` and `Shoots.looksLikeCard` (camera folders); otherwise the normal
   new-drive prompt offers "Add to <shoot>" (bridge `approveCard`). (v2.6.2: the owner was surprised that every SD
-  card was added silently while a test shoot was active.) Cards are always re-read. `Shoots.status` compares card files (name+size) with
+  card was added silently while a test shoot was active.) Cards are always re-read.
+  Card files counted: only `Shoots.mediaExts` (photos/RAW, video, audio) when `mediaOnly` (default true; the owner
+  never copies THM/SCR/IDX/DB/XML/LRV/LRF); `Shoots.counts` is used by both the status and the deep check. `Shoots.status` compares card files (name+size) with
   each destination folder: live walk if connected, else catalog. Cards are hidden from the sidebar (`d.card`).
   DriveDex never copies files; the owner may later want copying/offload built in.
   Destinations are picked with `drivePicker` (searchable, connected first) or bridge `chooseFolder` (NSOpenPanel; maps

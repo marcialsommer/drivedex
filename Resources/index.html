@@ -1062,7 +1062,8 @@ function editShoot(uuid){
     <button id="sh_addbk" type="button">+ Add a backup</button>
     <div class="mute" style="font-size:12.5px;margin-top:8px">Click a drive to pick it from the list (type to find it; drives that aren't connected are listed too), or <b>Choose in Finder…</b> to click the exact folder, also on this Mac's internal drive. The folders don't need to exist yet; leave a folder empty to use the whole drive. The backup folders follow the main folder's name until you change them.</div>
     <label class="set" style="margin-top:14px"><input type="checkbox" id="sh_auto" ${old&&old.autoAdd?'checked':''}>Add memory cards automatically while this shoot is active <span class="mute">(only drives with camera folders such as DCIM or PRIVATE; otherwise DriveDex asks with one click)</span></label>
-    <label class="set"><input type="checkbox" id="sh_proxy" ${!old||old.skipProxies!==false?'checked':''}>Ignore GoPro / DJI preview files (.LRV, .THM) on the cards <span class="mute">(they're often not copied)</span></label>
+    <label class="set"><input type="checkbox" id="sh_media" ${!old||old.mediaOnly!==false?'checked':''}>Only check photos, videos and audio on the cards <span class="mute">(RAW, JPEG/HEIF, video and sound files; thumbnails, previews such as .LRV/.LRF, index, database and XML files are ignored)</span></label>
+    <label class="set" id="sh_proxyrow" style="${!old||old.mediaOnly!==false?'display:none':''}"><input type="checkbox" id="sh_proxy" ${!old||old.skipProxies!==false?'checked':''}>Ignore GoPro / DJI preview files (.LRV, .THM) on the cards <span class="mute">(they're often not copied)</span></label>
     <div class="row" style="margin-top:14px"><button class="primary" id="sh_save">${old?'Save':'Start shoot'}</button><button id="sh_cancel">Cancel</button></div></div>`;
   const setRow=(r,spec)=>{r.dataset.key=spec.key||'';r.dataset.local=spec.local?'1':'';r.dataset.mac=spec.mac||'';
     r.querySelector('.dsel').innerHTML=destLabel(spec);r.querySelector('.pick').style.display=spec.local?'none':'';
@@ -1098,10 +1099,11 @@ function editShoot(uuid){
     if(main.local&&!main.path){toast('Choose the folder on this Mac');return}
     const backups=[...document.querySelectorAll('#sh_bks .drow')].map(get).filter(b=>b.key);
     if(backups.some(b=>b.key==main.key&&b.path==main.path)){toast('A backup can\'t be the same folder as the main one');return}
-    const shoot={...(old||{}),uuid:old?old.uuid:'',name,main,backups,skipProxies:$('#sh_proxy').checked,autoAdd:$('#sh_auto').checked};
+    const shoot={...(old||{}),uuid:old?old.uuid:'',name,main,backups,skipProxies:$('#sh_proxy').checked,mediaOnly:$('#sh_media').checked,autoAdd:$('#sh_auto').checked};
     try{const r=await api('shootSave',{shoot,activate:!old});
       toast(old?'Saved':`“${name}” started. Plug in your cards: each one is added here automatically.`);
       await loadShoots();loadDrives();openShoot(r.uuid)}catch(e){toast(e.message)}};
+  $('#sh_media').onchange=()=>{$('#sh_proxyrow').style.display=$('#sh_media').checked?'none':''};
   setTimeout(()=>$('#sh_name').focus(),50);
 }
 // Label of a destination drive button
@@ -1197,7 +1199,7 @@ async function drawShoot(uuid){
     <div class="dests">${dests.map((d,j)=>`<div><span class="mute">${j==0?'Main':'Backup '+j}</span><b>${esc(d.name)}</b>${esc(d.path||'whole drive')}<div class="path">${d.error?`<span class="warnc">${esc(d.error)}</span>`:d.live?'<span class="okc">● connected, checked live</span>':`not connected · catalog from ${d.last_scan?ago(d.last_scan):'never'}`}</div></div>`).join('')}</div></div>`;
   const table=cards.length?`<table class="shtab"><tr><th>Card</th><th class="r">Size</th>${dests.map((d,j)=>`<th class="r">${j==0?'Main':'Backup '+j}<div class="path">${esc(d.name)}</div></th>`).join('')}<th>Status</th><th></th></tr>
     ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
-      <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>`:'<span class="mute">—</span>'}</td>
+      <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>${c.ignored?`<div class="path" title="Thumbnails, previews, index and other non-media files on the card aren't checked (shoot setting)">${c.ignored.toLocaleString()} other${c.ignored==1?'':'s'} ignored</div>`:''}`:'<span class="mute">—</span>'}</td>
       ${c.files!=null&&c.files>0?dests.map((d,j)=>cell(c,j)).join(''):dests.map(()=>'<td class="r mute">—</td>').join('')}
       <td style="white-space:normal;min-width:150px">${stPill(c)}${deepNote(c)}${c.deep_live?`<div><button class="sm dbtn" data-deepstop="${esc(c.key)}">Stop deep check</button></div>`:c.online&&c.files>0&&!s.done?`<div><button class="sm dbtn" data-deep="${esc(c.key)}" title="Read every file on the card and each copy, and compare their contents. Takes about as long as copying the card.">${c.deep&&c.deep_valid?'Deep check again':'Deep check'}</button></div>`:''}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
     :`<div class="card empty" style="padding:30px">${active?(s.autoAdd?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'Plug in a memory card, then click <b>Add to this shoot</b> when it appears above.'):'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;

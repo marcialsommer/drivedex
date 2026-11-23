@@ -222,7 +222,7 @@ enum Bridge {
             guard var s = a["shoot"] as? [String: Any] else { return err("Nothing to save.") }
             if (s["uuid"] as? String ?? "").isEmpty {
                 s["uuid"] = UUID().uuidString.lowercased(); s["created"] = Date().timeIntervalSince1970
-                s["cards"] = [Any](); s["skipProxies"] = s["skipProxies"] ?? true
+                s["cards"] = [Any](); s["skipProxies"] = s["skipProxies"] ?? true; s["mediaOnly"] = s["mediaOnly"] ?? true
             } else if let old = Shoots.get(db, s["uuid"] as? String ?? "") {
                 s["cards"] = old["cards"] ?? [Any](); s["notCards"] = old["notCards"] ?? [Any]()   // cards are only changed below
             }

@@ -92,7 +92,7 @@ final class DeepCheck {
     private struct FileItem { let url: URL; let rel: String; let name: String; let size: Int64 }
 
     /// Regular files under `root` (hidden files and macOS helper files left out, like a scan).
-    private func listFiles(_ root: URL, skipProxies: Bool) -> [FileItem] {
+    private func listFiles(_ root: URL, include: (String) -> Bool = { _ in true }) -> [FileItem] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
         let opts: FileManager.DirectoryEnumerationOptions = Settings.includeHidden ? [] : [.skipsHiddenFiles]
         guard let en = FileManager.default.enumerator(at: root, includingPropertiesForKeys: keys, options: opts,
@@ -105,7 +105,7 @@ final class DeepCheck {
                 if n.hasPrefix(".") && n != ".DS_Store" && !n.hasPrefix("._") { en.skipDescendants() }
                 continue
             }
-            if skipProxies && Shoots.proxyExts.contains(u.pathExtension.lowercased()) { continue }
+            if !include(n) { continue }
             guard let v = try? u.resourceValues(forKeys: Set(keys)), v.isRegularFile == true else { continue }
             let full = u.standardizedFileURL.path
             var rel = full.hasPrefix(rootPath) ? String(full.dropFirst(rootPath.count)) : full
@@ -125,7 +125,6 @@ final class DeepCheck {
         guard let card = online[key] else {
             save(uuid, key, ["state": "error", "error": "The card isn't connected.", "at": Date().timeIntervalSince1970]); return
         }
-        let skipProxies = shoot["skipProxies"] as? Bool ?? true
 
         // Destinations: the main folder and each backup folder.
         var specs: [[String: Any]] = []
@@ -147,11 +146,11 @@ final class DeepCheck {
         let mounts = [card.url] + dests.compactMap { $0.mount }
 
         setLive(key, ["phase": "listing", "started": t0.timeIntervalSince1970])
-        let files = listFiles(card.url, skipProxies: skipProxies)
+        let files = listFiles(card.url) { Shoots.counts($0, shoot: shoot) }   // only what the shoot checks
         for i in dests.indices {
             guard let root = dests[i].root else { continue }
             var idx: [String: [URL]] = [:]
-            for f in listFiles(root, skipProxies: false) { idx[matchKey(f.name) + "\u{0}" + String(f.size), default: []].append(f.url) }
+            for f in listFiles(root) { idx[matchKey(f.name) + "\u{0}" + String(f.size), default: []].append(f.url) }
             dests[i].index = idx
         }
         let cardBytes = files.reduce(Int64(0)) { $0 + $1.size }

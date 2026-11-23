@@ -9,7 +9,27 @@ import Foundation
 /// Stored in the `shoots` table as JSON (drives referenced by key, so it means the same on every Mac)
 /// and shared between Macs as `shoots.json` in the sync folder (newest version of each shoot wins).
 enum Shoots {
-    static let proxyExts: Set<String> = ["lrv", "thm"]
+    static let proxyExts: Set<String> = ["lrv", "lrf", "thm"]
+
+    /// What counts on a memory card when a shoot checks "only photos, videos and audio" (the default): camera RAW
+    /// and JPEG/HEIF photos, video files and audio recordings. Everything else (thumbnails, previews such as LRV/LRF,
+    /// index and database files, XML/SRT sidecars) is ignored, because people usually don't copy those.
+    static let mediaExts: Set<String> = [
+        // photos: RAW from all major brands, DNG, JPEG, HEIF, TIFF
+        "arw", "srf", "sr2", "cr2", "cr3", "crw", "nef", "nrw", "raf", "orf", "rw2", "rwl", "pef", "srw", "x3f", "3fr",
+        "fff", "iiq", "erf", "mef", "mos", "dcr", "kdc", "raw", "gpr", "dng", "jpg", "jpeg", "heic", "heif", "hif", "tif", "tiff",
+        // video
+        "mp4", "mov", "mxf", "mts", "m2ts", "m4v", "avi", "mkv", "braw", "r3d", "crm", "insv", "insp", "360", "mpg", "mpeg", "3gp",
+        // audio recorders
+        "wav", "bwf", "aif", "aiff", "flac", "mp3", "m4a",
+    ]
+
+    /// Whether a file on a card is part of the check, for this shoot.
+    static func counts(_ name: String, shoot s: [String: Any]) -> Bool {
+        let ext = (name as NSString).pathExtension.lowercased()
+        if s["mediaOnly"] as? Bool ?? true { return mediaExts.contains(ext) }
+        return !(s["skipProxies"] as? Bool ?? true) || !proxyExts.contains(ext)
+    }
 
     static var activeID: String {
         get { Settings.d.string(forKey: "activeShoot") ?? "" }
@@ -156,7 +176,6 @@ enum Shoots {
     static func status(_ db: DB, _ uuid: String) -> [String: Any] {
         guard let s = get(db, uuid) else { return ["error": "This shoot doesn't exist any more."] }
         let online = Scanner.onlineMap()
-        let skipProxies = s["skipProxies"] as? Bool ?? true
         var dests: [Dest] = []
         var specs: [[String: Any]] = []
         if let m = s["main"] as? [String: Any] { specs.append(m) }
@@ -222,10 +241,11 @@ enum Shoots {
                 out["state"] = (d["status"] as? String) == "error" ? "error" : "waiting"
                 out["detail"] = d["status_detail"] ?? ""; cards.append(out); continue
             }
+            var ignored = 0
             var files: [(name: String, parent: String, size: Int64, key: String)] = []
             for r in db.rows("SELECT name, parent, size FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1", [id, gen]) {
                 let n = r["name"] as? String ?? ""
-                if skipProxies && proxyExts.contains((n as NSString).pathExtension.lowercased()) { continue }
+                if !counts(n, shoot: s) { ignored += 1; continue }
                 let size = Int64(r["size"] as? Int ?? 0)
                 files.append((n, r["parent"] as? String ?? "", size, fileKey(n, size)))
             }
@@ -247,7 +267,7 @@ enum Shoots {
             }
             if safe { safeCount += 1 }
             out["state"] = files.isEmpty ? "empty" : safe ? "safe" : "copying"
-            out["files"] = files.count; out["bytes"] = total; out["dests"] = per
+            out["files"] = files.count; out["bytes"] = total; out["dests"] = per; out["ignored"] = ignored
             cards.append(out)
         }
         return [
