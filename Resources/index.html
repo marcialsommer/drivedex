@@ -98,6 +98,9 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .badge{margin-left:auto;background:var(--warn);color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:1px 8px}
 button.x{border:0;background:transparent;color:var(--mute);padding:0 4px;font-size:11px}button.x:hover{color:var(--err)}
 .activity button.sm{padding:2px 8px;font-size:12px}
+.setgrp{border-left:2px solid var(--acc);margin:4px 0 6px 2px;padding-left:4px;border-radius:2px}
+.sethead{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--mute);padding:4px 8px 2px;cursor:pointer}
+.sethead:hover{color:var(--ink)}.setgrp .drv.kid{margin-left:6px}
 #navgrip{flex:none;width:6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;z-index:20;position:relative}
 #navgrip:hover,#navgrip.on{background:var(--acc);opacity:.35}
 .kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
@@ -269,12 +272,15 @@ async function loadDrives(){
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
   const fams=mains.map(m=>{inFamily.add(m.id);
     const kids=(m.backup_status||[]).map(b=>{const mem=b.members&&b.members.length?b.members:[{id:b.id,path:b.path}];
-      return mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
-        const status=b.n==null?'<span class="mute">checking…</span>':`<span style="color:${bkColor(b)}">${!b.n||b.have>=b.n?'✓ ':''}${bkPct(b)}%</span>`;
+      const status=b.n==null?'<span class="mute">checking…</span>':`<span style="color:${bkColor(b)}">${!b.n||b.have>=b.n?'✓ ':''}${bkPct(b)}%</span>`;
+      const isSet=mem.length>1;
+      const rows=mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
-          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
+          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${isSet?'':`<span class="ticks">${status}</span>`}</div>
           ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
-          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${mem.length>1?'part of a set · ':''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('')}).join('');
+          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
+      // A backup split over several drives: one heading with the combined percentage, the drives indented below.
+      return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
@@ -288,6 +294,7 @@ async function loadDrives(){
   wireReorder();
   drawActivity();
   if($('#homeitem'))$('#homeitem').onclick=goHome;
+  document.querySelectorAll('[data-sethead]').forEach(h=>h.onclick=e=>{e.stopPropagation();driveTab='backups';openDrive(+h.dataset.sethead,'');driveTab='backups';render()});
   $('#drives').classList.toggle('compact',compact);
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
   if($('#doupdate'))$('#doupdate').onclick=installUpdate;

@@ -55,12 +55,12 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.10'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.11'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
     c.setFillColor(INK); c.setFont('Helvetica-Bold',34); c.drawString(M,H-96*mm,'DriveDex')
-    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.10'); c.restoreState()
+    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.11'); c.restoreState()
 doc=BaseDocTemplate(OUT, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=M, bottomMargin=22*mm, title='DriveDex User Guide', author='DriveDex', subject='How to install and use DriveDex')
 doc.addPageTemplates([PageTemplate('cover',[Frame(M,22*mm,CW,H-128*mm-22*mm)],onPage=cover), PageTemplate('page',[Frame(M,22*mm,CW,H-M-22*mm)],onPage=footer)])
 
@@ -105,7 +105,7 @@ s+=[P('2  Adding drives', h1),
 # 3
 s+=[P('3  The drive list', h1),
     P('The left column shows <b>families</b>: each main drive in its own box with its backups indented below. Other drives are listed under <b>Other drives</b>.'),
-    side('fam', 60*mm, '&bull; <font color="#2e9d58"><b>Green dot</b></font>: connected to this Mac now.<br/>&bull; <b>HDD / SSD / NAS</b> tag and <b>capacity</b>: the kind and size of drive.<br/>&bull; <b>Location</b>: where the drive lives (from its notes).<br/>&bull; <b>Checkmarks</b> (top right): one per backup; green complete, amber 90%+, red less.<br/>&bull; Each backup shows its own fullness bar, how complete it is and how old its catalog is. Folder backups show their folder.<br/>&bull; The small <b>&#9662;</b> arrow hides or shows a family\'s backups.'),
+    side('fam', 60*mm, '&bull; <font color="#2e9d58"><b>Green dot</b></font>: connected to this Mac now.<br/>&bull; <b>HDD / SSD / NAS</b> tag and <b>capacity</b>: the kind and size of drive.<br/>&bull; <b>Location</b>: where the drive lives (from its notes).<br/>&bull; <b>Checkmarks</b> (top right): one per backup; green complete, amber 90%+, red less.<br/>&bull; Each backup shows its own fullness bar, how complete it is and how old its catalog is. Folder backups show their folder.<br/>&bull; A backup split over several drives appears as <b>Backup set &middot; N drives</b>, with the combined percentage on that heading and the drives indented below.<br/>&bull; The small <b>&#9662;</b> arrow hides or shows a family\'s backups.'),
     side('compact', 46*mm, '<b>Wider list:</b> drag the border between the drive list and the main area to make the list wider (double-click it to reset). Long names wrap instead of being cut off.<br/><br/><b>Compact list:</b> the <b>&#9776;</b> button next to "Drives" shows one line per drive, which is handy with many drives.<br/><br/><b>Reorder:</b> drag a family box, or a drive under Other drives, up or down. A blue line shows where it lands. The order syncs to your other Macs.', box=(0,0,546,900)),
     side('dmenu', 42*mm, '<b>Right-click any drive</b> to open it, rescan it, show it in Finder, set its type and role, or <b>Forget drive</b>. Forgetting removes the drive and its catalog from DriveDex (and your other Macs if you share). Nothing on the drive is touched.'),
     PageBreak()]
