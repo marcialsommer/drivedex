@@ -70,6 +70,9 @@ Key facts:
   drives become cards (no "new drive" prompt, always re-read). `Shoots.status` compares card files (name+size) with
   each destination folder: live walk if connected, else catalog. Cards are hidden from the sidebar (`d.card`).
   DriveDex never copies files; the owner may later want copying/offload built in.
+  Destinations are picked with `drivePicker` (searchable, connected first) or bridge `chooseFolder` (NSOpenPanel; maps
+  the folder to a catalogued volume key + relative path, or to an internal-drive spec {local, mac, path} checked only
+  on that Mac via `Shoots.localRoot`).
 - Deep check (`Sources/DeepCheck.swift`, `Sources/XXH64.swift`): per card, reads every card file and each
   candidate copy (same name+size) in each connected destination with `F_NOCACHE`, compares XXH64; one check at a
   time on its own queue; result saved as `cards[i]["deep"]` (state verified/partial/problems/stopped, per-dest

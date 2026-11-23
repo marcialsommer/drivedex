@@ -57,6 +57,16 @@ enum Shoots {
         return out
     }
 
+    /// A destination can also be a folder on a Mac's internal drive: {"local": true, "mac": <computer name>,
+    /// "path": <full path>}. It's only checked on that Mac (live); other Macs just show where it is.
+    static func localRoot(_ spec: [String: Any]) -> URL? {
+        guard spec["local"] as? Bool == true, (spec["mac"] as? String) == SyncFolder.machine,
+              let p = spec["path"] as? String, !p.isEmpty else { return nil }
+        return URL(fileURLWithPath: p, isDirectory: true)
+    }
+
+    static func localName(_ spec: [String: Any]) -> String { "\(spec["mac"] as? String ?? "Mac") · internal drive" }
+
     static func destKeys(_ s: [String: Any]) -> [String] {
         var keys: [String] = []
         if let m = s["main"] as? [String: Any], let k = m["key"] as? String { keys.append(k) }
@@ -128,6 +138,20 @@ enum Shoots {
         if let m = s["main"] as? [String: Any] { specs.append(m) }
         specs += s["backups"] as? [[String: Any]] ?? []
         for spec in specs {
+            if spec["local"] as? Bool == true {
+                let p = spec["path"] as? String ?? ""
+                var dest = Dest(key: spec["key"] as? String ?? "", name: localName(spec), path: (p as NSString).abbreviatingWithTildeInPath,
+                                online: localRoot(spec) != nil, live: false, lastScan: nil)
+                if let root = localRoot(spec) {
+                    var set = Set<String>()
+                    if walkLive(root, mount: URL(fileURLWithPath: "/"), into: &set) { dest.have = set } else { dest.error = "Folder not found yet" }
+                    dest.live = true
+                } else {
+                    dest.error = "On \(spec["mac"] as? String ?? "another Mac")'s internal drive: checked on that Mac"
+                }
+                dests.append(dest)
+                continue
+            }
             let key = spec["key"] as? String ?? "", path = (spec["path"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
             let d = db.row("SELECT id, gen, last_scan, COALESCE(NULLIF(label,''), name) AS name FROM drives WHERE key=?", [key])
             var dest = Dest(key: key, name: d?["name"] as? String ?? "?", path: path, online: online[key] != nil,

@@ -258,6 +258,40 @@ enum Bridge {
             Shoots.put(db, s)
             return ok
 
+        case "chooseFolder":   // the Mac's folder window: any connected drive, NAS or the internal drive
+            var picked: URL?
+            let message = str("message")
+            // Start in a given drive (and folder, if it exists yet).
+            var startURL: URL? = nil
+            if !str("start").isEmpty, let v = Scanner.onlineMap()[str("start")] {
+                let sub = v.url.appendingPathComponent(str("path"), isDirectory: true)
+                startURL = !str("path").isEmpty && FileManager.default.fileExists(atPath: sub.path) ? sub : v.url
+            }
+            DispatchQueue.main.sync {
+                MainActor.assumeIsolated {
+                    let p = NSOpenPanel()
+                    p.canChooseDirectories = true; p.canChooseFiles = false
+                    p.canCreateDirectories = true; p.allowsMultipleSelection = false
+                    p.prompt = "Choose"; p.message = message
+                    if let u = startURL { p.directoryURL = u }
+                    NSApp.activate(ignoringOtherApps: true)
+                    if p.runModal() == .OK { picked = p.url }
+                }
+            }
+            guard let url = picked?.standardizedFileURL else { return ["cancelled": true] as [String: Any] }
+            let volume = (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume?.standardizedFileURL
+            if let vol = volume, vol.path.hasPrefix("/Volumes/"), let v = Scanner.eligible(vol) {
+                var rel = String(url.path.dropFirst(vol.path.count))
+                while rel.hasPrefix("/") { rel.removeFirst() }
+                let label = db.row("SELECT COALESCE(NULLIF(label,''), name) AS n FROM drives WHERE key=?", [v.key])?["n"] as? String
+                return ["key": v.key, "path": rel, "name": label ?? v.name] as [String: Any]
+            }
+            if volume?.path.hasPrefix("/Volumes/") == true {
+                return err("DriveDex can't use that drive (it's a disk image, or on the never-scan list in Settings).")
+            }
+            return ["key": "local:" + SyncFolder.machine, "local": true, "mac": SyncFolder.machine, "path": url.path,
+                    "name": SyncFolder.machine + " · internal drive"] as [String: Any]
+
         case "deepStart":
             if let e = DeepCheck.shared.start(shoot: str("uuid"), card: str("key")) { return err(e) }
             return ok

@@ -183,6 +183,13 @@ th[data-hk]{cursor:pointer}
 @media (prefers-color-scheme:dark){button.primary,.seg.on{background:#3a73dc;border-color:#3a73dc;color:#fff}}
 .upd1{display:flex;align-items:center;gap:8px;margin:4px 2px 10px;padding:7px 10px;border:1px solid var(--acc);border-radius:10px;background:var(--accbg);font-size:12.5px}
 .upd1 b{flex:1}.upd1 button{padding:4px 10px;font-size:12px}
+.frm .drow{position:relative}.frm .dsel{display:inline-flex;align-items:center;gap:7px;min-width:220px;max-width:46%;text-align:left;white-space:nowrap;overflow:hidden}
+.chev2{margin-left:auto;color:var(--mute);font-size:11px}
+.dpick{position:absolute;left:0;top:calc(100% + 4px);z-index:40;width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:6px}
+.dpick input{width:100%;margin-bottom:4px}.dpl{max-height:320px;overflow:auto}
+.dpi{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer}.dpi:hover{background:var(--accbg)}
+.dpi.finder{font-weight:600;border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:2px}
+.dph{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);padding:6px 8px 2px}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -1041,36 +1048,52 @@ async function openShoots(){
 function editShoot(uuid){
   const old=uuid?(shootsData.shoots||[]).find(x=>x.uuid==uuid):null;
   enterPage({mode:'shootEdit',uuid});
-  const ds=realDrives();
-  const opt=sel=>`<option value="">Choose a drive…</option>`+ds.map(d=>`<option value="${esc(d.key)}" ${d.key==sel?'selected':''}>${esc(d.display)}${d.type?' ('+d.type.toUpperCase()+')':''}</option>`).join('');
   const bks=old?(old.backups||[]):[{key:'',path:''},{key:'',path:''}];
-  const drow=(cls,key,path,i)=>`<div class="drow" data-row="${cls}" data-i="${i}"><select class="sm dsel">${opt(key)}</select><input type="text" class="fpath" placeholder="Folder" value="${esc(path||'')}"><button class="pick" type="button">Choose folder…</button>${cls=='bk'?'<button class="rmrow" type="button" title="Remove">✕</button>':''}</div><div class="pk"></div>`;
+  // Each row: drive (searchable picker, or a folder chosen in Finder: any drive, NAS or this Mac's internal drive) + folder
+  const drow=(cls,spec,i)=>{spec=spec||{};
+    return `<div class="drow" data-row="${cls}" data-i="${i}" data-key="${esc(spec.key||'')}" data-local="${spec.local?1:''}" data-mac="${esc(spec.mac||'')}">
+      <button class="dsel" type="button">${destLabel(spec)}</button><input type="text" class="fpath" placeholder="Folder" value="${esc(spec.path||'')}">
+      <button class="pick" type="button" ${spec.local?'style="display:none"':''}>Choose folder…</button>${cls=='bk'?'<button class="rmrow" type="button" title="Remove">✕</button>':''}</div><div class="pk"></div>`};
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card frm"><h2>${old?'Edit shoot':'New shoot'}</h2>
     <label class="f">Name</label><input type="text" id="sh_name" style="width:min(420px,100%)" value="${esc(old?old.name:'')}">
-    <label class="f">Main drive: where you copy the cards to</label><div id="sh_main">${drow('main',old&&old.main&&old.main.key,old&&old.main&&old.main.path,0)}</div>
-    <label class="f">Backups: the copies of that folder</label><div id="sh_bks">${bks.map((b,i)=>drow('bk',b.key,b.path,i)).join('')}</div>
+    <label class="f">Main drive: where you copy the cards to</label><div id="sh_main">${drow('main',old&&old.main,0)}</div>
+    <label class="f">Backups: the copies of that folder</label><div id="sh_bks">${bks.map((b,i)=>drow('bk',b,i)).join('')}</div>
     <button id="sh_addbk" type="button">+ Add a backup</button>
-    <div class="mute" style="font-size:12.5px;margin-top:8px">The folders don't need to exist yet. Leave a folder empty to use the whole drive. The backup folders follow the main folder's name until you change them.</div>
+    <div class="mute" style="font-size:12.5px;margin-top:8px">Click a drive to pick it from the list (type to find it; drives that aren't connected are listed too), or <b>Choose in Finder…</b> to click the exact folder, also on this Mac's internal drive. The folders don't need to exist yet; leave a folder empty to use the whole drive. The backup folders follow the main folder's name until you change them.</div>
     <label class="set" style="margin-top:14px"><input type="checkbox" id="sh_proxy" ${!old||old.skipProxies!==false?'checked':''}>Ignore GoPro / DJI preview files (.LRV, .THM) on the cards <span class="mute">(they're often not copied)</span></label>
     <div class="row" style="margin-top:14px"><button class="primary" id="sh_save">${old?'Save':'Start shoot'}</button><button id="sh_cancel">Cancel</button></div></div>`;
+  const setRow=(r,spec)=>{r.dataset.key=spec.key||'';r.dataset.local=spec.local?'1':'';r.dataset.mac=spec.mac||'';
+    r.querySelector('.dsel').innerHTML=destLabel(spec);r.querySelector('.pick').style.display=spec.local?'none':'';
+    const pk=r.nextElementSibling;if(pk)pk.innerHTML=''};
   const wireRows=()=>{
     document.querySelectorAll('#view .drow').forEach(r=>{
       const pk=r.nextElementSibling,inp=r.querySelector('.fpath');
-      r.querySelector('.pick').onclick=()=>{const k=r.querySelector('.dsel').value;const d=dByKey(k);if(!d){toast('Choose the drive first');return}
+      r.querySelector('.dsel').onclick=e=>{e.stopPropagation();drivePicker(r.querySelector('.dsel'),
+        d=>{const wasLocal=r.dataset.local;setRow(r,{key:d.key});if(wasLocal){inp.value=inp.value.split('/').filter(Boolean).pop()||'';inp.dispatchEvent(new Event('input'))}},
+        async()=>{try{const f=await api('chooseFolder',{message:r.dataset.row=='main'?'Choose the folder you copy the cards into':'Choose the backup folder'});
+          if(!f||f.cancelled)return;setRow(r,f);inp.value=f.path;inp.dispatchEvent(new Event('input'))}catch(er){toast(er.message)}})};
+      r.querySelector('.pick').onclick=async()=>{const k=r.dataset.key;const d=dByKey(k);if(!d){toast('Choose the drive first');return}
+        // Connected drive: the real folder window (shows folders made since the last scan, and can create one)
+        if(d.online){try{const f=await api('chooseFolder',{start:d.key,path:inp.value.trim().replace(/^\/+|\/+$/g,''),message:'Choose the folder on '+d.display});
+          if(!f||f.cancelled)return;setRow(r,f);inp.value=f.path;inp.dispatchEvent(new Event('input'))}catch(er){toast(er.message)}return}
         if(pk.innerHTML){pk.innerHTML='';return}folderPicker(pk,d,inp.value.replace(/^\/+|\/+$/g,''),p=>{inp.value=p;inp.dispatchEvent(new Event('input'));pk.innerHTML=''})};
       if(r.querySelector('.rmrow'))r.querySelector('.rmrow').onclick=()=>{pk.remove();r.remove()};
     })};
   // backup folders follow the main folder name while they're empty or still the same
-  let lastMain=old&&old.main?old.main.path||'':'';
+  // (a folder on the internal drive is a full path: the backups follow just its name)
+  const mainName=()=>{const r=$('#sh_main .drow'),v=r.querySelector('.fpath').value;return r.dataset.local?(v.split('/').filter(Boolean).pop()||''):v};
+  let lastMain=mainName();
   const mainInp=$('#sh_main .fpath');
-  mainInp.addEventListener('input',()=>{document.querySelectorAll('#sh_bks .fpath').forEach(b=>{if(!b.value||b.value==lastMain)b.value=mainInp.value});lastMain=mainInp.value});
+  mainInp.addEventListener('input',()=>{const m=mainName();document.querySelectorAll('#sh_bks .drow').forEach(r=>{const b=r.querySelector('.fpath');if(r.dataset.local)return;if(!b.value||b.value==lastMain)b.value=m});lastMain=m});
   wireRows();
-  $('#sh_addbk').onclick=()=>{$('#sh_bks').insertAdjacentHTML('beforeend',drow('bk','',mainInp.value,Date.now()));wireRows()};
+  $('#sh_addbk').onclick=()=>{$('#sh_bks').insertAdjacentHTML('beforeend',drow('bk',{path:mainName()},Date.now()));wireRows()};
   $('#sh_cancel').onclick=()=>uuid?openShoot(uuid):openShoots();
   $('#sh_save').onclick=async()=>{
     const name=$('#sh_name').value.trim();if(!name){toast('Give the shoot a name');$('#sh_name').focus();return}
-    const get=r=>({key:r.querySelector('.dsel').value,path:r.querySelector('.fpath').value.trim().replace(/^\/+|\/+$/g,'')});
+    const get=r=>{const v=r.querySelector('.fpath').value.trim();
+      return r.dataset.local?{key:r.dataset.key,local:true,mac:r.dataset.mac,path:v.replace(/\/+$/,'')}:{key:r.dataset.key,path:v.replace(/^\/+|\/+$/g,'')}};
     const main=get($('#sh_main .drow'));if(!main.key){toast('Choose the main drive');return}
+    if(main.local&&!main.path){toast('Choose the folder on this Mac');return}
     const backups=[...document.querySelectorAll('#sh_bks .drow')].map(get).filter(b=>b.key);
     if(backups.some(b=>b.key==main.key&&b.path==main.path)){toast('A backup can\'t be the same folder as the main one');return}
     const shoot={...(old||{}),uuid:old?old.uuid:'',name,main,backups,skipProxies:$('#sh_proxy').checked};
@@ -1078,6 +1101,33 @@ function editShoot(uuid){
       toast(old?'Saved':`“${name}” started. Plug in your cards: each one is added here automatically.`);
       await loadShoots();loadDrives();openShoot(r.uuid)}catch(e){toast(e.message)}};
   setTimeout(()=>$('#sh_name').focus(),50);
+}
+// Label of a destination drive button
+function destLabel(spec){spec=spec||{};
+  if(spec.local)return `<span class="dot on"></span>${esc((spec.mac||'Mac')+' · internal drive')} <span class="chev2">▾</span>`;
+  const d=spec.key&&dByKey(spec.key);
+  return d?`<span class="dot ${d.online?'on':''}"></span>${esc(d.display)} ${tagHTML(d)} <span class="chev2">▾</span>`:spec.key?`${esc(spec.name||'Unknown drive')} <span class="chev2">▾</span>`:'Choose a drive… <span class="chev2">▾</span>'}
+// Searchable drive list: connected drives first, then the others; "Choose in Finder…" on top
+function drivePicker(anchor,onDrive,onFinder){
+  document.querySelectorAll('.dpick').forEach(x=>x.remove());
+  const ds=realDrives().slice().sort((a,b)=>(b.online?1:0)-(a.online?1:0)||a.display.localeCompare(b.display,undefined,{numeric:true}));
+  const box=document.createElement('div');box.className='dpick';
+  box.innerHTML='<input type="text" placeholder="Type to find a drive…" autocomplete="off"><div class="dpl"></div>';
+  const host=anchor.closest('.drow');host.appendChild(box);
+  const inp=box.querySelector('input'),list=box.querySelector('.dpl');
+  const item=d=>`<div class="dpi" data-k="${esc(d.key)}"><span class="dot ${d.online?'on':''}"></span><span>${esc(d.display)}</span>${tagHTML(d)}${capHTML(d).replace('capc','')}</div>`;
+  const close=()=>{box.remove();document.removeEventListener('mousedown',out,true)};
+  const out=e=>{if(!box.contains(e.target)&&e.target!==anchor&&!anchor.contains(e.target))close()};
+  const draw=()=>{const q=inp.value.trim().toLowerCase();const f=ds.filter(d=>!q||d.display.toLowerCase().includes(q));
+    const on=f.filter(d=>d.online),off=f.filter(d=>!d.online);
+    list.innerHTML=(q?'':'<div class="dpi finder" data-finder="1">📂 Choose in Finder… <span class="mute">any folder, also on this Mac</span></div>')
+      +(on.length?'<div class="dph">Connected</div>'+on.map(item).join(''):'')+(off.length?'<div class="dph">Not connected</div>'+off.map(item).join(''):'')
+      +(f.length?'':'<div class="mute" style="padding:8px 10px">No drive with that name</div>');
+    list.querySelectorAll('[data-k]').forEach(x=>x.onclick=()=>{close();onDrive(ds.find(d=>d.key==x.dataset.k))});
+    const fi=list.querySelector('[data-finder]');if(fi)fi.onclick=()=>{close();onFinder()}};
+  inp.oninput=draw;
+  inp.onkeydown=e=>{if(e.key=='Escape'){e.preventDefault();close()}if(e.key=='Enter'){e.preventDefault();const x=list.querySelector('[data-k]');if(x)x.click()}};
+  draw();setTimeout(()=>inp.focus(),0);document.addEventListener('mousedown',out,true);
 }
 async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
 // Small folder browser for a drive's catalog
@@ -1088,7 +1138,8 @@ async function folderPicker(box,d,start,done){
     if(!rows.length&&path){path='';rows=await listOf(d.id,'').catch(()=>[])}
     const dirs=rows.filter(e=>e.is_dir==1);
     box.innerHTML=`<div class="picker"><div class="ph">${path?'<button class="sm" data-up>‹ Up</button>':''}<span class="mute" style="flex:1">${esc(d.display)}${path?' › '+esc(path.split('/').join(' › ')):''}</span><button class="sm primary" data-use>Use this folder</button></div>
-      ${dirs.map(e=>`<div data-dir="${esc(e.name)}">📁 ${esc(e.name)}</div>`).join('')||'<div class="mute" style="cursor:default">No folders here (from the last catalog)</div>'}</div>`;
+      <div class="mute" style="cursor:default;font-size:12px;padding:4px 10px">From ${esc(d.display)}'s last catalog. A folder made since then? Connect the drive to see it, or just type its name.</div>
+      ${dirs.map(e=>`<div data-dir="${esc(e.name)}">📁 ${esc(e.name)}</div>`).join('')||'<div class="mute" style="cursor:default">No folders here</div>'}</div>`;
     box.querySelectorAll('[data-dir]').forEach(x=>x.onclick=()=>{path=joinP(path,x.dataset.dir);draw()});
     if(box.querySelector('[data-up]'))box.querySelector('[data-up]').onclick=()=>{const p=path.split('/');p.pop();path=p.join('/');draw()};
     box.querySelector('[data-use]').onclick=()=>done(path);

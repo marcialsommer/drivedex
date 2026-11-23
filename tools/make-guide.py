@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.6'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.6.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -173,7 +173,7 @@ s+=[P('8  Folders that don\'t need a backup', h1),
     PageBreak()]
 # 11 shoot mode
 s+=[P('11  Shoot mode: memory cards', h1),
-    P('For film and photo productions with memory cards, from a single day to a project that runs for a week or more: lots of cards, one main drive and a couple of backups. Click <b>Shoots</b> in the drive list &rarr; <b>New shoot</b>, give it a name, choose the <b>main drive</b> and the folder you copy the cards into, and the <b>backup drives</b> with their folders. The folders don\'t need to exist yet, and the backup folders take the main folder\'s name automatically. Click <b>Start shoot</b>.'),
+    P('For film and photo productions with memory cards, from a single day to a project that runs for a week or more: lots of cards, one main drive and a couple of backups. Click <b>Shoots</b> in the drive list &rarr; <b>New shoot</b>, give it a name, choose the <b>main drive</b> and the folder you copy the cards into, and the <b>backup drives</b> with their folders. Click a drive button to pick from the list (type a few letters to find it; drives that aren\'t connected are listed too), or <b>Choose in Finder…</b> to click the exact folder, including a folder on the Mac\'s <b>internal drive</b>. For a connected drive, <b>Choose folder…</b> opens the Mac\'s folder window, so new folders appear and you can create one. The folders don\'t need to exist yet, and the backup folders take the main folder\'s name automatically. Click <b>Start shoot</b>.'),
     P('While a shoot is <b>active</b> (a red dot next to Shoots), every new drive you plug into this Mac counts as one of its memory cards: it\'s read right away, without asking, and listed in the shoot, not in your drive list. Copy the cards as usual (Finder, or your copy tool). DriveDex never copies, moves or deletes anything.'),
     shot('shoot','A shoot: each card, whether all its files are in the main folder and in each backup, and whether it is safe to format.', width=CW*0.9),
     P('A card is <font color="#2e9d58"><b>safe to format</b></font> when every file on it is in the main folder <b>and</b> in every backup folder: same name and same size, in any subfolder. Connected drives are checked live (just the shoot folder, in seconds); others from their last catalog. The page updates by itself. Click <b>… missing</b> to see which files are still missing where.'),

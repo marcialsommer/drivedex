@@ -133,6 +133,11 @@ final class DeepCheck {
         specs += shoot["backups"] as? [[String: Any]] ?? []
         struct Dest { let name: String; let path: String; let mount: URL?; let root: URL?; var index: [String: [URL]] = [:] }
         var dests: [Dest] = specs.map { spec in
+            if spec["local"] as? Bool == true {
+                let root = Shoots.localRoot(spec)
+                return Dest(name: Shoots.localName(spec), path: spec["path"] as? String ?? "",
+                            mount: root == nil ? nil : URL(fileURLWithPath: "/"), root: root)
+            }
             let k = spec["key"] as? String ?? ""
             let path = (spec["path"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
             let name = db.row("SELECT COALESCE(NULLIF(label,''), name) AS n FROM drives WHERE key=?", [k])?["n"] as? String ?? "?"
