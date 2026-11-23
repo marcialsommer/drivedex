@@ -333,9 +333,8 @@ async function loadDrives(){
   const sel=$('#scope'),selv=sel.value;
   sel.innerHTML='<option value="">All drives</option>'+(here?`<option value="here">In “${esc(here.label)}”</option>`:'')+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
   const upHTML=updateInfo&&updateInfo.available?`<div class="upd1" title="You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept."><b>DriveDex ${esc(updateInfo.version)} is available</b><button class="primary" id="doupdate">Install</button></div>`:'';
-  const newHTML=upHTML+pending.map(n=>n.card?`<div class="newdrv"><b>Memory card: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.total?hb(n.used)+' of '+hb(n.total)+' used · ':''}memory cards are only checked in a shoot, never added to your drives</span>
-    <div class="row">${activeShoot()?`<button class="primary" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to “${esc(activeShoot().name)}”</button>`:'<button class="primary" data-newshoot="1">Start a shoot…</button>'}<button data-dismiss="${esc(n.key)}" title="Close this for now (it asks again next time you plug it in)">Not now</button></div>
-    <a class="lnk" style="font-size:12px" data-notacard="${esc(n.key)}">It's not a memory card</a></div>`
+  const newHTML=upHTML+pending.map(n=>n.card?`<div class="newdrv"><b>Memory card: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.total?hb(n.used)+' of '+hb(n.total)+' used · ':''}memory cards stay out of your drive list unless you add them</span>
+    <div class="row">${activeShoot()?`<button class="primary" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to “${esc(activeShoot().name)}”</button>`:'<button class="primary" data-newshoot="1">Start a shoot…</button>'}<button data-notacard="${esc(n.key)}" data-name="${esc(n.name)}" title="Catalog it like any other drive and show it in the drive list (for cards used as storage or backup)">Add to my drives</button><button data-dismiss="${esc(n.key)}" title="Close this for now (it asks again next time you plug it in)">Not now</button></div></div>`
     :`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
     <div class="row">${activeShoot()?`<button class="primary" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}" title="It's a memory card for this shoot">Add to “${esc(activeShoot().name)}”</button><button data-approve="${esc(n.key)}" title="Catalog it as a normal drive">Catalog it</button>`:`<button class="primary" data-approve="${esc(n.key)}">Catalog it</button>`}<button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
   const full=d=>{
@@ -360,7 +359,7 @@ async function loadDrives(){
       return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives${b.source?` · only ${esc(b.source.split('/').pop())}`:''}</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
-  const rest=drives.filter(d=>!inFamily.has(d.id)&&!d.card&&!d.is_card);
+  const rest=drives.filter(d=>!inFamily.has(d.id)&&!d.card&&d.is_card!=1);
   const nAtt=attentionItems().filter(x=>x.lvl>0).length;
   const homeHTML=drives.length?`<div class="drv homeitem ${state.mode=='home'?'sel':''}" id="homeitem"><div class="t"><span class="kn">Overview</span>${nAtt?`<span class="badge">${nAtt}</span>`:'<span class="okc" style="margin-left:auto">✓</span>'}</div></div>`:'';
   const act=activeShoot();
@@ -381,7 +380,7 @@ async function loadDrives(){
   document.querySelectorAll('[data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
   document.querySelectorAll('[data-newshoot]').forEach(b=>b.onclick=()=>editShoot(null));
   document.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>api('dismissDrive',{key:b.dataset.dismiss}).then(loadDrives));
-  document.querySelectorAll('#drives [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard));
+  document.querySelectorAll('#drives [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard,a.dataset.name));
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
   if(!setupChecked){setupChecked=true;api('getSettings').then(s=>{if(!s.onboarded&&state.mode=='home'&&!drives.some(d=>d.role))openSetup()}).catch(()=>{})}
@@ -1040,7 +1039,7 @@ const activeShoot=()=>(shootsData.shoots||[]).find(s=>s.uuid==shootsData.active&
 function enterPage(st){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';
   clearInterval(shootTimer);shootTimer=null;state=st;document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));if($('#shootsitem'))$('#shootsitem').classList.add('sel')}
 const dByKey=k=>drives.find(d=>d.key==k);
-const realDrives=()=>drives.filter(d=>!d.card&&!d.is_card);
+const realDrives=()=>drives.filter(d=>!d.card&&d.is_card!=1);
 async function openShoots(){
   enterPage({mode:'shoots'});
   await api('shoots').then(r=>{shootsData=r}).catch(()=>{});if(state.mode!='shoots')return;
@@ -1143,8 +1142,9 @@ function drivePicker(anchor,onDrive,onFinder,opt){opt=opt||{};
 // A new drive the user confirmed as a memory card of the active shoot
 function addCard(key,name){const a=activeShoot();
   api('approveCard',{key,name}).then(()=>{toast(`Added to “${a?a.name:'the shoot'}”. Reading the card…`);setTimeout(()=>{loadDrives();if(state.mode=='shoot')drawShoot(state.uuid)},800)}).catch(e=>toast(e.message))}
-function notACard(key){if(!confirm('Treat this drive as a normal drive from now on?\n\nDriveDex will catalog it and show it in your drive list.'))return;
-  api('notACard',{key}).then(()=>{toast('OK, it will be catalogued as a normal drive.');setTimeout(loadDrives,800)}).catch(e=>toast(e.message))}
+// Add a memory card to the drive list on purpose (cards used as storage or backup)
+function notACard(key,name){if(!confirm(`Add “${name||'this card'}” to your drives?\n\nDriveDex catalogs it and shows it in the drive list like any other drive, and keeps doing so whenever you connect it. Good for cards you use as storage or backup.`))return;
+  api('notACard',{key}).then(()=>{toast(`“${name||'The card'}” is now one of your drives.`);setTimeout(loadDrives,800)}).catch(e=>toast(e.message))}
 async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
 // Small folder browser for a drive's catalog
 async function folderPicker(box,d,start,done){
@@ -1226,10 +1226,10 @@ async function drawShoot(uuid){
       <div class="misslist">${x.sample.map(f=>`<div>📄 ${esc(f.name)} <span class="mute">· ${hb(f.size)} · ${esc(f.parent||'/')}</span></div>`).join('')}${x.missing>x.sample.length?`<div class="mute">and ${(x.missing-x.sample.length).toLocaleString()} more</div>`:''}</div></div>`;
     else shootMiss=null}
   const keepScroll=$('#view').scrollTop;
-  const pend=active&&pending.length?`<div class="card" style="border-color:var(--acc)">${pending.map(n=>`<div class="row" style="margin:3px 0"><span>New drive connected: <b>${esc(n.name)}</b>${n.total?` <span class="mute">· ${hb(n.total)}</span>`:''}</span><span style="flex:1"></span><button class="primary sm" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to this shoot</button>${n.card?`<a class="lnk" style="font-size:12px" data-notacard="${esc(n.key)}">not a memory card?</a>`:`<button class="sm" data-approve2="${esc(n.key)}" title="Catalog it as a normal drive">Normal drive</button>`}</div>`).join('')}</div>`:'';
+  const pend=active&&pending.length?`<div class="card" style="border-color:var(--acc)">${pending.map(n=>`<div class="row" style="margin:3px 0"><span>New drive connected: <b>${esc(n.name)}</b>${n.total?` <span class="mute">· ${hb(n.total)}</span>`:''}</span><span style="flex:1"></span><button class="primary sm" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to this shoot</button>${n.card?`<button class="sm" data-notacard="${esc(n.key)}" data-name="${esc(n.name)}" title="Catalog it like any other drive instead">Add to my drives</button>`:`<button class="sm" data-approve2="${esc(n.key)}" title="Catalog it as a normal drive">Normal drive</button>`}</div>`).join('')}</div>`:'';
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+pend+table+add+miss;
   document.querySelectorAll('#view [data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
-  document.querySelectorAll('#view [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard));
+  document.querySelectorAll('#view [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard,a.dataset.name));
   document.querySelectorAll('#view [data-approve2]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve2}).then(()=>{toast('Cataloguing it as a normal drive…');setTimeout(loadDrives,800)}));
   $('#view').scrollTop=keepScroll;
   const re=()=>{loadShoots().then(()=>{loadDrives();drawShoot(uuid)})};
@@ -1320,8 +1320,11 @@ async function openSettings(){
       +` <button id="s_check">Check now</button>${u.error?` <span class="errc">${esc(u.error)}</span>`:''}<div class="mute" style="font-size:12px;width:100%">DriveDex looks for updates automatically a few times a day. Updates installed from here don't need "Open Anyway".</div>`;
     if($('#s_update'))$('#s_update').onclick=installUpdate;
     $('#s_check').onclick=()=>{$('#s_check').textContent='Checking…';checkUpdates(true)}});
-  (()=>{const el=$('#s_cards'),n=drives.filter(d=>d.is_card&&!d.card).length,inS=drives.filter(d=>d.card).length;
-    el.innerHTML=`<span class="mute">Memory cards (recognised by the card reader, or by camera folders like DCIM) never appear in the drive list: plug one in during a shoot and click <b>Add to the shoot</b>.${inS?` ${inS} card${inS==1?' is':'s are'} part of a shoot.`:''}</span>${n?`<div class="row" style="margin-top:6px"><button id="s_forgetcards">Forget ${n} memory card${n==1?' that isn\'t':'s that aren\'t'} in a shoot</button></div>`:''}`;
+  (()=>{const el=$('#s_cards'),hid=drives.filter(d=>d.is_card==1&&!d.card),n=hid.length,inS=drives.filter(d=>d.card).length;
+    el.innerHTML=`<span class="mute">Memory cards (recognised by the card reader, or by camera folders like DCIM) stay out of the drive list unless you add them: when you plug one in, choose <b>Add to the shoot</b> or <b>Add to my drives</b>.${inS?` ${inS} card${inS==1?' is':'s are'} part of a shoot.`:''}</span>
+      ${n?`<div style="margin-top:6px">${hid.map(d=>`<div class="row" style="margin:3px 0"><span>${esc(d.display)} <span class="mute">${d.total_bytes?'· '+capLabel(d.total_bytes):''}${d.last_seen?' · seen '+ago(d.last_seen):''}</span></span><button class="sm" data-notacard="${esc(d.key)}" data-name="${esc(d.display)}">Add to my drives</button></div>`).join('')}</div>`:''}
+      ${n?`<div class="row" style="margin-top:6px"><button id="s_forgetcards">Forget ${n} memory card${n==1?' that isn\'t':'s that aren\'t'} in a shoot</button></div>`:''}`;
+    el.querySelectorAll('[data-notacard]').forEach(b=>b.onclick=()=>notACard(b.dataset.notacard,b.dataset.name));
     if($('#s_forgetcards'))$('#s_forgetcards').onclick=()=>{if(!confirm(`Forget ${n} memory card${n==1?'':'s'}?\n\nTheir catalogs are removed from DriveDex. Nothing on the cards is touched, and cards that belong to a shoot are kept.`))return;
       api('forgetCards').then(r=>{toast(`Forgot ${r.forgotten} memory card${r.forgotten==1?'':'s'}`);loadDrives().then(openSettings)})}})();
   $('#s_setup').onclick=openSetup;$('#s_guide').onclick=()=>api('openGuide');

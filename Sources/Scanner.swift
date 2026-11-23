@@ -352,7 +352,8 @@ final class Scanner {
 
     private func scan(_ v: VolumeInfo, force: Bool, approved: Bool) {
         let card = Shoots.claimCard(v, db: db)          // a memory card of the active shoot?
-        if card == nil && v.isCard {
+        let addedOnPurpose = (db.row("SELECT is_card FROM drives WHERE key=?", [v.key])?["is_card"] as? Int) == -1
+        if card == nil && v.isCard && !addedOnPurpose {
             // Memory cards never become normal drives: they wait for "Add to <shoot>" (or Ignore).
             db.run("UPDATE drives SET is_card=1 WHERE key=?", [v.key])          // hide one catalogued earlier
             lock.lock()

@@ -57,7 +57,7 @@ enum Bridge {
             let k = str("key")
             var nc = Settings.notCardKeys
             if !nc.contains(k) { nc.append(k); Settings.d.set(nc, forKey: "notCardKeys") }
-            db.run("UPDATE drives SET is_card=0 WHERE key=?", [k])
+            db.run("UPDATE drives SET is_card=-1 WHERE key=?", [k])   // -1 = the user added this card to their drives (syncs)
             if let id = db.row("SELECT id FROM drives WHERE key=?", [k])?["id"] as? Int { db.touchMeta([id]); Scanner.shared.exportMeta([id]) }
             if Scanner.shared.pendingDrives().contains(where: { $0["key"] as? String == k }) { Scanner.shared.approve(k) }
             return ok

@@ -122,7 +122,8 @@ final class DB {
         for c in ["cov_bytes", "cov_one_bytes", "cov_two_bytes"] { addColumn("drives", c, "INTEGER") }   // v2.1.7: % by data
         addColumn("drives", "scan_started", "REAL")     // v2.1.8: live progress of the running scan
         addColumn("drives", "scan_files", "INTEGER")
-        // v2.6.5: memory cards are never shown as normal drives. Mark the ones catalogued before.
+        // v2.6.5: memory cards stay out of the drive list (is_card 1). -1 = a card the user added to their drives.
+        // Mark the ones catalogued before.
         if addColumn("drives", "is_card", "INTEGER DEFAULT 0") {
             exec("""
                 UPDATE drives SET is_card=1 WHERE COALESCE(role,'')='' AND COALESCE(total_bytes,0) BETWEEN 1 AND 1100000000000
