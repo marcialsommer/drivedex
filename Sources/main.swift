@@ -82,6 +82,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         webView.evaluateJavaScript("checkUpdates(true)", completionHandler: nil)
     }
 
+    @objc func openGuide() {
+        if let u = URL(string: "https://github.com/marcialsommer/drivedex/releases/latest/download/DriveDex-Guide.pdf") {
+            NSWorkspace.shared.open(u)
+        }
+    }
+
     @objc func sendFeedback() {
         showWindow()
         webView.evaluateJavaScript("openSettings().then(()=>{const f=document.querySelector('#s_fb');if(f)f.scrollIntoView({block:'center'})})", completionHandler: nil)
@@ -220,6 +226,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         winItem.submenu = win
         main.addItem(winItem)
         NSApp.windowsMenu = win
+
+        let helpItem = NSMenuItem()
+        let help = NSMenu(title: "Help")
+        help.addItem(withTitle: "DriveDex User Guide", action: #selector(openGuide), keyEquivalent: "?").target = self
+        help.addItem(withTitle: "Send Feedback…", action: #selector(sendFeedback), keyEquivalent: "").target = self
+        helpItem.submenu = help
+        main.addItem(helpItem)
+        NSApp.helpMenu = help
 
         NSApp.mainMenu = main
     }

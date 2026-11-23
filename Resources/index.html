@@ -690,7 +690,7 @@ async function openSettings(){
     ${s.syncFolder?'<button id="s_syncnow">Sync now</button><button id="s_syncoff" class="danger">Stop sharing</button>':''}</div>
   <h3>Feedback</h3><div class="row" id="s_fb"><button id="s_fb_bug">Report a problem</button><button id="s_fb_idea">Suggest an idea</button>
     <span class="mute" style="font-size:12px;width:100%">Opens a short form on GitHub (sign in needed) with your DriveDex and macOS versions filled in. Please don't include private file names you don't want others to see: the feedback page is public.</span></div>
-  <h3>Setup guide</h3><div class="row"><button id="s_setup">Run the setup guide again</button></div>
+  <h3>Help</h3><div class="row"><button id="s_guide">Open the user guide (PDF)</button><button id="s_setup">Run the setup guide again</button></div>
   <h3>Updates</h3><div class="row" id="uprow"><span class="mute">Checking…</span></div>
   <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} on ${esc(s.machine)}<br>Working copy on this Mac (fast searching, works offline): ${esc(s.catalogPath)}${s.syncFolder?`<br>Shared copy, exchanged with your other Macs: ${esc(s.syncFolder)}`:''}</div></div>`;
   const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,askNew:$('#s_ask').checked,strictCheck:$('#s_strict').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
@@ -703,7 +703,7 @@ async function openSettings(){
       +` <button id="s_check">Check now</button>${u.error?` <span class="errc">${esc(u.error)}</span>`:''}<div class="mute" style="font-size:12px;width:100%">DriveDex looks for updates automatically a few times a day. Updates installed from here don't need "Open Anyway".</div>`;
     if($('#s_update'))$('#s_update').onclick=installUpdate;
     $('#s_check').onclick=()=>{$('#s_check').textContent='Checking…';checkUpdates(true)}});
-  $('#s_setup').onclick=openSetup;
+  $('#s_setup').onclick=openSetup;$('#s_guide').onclick=()=>api('openGuide');
   $('#s_fb_bug').onclick=()=>api('feedback',{kind:'bug'});$('#s_fb_idea').onclick=()=>api('feedback',{kind:'idea'});
   const sync=(a,msg)=>api(a).then(()=>{if(msg)toast(msg);openSettings()}).catch(e=>toast(e.message));
   if($('#s_icloud'))$('#s_icloud').onclick=()=>sync('syncICloud','Sharing through iCloud Drive');

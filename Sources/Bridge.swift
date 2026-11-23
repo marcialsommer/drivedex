@@ -168,6 +168,14 @@ enum Bridge {
             if let url = c.url { DispatchQueue.main.async { NSWorkspace.shared.open(url) } }
             return ok
 
+        case "openGuide":
+            DispatchQueue.main.async {
+                if let u = URL(string: "https://github.com/marcialsommer/drivedex/releases/latest/download/DriveDex-Guide.pdf") {
+                    NSWorkspace.shared.open(u)
+                }
+            }
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))

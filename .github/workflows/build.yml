@@ -35,9 +35,9 @@ jobs:
         run: |
           gh release delete latest --yes --cleanup-tag || true
           VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" build/DriveDex.app/Contents/Info.plist)
-          gh release create latest build/DriveDex.dmg build/DriveDex.zip --latest --draft=false \
+          gh release create latest build/DriveDex.dmg build/DriveDex.zip docs/DriveDex-Guide.pdf --latest --draft=false \
             --title "DriveDex $VERSION (build ${{ github.run_number }})" \
-            --notes "Download DriveDex.dmg below, open it, and drag DriveDex into Applications."
+            --notes "Download **DriveDex.dmg** below, open it, and drag DriveDex into Applications. The user guide is attached as **DriveDex-Guide.pdf**."
           # Make sure the release is published (not left as a draft).
           sleep 5
           gh release edit latest --draft=false --latest || true
