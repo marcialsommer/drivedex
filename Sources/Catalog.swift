@@ -67,6 +67,8 @@ final class DB {
         addColumn("entries", "copies", "INTEGER")
         addColumn("drives", "meta_updated", "REAL")
         exec("CREATE TABLE IF NOT EXISTS backups(main_id INTEGER, backup_id INTEGER, PRIMARY KEY(main_id, backup_id))")
+        exec("CREATE TABLE IF NOT EXISTS excluded(drive_id INTEGER, path TEXT, PRIMARY KEY(drive_id, path))")
+        addColumn("drives", "cov_excluded", "INTEGER")
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -210,13 +212,17 @@ final class DB {
 
     func forget(_ id: Int) {
         run("DELETE FROM backups WHERE main_id=? OR backup_id=?", [id, id])
+        run("DELETE FROM excluded WHERE drive_id=?", [id])
         if hasFTS { run("DELETE FROM names WHERE rowid IN (SELECT id FROM entries WHERE drive_id=?)", [id]) }
         run("DELETE FROM entries WHERE drive_id=?", [id])
         run("DELETE FROM drives WHERE id=?", [id])
     }
 
     func drivesList(online: [String: VolumeInfo]) -> [[String: Any]] {
-        var backupOf: [Int: [Int]] = [:], backedUpBy: [Int: [Int]] = [:]
+        var backupOf: [Int: [Int]] = [:], backedUpBy: [Int: [Int]] = [:], excl: [Int: [String]] = [:]
+        for r in rows("SELECT drive_id, path FROM excluded ORDER BY path") {
+            if let id = r["drive_id"] as? Int, let p = r["path"] as? String { excl[id, default: []].append(p) }
+        }
         for r in rows("SELECT main_id, backup_id FROM backups") {
             guard let m = r["main_id"] as? Int, let b = r["backup_id"] as? Int else { continue }
             backupOf[b, default: []].append(m)
@@ -232,6 +238,7 @@ final class DB {
             let id = r["id"] as? Int ?? -1
             d["backup_of"] = backupOf[id] ?? []
             d["backed_up_by"] = backedUpBy[id] ?? []
+            d["excluded"] = excl[id] ?? []
             return d
         }
     }
@@ -316,6 +323,15 @@ final class DB {
         return Array(Set(old + mains))
     }
 
+    func excludedPaths(_ id: Int) -> [String] {
+        rows("SELECT path FROM excluded WHERE drive_id=?", [id]).compactMap { $0["path"] as? String }
+    }
+
+    func setExcluded(_ id: Int, _ path: String, _ on: Bool) {
+        if on { run("INSERT OR IGNORE INTO excluded(drive_id, path) VALUES(?,?)", [id, path]) }
+        else { run("DELETE FROM excluded WHERE drive_id=? AND path=?", [id, path]) }
+    }
+
     func markChecking(_ ids: [Int]) {
         for id in ids { run("UPDATE drives SET cov_state='checking' WHERE id=?", [id]) }
     }
@@ -343,15 +359,22 @@ final class DB {
                 WHERE b.name = entries.name AND b.size = entries.size AND b.is_dir <> 1 AND (\(cond)))
             WHERE drive_id = ? AND gen = ? AND is_dir <> 1
             """, [mainID, gen])
+        for p in excludedPaths(mainID) {
+            run("""
+                UPDATE entries SET copies = -1 WHERE drive_id=? AND gen=? AND is_dir <> 1
+                AND (parent = ? OR (parent >= ? AND parent < ?))
+                """, [mainID, gen, p, p + "/", p + "0"])
+        }
         let s = row("""
-            SELECT COUNT(*) AS n, SUM(copies=0) AS c0, SUM(copies=1) AS c1, SUM(copies>=2) AS c2,
-                   SUM(CASE WHEN copies=0 THEN size ELSE 0 END) AS nb
+            SELECT SUM(copies>=0) AS n, SUM(copies=0) AS c0, SUM(copies=1) AS c1, SUM(copies>=2) AS c2,
+                   SUM(CASE WHEN copies=0 THEN size ELSE 0 END) AS nb, SUM(copies=-1) AS ex
             FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1
             """, [mainID, gen]) ?? [:]
         run("""
-            UPDATE drives SET cov_files=?, cov_none=?, cov_one=?, cov_two=?, cov_none_bytes=?, cov_state='ok' WHERE id=?
+            UPDATE drives SET cov_files=?, cov_none=?, cov_one=?, cov_two=?, cov_none_bytes=?, cov_excluded=?,
+            cov_state='ok' WHERE id=?
             """, [s["n"] as? Int ?? 0, s["c0"] as? Int ?? 0, s["c1"] as? Int ?? 0, s["c2"] as? Int ?? 0,
-                  s["nb"] as? Int ?? 0, mainID])
+                  s["nb"] as? Int ?? 0, s["ex"] as? Int ?? 0, mainID])
         exec("COMMIT")
     }
 
@@ -363,7 +386,7 @@ final class DB {
     /// Backup status of each child (file or folder) of `path`: {name: {n, none, one}}.
     func folderCoverage(_ id: Int, _ path: String) -> [String: Any] {
         guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [:] }
-        let agg = "SUM(copies=0) AS none, SUM(copies=1) AS one, COUNT(*) AS n"
+        let agg = "SUM(copies=0) AS none, SUM(copies=1) AS one, SUM(copies>=0) AS n, SUM(copies=-1) AS ex"
         let sql: String
         let args: [Any?]
         if path.isEmpty {
@@ -384,7 +407,8 @@ final class DB {
         var out: [String: Any] = [:]
         for r in rows(sql, args) {
             guard let c = r["child"] as? String else { continue }
-            out[c] = ["n": r["n"] as? Int ?? 0, "none": r["none"] as? Int ?? 0, "one": r["one"] as? Int ?? 0]
+            out[c] = ["n": r["n"] as? Int ?? 0, "none": r["none"] as? Int ?? 0, "one": r["one"] as? Int ?? 0,
+                      "ex": r["ex"] as? Int ?? 0]
         }
         return out
     }
@@ -392,7 +416,7 @@ final class DB {
     /// Files on a main drive with at most `maxCopies` backups.
     func missingFiles(_ id: Int, maxCopies: Int, limit: Int = 3000) -> [String: Any] {
         guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [:] }
-        let base = "FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies <= ?"
+        let base = "FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0 AND copies <= ?"
         let args: [Any?] = [id, gen, maxCopies]
         let total = row("SELECT COUNT(*) AS n, SUM(size) AS bytes \(base)", args) ?? [:]
         return [
@@ -419,7 +443,8 @@ final class DB {
         return [
             "key": key, "name": d["name"] as? String ?? "", "label": d["label"] as? String ?? "",
             "notes": d["notes"] as? String ?? "", "role": d["role"] as? String ?? "",
-            "backup_of": mains, "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
+            "backup_of": mains, "excluded": excludedPaths(id),
+            "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
         ]
     }
 
@@ -506,6 +531,10 @@ final class DB {
                 run("INSERT OR IGNORE INTO backups(main_id, backup_id) VALUES(?,?)", [mid, id])
                 affected.append(mid)
             }
+        }
+        if let ex = m["excluded"] as? [String] {
+            run("DELETE FROM excluded WHERE drive_id=?", [id])
+            for p in ex { setExcluded(id, p, true) }
         }
         if role == "main" { affected.append(id) } else if role != "backup" { clearCoverage(id) }
         return .applied(affected)

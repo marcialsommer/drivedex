@@ -65,6 +65,15 @@ enum Bridge {
             Scanner.shared.exportMeta([id] + mains)
             return ok
 
+        case "setExcluded":
+            guard let id = int("id") else { return err("missing id") }
+            db.setExcluded(id, str("path"), a["on"] as? Bool ?? true)
+            db.markChecking([id])
+            db.touchMeta([id])
+            Scanner.shared.recomputeCoverage([id])
+            Scanner.shared.exportMeta([id])
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))

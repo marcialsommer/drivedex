@@ -54,7 +54,10 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .covbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--line);margin:10px 0 6px}.covbar i{display:block;height:100%}
 .c2{background:var(--ok)}.c1{background:var(--warn)}.c0{background:var(--err)}
 .cd{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;flex:none}
-.covleg{font-size:12px;color:var(--mute);gap:16px}.okc{color:var(--ok)}.warnc{color:var(--warn)}.errc{color:var(--err)}
+.covleg{font-size:12px;color:var(--mute);gap:16px}.exbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin:0 0 10px;border:1px dashed var(--line);border-radius:8px;color:var(--mute);font-size:13px}
+.xchip{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 10px;border-radius:99px;background:var(--bg);border:1px solid var(--line);margin:0 6px 6px 0;font-size:12px}
+.xchip button{padding:0 7px;border:0;background:transparent;color:var(--mute)}.xchip a{color:var(--ink);cursor:pointer}
+.okc{color:var(--ok)}.warnc{color:var(--warn)}.errc{color:var(--err)}
 a.lnk{color:var(--acc);cursor:pointer}
 body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-user-select:text}
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;display:none}
@@ -124,7 +127,8 @@ function renderHome(){
 function openDrive(id,path,hl){state={mode:'drive',drive:id,path,hl};$('#q').value='';render();loadDrives()}
 async function render(){
   if(state.mode!='drive')return;
-  $('#view').innerHTML=`<div id="dh"></div><div class="crumbs" id="crumbs"></div><div id="list" class="empty">Loading…</div>`;
+  $('#view').innerHTML=`<div id="dh"></div><div class="crumbs" id="crumbs"></div><div id="exbar"></div><div id="list" class="empty">Loading…</div>`;
+  drawExBar();
   renderDriveHeader();
   const parts=state.path?state.path.split('/'):[];
   $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
@@ -155,6 +159,8 @@ function renderDriveHeader(){
   document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);api('setBackupOf',{id:d.id,mains:ids}).then(()=>{toast(ids.length?'Saved. Checking backups…':'Saved');redo()})});
   if($('#sugapply'))$('#sugapply').onclick=()=>api('setBackupOf',{id:d.id,mains:[...new Set([...(d.backup_of||[]),...guessMains(d).map(x=>x.id)])]}).then(()=>{toast('Saved. Checking backups…');redo()});
   document.querySelectorAll('#dh [data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''));
+  document.querySelectorAll('#dh [data-goto]').forEach(a=>a.onclick=()=>{state.path=a.dataset.goto;state.hl=null;render()});
+  document.querySelectorAll('#dh [data-unex]').forEach(b=>b.onclick=()=>api('setExcluded',{id:d.id,path:b.dataset.unex,on:false}).then(()=>{toast('Included in the backup check again');redo();drawExBarSoon()}));
   document.querySelectorAll('#dh [data-miss]').forEach(b=>b.onclick=()=>openMissing(d.id,+b.dataset.miss));
   $('#reveal').onclick=()=>api('reveal',{id:d.id,path:state.path}).catch(e=>toast(e.message));
   $('#forget').onclick=()=>{if(confirm(`Remove "${d.display}" and its catalog from DriveDex? (Nothing on the drive is touched.)`))api('forget',{id:d.id}).then(()=>{state={mode:'home'};loadDrives()})};
@@ -177,7 +183,9 @@ function roleHTML(d){
 function covHTML(d){
   const bk=(d.backed_up_by||[]).map(id=>drives.find(x=>x.id==id)).filter(Boolean);
   if(!bk.length)return `<div class="mute" style="margin-top:8px">No backup drive assigned yet. Open a backup drive, set it to <b>Backup</b> and tick “${esc(d.display)}”.</div>`;
-  const bl=`<div class="mute" style="margin-top:8px;font-size:12px">Backed up on ${bk.map(x=>`<a class="lnk" data-open="${x.id}">${esc(x.display)}</a> (catalog from ${ago(x.last_scan)})`).join(', ')}. Files count as backed up when a file with the same name and size is on the backup drive.</div>`;
+  const ex=d.excluded||[];
+  const exl=`<div style="margin-top:8px;font-size:12px"><span class="mute">Excluded from the check${d.cov_excluded?` (${d.cov_excluded.toLocaleString()} files)`:''}: </span>${ex.length?ex.map(p=>`<span class="xchip"><a data-goto="${esc(p)}">${esc(p)}</a><button data-unex="${esc(p)}" title="Check this folder again">×</button></span>`).join(''):'<span class="mute">none. Open a folder and choose “Exclude from backup check” if it doesn\'t need a backup.</span>'}</div>`;
+  const bl=exl+`<div class="mute" style="margin-top:8px;font-size:12px">Backed up on ${bk.map(x=>`<a class="lnk" data-open="${x.id}">${esc(x.display)}</a> (catalog from ${ago(x.last_scan)})`).join(', ')}. Files count as backed up when a file with the same name and size is on the backup drive.</div>`;
   if(!covReady(d))return `<div style="margin-top:8px" class="status scanning">Checking backups…</div>`+bl;
   const n=d.cov_files||0;if(!n)return bl;
   const c0=d.cov_none||0,c1=d.cov_one||0,c2=d.cov_two||0,p=x=>Math.round(1000*x/n)/10;
@@ -199,12 +207,25 @@ async function openMissing(id,max){
   document.querySelectorAll('#view .chip[data-p]').forEach(c=>c.onclick=()=>openDrive(id,c.dataset.p));
   document.querySelectorAll('#view tr[data-n]').forEach(tr=>tr.onclick=()=>openDrive(id,tr.dataset.p,tr.dataset.n));
 }
+const exclOf=(d,path)=>(d.excluded||[]).find(x=>path==x||path.startsWith(x+'/'));
+function drawExBar(){
+  const d=cur(),el=$('#exbar');if(!el)return;
+  if(!hasBackups(d)||!state.path){el.innerHTML='';return}
+  const x=exclOf(d,state.path);
+  const setEx=(path,on)=>api('setExcluded',{id:d.id,path,on}).then(()=>{toast(on?'Excluded from the backup check':'Included in the backup check again');$('#dh').dataset.id='';loadDrives();drawExBarSoon()});
+  if(x==state.path)el.innerHTML=`<div class="exbar">⊘ This folder is excluded from the backup check: its files don't count as missing. <button id="exoff">Check it again</button></div>`;
+  else if(x)el.innerHTML=`<div class="exbar">⊘ Inside “${esc(x.split('/').pop())}”, which is excluded from the backup check. <button id="exoff">Check it again</button></div>`;
+  else el.innerHTML=`<div class="exbar">Don't need this folder backed up? <button id="exon">Exclude from backup check</button></div>`;
+  if($('#exon'))$('#exon').onclick=()=>setEx(state.path,true);
+  if($('#exoff'))$('#exoff').onclick=()=>setEx(x,false);
+}
+function drawExBarSoon(){setTimeout(()=>{if(state.mode=='drive')drawExBar()},400)}
 function covCell(e){const c=state.cov;if(!c)return'';
-  if(e.is_dir==1){const f=c[e.name];if(!f||!f.n)return '<td class="r mute">—</td>';
+  if(e.is_dir==1){const f=c[e.name];if(f&&f.ex&&!f.n)return '<td class="r mute">⊘ Excluded</td>';if(!f||!f.n)return '<td class="r mute">—</td>';
     if(f.none)return `<td class="r errc"><span class="cd c0"></span>${f.none.toLocaleString()} not backed up</td>`;
     if(f.one)return `<td class="r warnc"><span class="cd c1"></span>${f.one.toLocaleString()} with 1 backup</td>`;
     return '<td class="r okc"><span class="cd c2"></span>All twice</td>'}
-  const k=e.copies;if(k==null)return '<td class="r mute">—</td>';
+  const k=e.copies;if(k==null)return '<td class="r mute">—</td>';if(k<0)return '<td class="r mute">⊘ Excluded</td>';
   return `<td class="r"><span class="cd ${k>=2?'c2':k==1?'c1':'c0'}"></span>${k==0?'None':k==1?'1 backup':k+' backups'}</td>`}
 const dstat=d=>(d.online?'🟢 Connected':'⚪ Not connected')+(d.status=='scanning'?` · <span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?` · <span class="status error">⚠ ${esc(d.status_detail)}</span>`:d.status_detail?` · ${esc(d.status_detail)}`:'');
 function sorter(rows){const k=sort.k,dr=sort.d;return rows.slice().sort((a,b)=>{if(k=='name'){if((a.is_dir==1)!=(b.is_dir==1))return a.is_dir==1?-1:1;return dr*a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})}return dr*((a[k]||0)-(b[k]||0))})}
