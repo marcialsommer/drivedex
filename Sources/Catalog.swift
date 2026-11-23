@@ -37,6 +37,8 @@ enum Settings {
     static var askNew: Bool { d.bool(forKey: "askNew") }
     static var strictCheck: Bool { d.bool(forKey: "strictCheck") }
     static var showMenuBarIcon: Bool { d.bool(forKey: "showMenuBarIcon") }
+    /// Drives the user said are not memory cards (although they look like one).
+    static var notCardKeys: [String] { d.stringArray(forKey: "notCardKeys") ?? [] }
 }
 
 struct Entry {
@@ -120,6 +122,14 @@ final class DB {
         for c in ["cov_bytes", "cov_one_bytes", "cov_two_bytes"] { addColumn("drives", c, "INTEGER") }   // v2.1.7: % by data
         addColumn("drives", "scan_started", "REAL")     // v2.1.8: live progress of the running scan
         addColumn("drives", "scan_files", "INTEGER")
+        // v2.6.5: memory cards are never shown as normal drives. Mark the ones catalogued before.
+        if addColumn("drives", "is_card", "INTEGER DEFAULT 0") {
+            exec("""
+                UPDATE drives SET is_card=1 WHERE COALESCE(role,'')='' AND COALESCE(total_bytes,0) BETWEEN 1 AND 1100000000000
+                AND EXISTS(SELECT 1 FROM entries e WHERE e.drive_id=drives.id AND e.gen=drives.gen AND e.parent='' AND e.is_dir=1
+                  AND e.name IN ('DCIM','PRIVATE','CLIP','M4ROOT','XDROOT','AVCHD','CONTENTS','MISC','CANONMSC','DJI','Blackmagic'))
+                """)
+        }
         // v2.1.7: a log of every scan, for every drive
         exec("BEGIN IMMEDIATE")   // three connections open at launch; only one may create + fill the log
         let hadLog = row("SELECT name FROM sqlite_master WHERE type='table' AND name='scan_log'") != nil
@@ -802,7 +812,7 @@ final class DB {
 
     /// Editable, user-facing info about a drive, shared between Macs.
     func metaDict(_ id: Int) -> [String: Any]? {
-        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user, sort_order FROM drives WHERE id=?", [id]),
+        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user, sort_order, is_card FROM drives WHERE id=?", [id]),
               let key = d["key"] as? String else { return nil }
         let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.backup_path,'')=''", [id])
             .compactMap { $0["key"] as? String }
@@ -825,7 +835,7 @@ final class DB {
                     guard let k = r["key"] as? String, let g = r["grp"] as? String else { return nil }
                     return (k, g)
                 }, uniquingKeysWith: { a, _ in a }),
-            "remind_days": d["remind_days"] as? Int ?? 0, "media_user": d["media_user"] as? String ?? "", "sort_order": d["sort_order"] ?? NSNull(),
+            "remind_days": d["remind_days"] as? Int ?? 0, "media_user": d["media_user"] as? String ?? "", "sort_order": d["sort_order"] ?? NSNull(), "is_card": d["is_card"] as? Int ?? 0,
             "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
         ]
     }
@@ -948,6 +958,7 @@ final class DB {
         if let rd = m["remind_days"] as? Int { run("UPDATE drives SET remind_days=? WHERE id=?", [rd, id]) }
         if let mu = m["media_user"] as? String { run("UPDATE drives SET media_user=? WHERE id=?", [mu, id]) }
         if let so = m["sort_order"] as? Int { run("UPDATE drives SET sort_order=? WHERE id=?", [so, id]) }
+        if let ic = m["is_card"] as? Int { run("UPDATE drives SET is_card=? WHERE id=?", [ic, id]) }
         if let ex = m["excluded"] as? [String] {
             run("DELETE FROM excluded WHERE drive_id=?", [id])
             for p in ex { setExcluded(id, p, true) }

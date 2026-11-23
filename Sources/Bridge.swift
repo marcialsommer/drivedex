@@ -53,6 +53,24 @@ enum Bridge {
         case "pending":
             return Scanner.shared.pendingDrives()
 
+        case "notACard":   // "It's not a memory card": catalog it as a normal drive from now on
+            let k = str("key")
+            var nc = Settings.notCardKeys
+            if !nc.contains(k) { nc.append(k); Settings.d.set(nc, forKey: "notCardKeys") }
+            db.run("UPDATE drives SET is_card=0 WHERE key=?", [k])
+            if let id = db.row("SELECT id FROM drives WHERE key=?", [k])?["id"] as? Int { db.touchMeta([id]); Scanner.shared.exportMeta([id]) }
+            if Scanner.shared.pendingDrives().contains(where: { $0["key"] as? String == k }) { Scanner.shared.approve(k) }
+            return ok
+
+        case "forgetCards":   // forget memory cards that aren't part of any shoot
+            let inShoots = Shoots.cardKeys(db)
+            var n = 0
+            for r in db.rows("SELECT id, key FROM drives WHERE is_card=1") {
+                guard let id = r["id"] as? Int, let k = r["key"] as? String, inShoots[k] == nil else { continue }
+                db.forget(id); Scanner.shared.exportTombstone(key: k); n += 1
+            }
+            return ["forgotten": n] as [String: Any]
+
         case "approveCard":   // a new drive the user added to the active shoot as a memory card
             guard !Shoots.activeID.isEmpty, Shoots.addCard(db, Shoots.activeID, key: str("key"), vol: str("name")) else {
                 return err("No shoot is active.")
@@ -62,6 +80,10 @@ enum Bridge {
 
         case "approveDrive":
             Scanner.shared.approve(str("key"))
+            return ok
+
+        case "dismissDrive":
+            Scanner.shared.dismiss(str("key"))
             return ok
 
         case "ignoreDrive":

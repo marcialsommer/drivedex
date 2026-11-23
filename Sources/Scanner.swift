@@ -15,6 +15,7 @@ struct VolumeInfo {
     var free: Int?
     var isDiskImage: Bool
     var media: String = ""   // "hdd", "ssd", "nas" or "" when unknown
+    var isCard = false       // a memory card (card reader, or camera folders on a small drive): never a normal drive
 }
 
 private let skipNames: Set<String> = [
@@ -117,6 +118,11 @@ final class Scanner {
             info.media = Scanner.mediumType(disk)
             info.source = [model.trimmingCharacters(in: .whitespaces), proto].filter { !$0.isEmpty }.joined(separator: " · ")
             if info.source.isEmpty { info.source = media }
+            // Card readers: the Mac's SD slot ("Secure Digital"), USB SD / CF / CFexpress / XQD readers.
+            let hay = [proto, model, media].joined(separator: " ").lowercased()
+            let readerWords = ["secure digital", "sd card", "sdxc", "sdhc", "card reader", "cardreader", "cfexpress", "compactflash",
+                               "compact flash", "cf card", "xqd", "microsd", "memory card", "sd reader", "multi-card", "multicard"]
+            info.isCard = readerWords.contains { hay.contains($0) }
         }
         if let uuid = v.volumeUUIDString { info.key = "uuid:" + uuid } else { info.key = "name:" + name }
         return info
@@ -153,6 +159,11 @@ final class Scanner {
             v.isDiskImage = true
         }
         if v.isDiskImage && Settings.skipDiskImages { return nil }
+        // Camera folders (DCIM, PRIVATE, …) on a drive of up to 1 TB: a memory card in a reader DriveDex didn't recognise.
+        if !v.isCard, v.kind == "drive", !v.isDiskImage, (v.total ?? 0) > 0, (v.total ?? 0) <= 1_100_000_000_000, Shoots.looksLikeCard(v) {
+            v.isCard = true
+        }
+        if Settings.notCardKeys.contains(v.key) { v.isCard = false }   // the user said it's not a memory card
         if ignore.contains(v.name) { return nil }
         return v
     }
@@ -211,13 +222,18 @@ final class Scanner {
     func pendingDrives() -> [[String: Any]] {
         lock.lock(); defer { lock.unlock() }
         return pendingNew.values.sorted { $0.name < $1.name }.map {
-            ["key": $0.key, "name": $0.name, "kind": $0.kind, "total": $0.total ?? 0, "used": ($0.total ?? 0) - ($0.free ?? 0)]
+            ["key": $0.key, "name": $0.name, "kind": $0.kind, "total": $0.total ?? 0, "used": ($0.total ?? 0) - ($0.free ?? 0), "card": $0.isCard]
         }
     }
 
     func approve(_ key: String) {
         lock.lock(); let v = pendingNew.removeValue(forKey: key); lock.unlock()
         if let v = v { enqueue(v, force: true, approved: true) }
+    }
+
+    /// Closes a new-drive notice for now (no "never scan" entry: memory cards often share names like NO NAME).
+    func dismiss(_ key: String) {
+        lock.lock(); pendingNew.removeValue(forKey: key); lock.unlock()
     }
 
     func ignore(_ key: String) {
@@ -336,6 +352,18 @@ final class Scanner {
 
     private func scan(_ v: VolumeInfo, force: Bool, approved: Bool) {
         let card = Shoots.claimCard(v, db: db)          // a memory card of the active shoot?
+        if card == nil && v.isCard {
+            // Memory cards never become normal drives: they wait for "Add to <shoot>" (or Ignore).
+            db.run("UPDATE drives SET is_card=1 WHERE key=?", [v.key])          // hide one catalogued earlier
+            lock.lock()
+            let isNew = pendingNew[v.key] == nil
+            pendingNew[v.key] = v
+            lock.unlock()
+            if isNew && !Shoots.activeID.isEmpty {
+                notify("Memory card “\(v.name)” connected. Open DriveDex to add it to the shoot.", force: true)
+            }
+            return
+        }
         if card == nil && !approved && Settings.askNew && db.row("SELECT id FROM drives WHERE key=?", [v.key]) == nil {
             lock.lock()
             let isNew = pendingNew[v.key] == nil
@@ -345,6 +373,7 @@ final class Scanner {
             return
         }
         let id = db.upsertDrive(v)
+        if card != nil { db.run("UPDATE drives SET is_card=1 WHERE id=?", [id]) }
         guard let d = db.row("SELECT * FROM drives WHERE id=?", [id]) else { return }
         let lastScan = d["last_scan"] as? Double ?? 0
         let hours = v.kind == "network" ? Settings.periodicRescanHours : Settings.rescanAfterHours

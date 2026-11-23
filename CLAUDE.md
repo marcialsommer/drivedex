@@ -70,6 +70,11 @@ Key facts:
   drives become cards only if the shoot has `autoAdd` and `Shoots.looksLikeCard` (camera folders); otherwise the normal
   new-drive prompt offers "Add to <shoot>" (bridge `approveCard`). (v2.6.2: the owner was surprised that every SD
   card was added silently while a test shoot was active.) Cards are always re-read.
+  Memory cards (`VolumeInfo.isCard`: card-reader protocol/model words, or camera folders on ≤1 TB drives; overridden by
+  `Settings.notCardKeys`) are never catalogued as normal drives: `Scanner.scan` keeps them pending ("Add to shoot" /
+  "Start a shoot…" / "Not now" = bridge `dismissDrive`, never the name-based ignore list) and sets `drives.is_card`
+  (synced in meta; hidden from sidebar/overview; Settings → Memory cards → `forgetCards`). The owner never wants an SD
+  card in the drive list.
   Card files counted: only `Shoots.mediaExts` (photos/RAW, video, audio) when `mediaOnly` (default true; the owner
   never copies THM/SCR/IDX/DB/XML/LRV/LRF); `Shoots.counts` is used by both the status and the deep check. `Shoots.status` compares card files (name+size) with
   each destination folder: live walk if connected, else catalog. Cards are hidden from the sidebar (`d.card`).
