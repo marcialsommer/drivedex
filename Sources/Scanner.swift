@@ -33,11 +33,13 @@ private let entryKeySet = Set(entryKeys)
 
 enum ScanError: Error {
     case disconnected
+    case stopped
     case cannotRead(Error)
 
     var message: String {
         switch self {
         case .disconnected: return "The drive was disconnected during the scan."
+        case .stopped: return "Scan stopped."
         case .cannotRead(let e):
             let ns = e as NSError
             let denied = (ns.domain == NSCocoaErrorDomain && ns.code == NSFileReadNoPermissionError)
@@ -49,12 +51,12 @@ enum ScanError: Error {
 }
 
 private final class ScanJob {
-    let id: Int, gen: Int, mount: URL, includeHidden: Bool
+    let id: Int, gen: Int, mount: URL, includeHidden: Bool, key: String
     var files = 0, dirs = 0, errors = 0
     var batch: [Entry] = []
     var lastProgress = Date()
-    init(id: Int, gen: Int, mount: URL, includeHidden: Bool) {
-        self.id = id; self.gen = gen; self.mount = mount; self.includeHidden = includeHidden
+    init(id: Int, gen: Int, mount: URL, includeHidden: Bool, key: String) {
+        self.id = id; self.gen = gen; self.mount = mount; self.includeHidden = includeHidden; self.key = key
     }
 }
 
@@ -68,7 +70,9 @@ final class Scanner {
     private var pending = Set<String>()
     private var cancelled = Set<String>()
     private var pendingNew: [String: VolumeInfo] = [:]
-    private var current: String?                         // key of the drive being scanned right now   // new drives waiting for the user's OK
+    private var current: String?                         // key of the drive being scanned right now
+    private var stopKeys = Set<String>()                 // scans the user asked to stop / dequeue
+    private var stoppedAt: [String: Double] = [:]        // when the user last stopped a drive's scan   // new drives waiting for the user's OK
     private var timer: Timer?
 
     // MARK: - volumes
@@ -235,10 +239,33 @@ final class Scanner {
         pending.insert(v.key)
         lock.unlock()
         queue.async {
-            self.lock.lock(); self.current = v.key; self.lock.unlock()
-            defer { self.lock.lock(); self.pending.remove(v.key); self.current = nil; self.lock.unlock() }
+            self.lock.lock()
+            if self.stopKeys.remove(v.key) != nil {        // taken out of the queue before it started
+                self.pending.remove(v.key); self.lock.unlock(); return
+            }
+            self.current = v.key; self.lock.unlock()
+            defer { self.lock.lock(); self.pending.remove(v.key); self.current = nil; self.stopKeys.remove(v.key); self.lock.unlock() }
             self.scan(v, force: force, approved: approved)
         }
+    }
+
+    /// Stop the running scan of this drive, or take it out of the queue. Its previous catalog is kept,
+    /// and automatic rescans leave it alone for 12 hours (a manual Rescan still works).
+    func stop(_ key: String) {
+        lock.lock()
+        if pending.contains(key) { stopKeys.insert(key) }
+        stoppedAt[key] = Date().timeIntervalSince1970
+        lock.unlock()
+    }
+
+    func stopAll() {
+        lock.lock(); let keys = pending; lock.unlock()
+        for k in keys { stop(k) }
+    }
+
+    private func isStopped(_ key: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return stopKeys.contains(key)
     }
 
     /// Recompute backup coverage for these main drives (in the background).
@@ -281,6 +308,8 @@ final class Scanner {
         let lastScan = d["last_scan"] as? Double ?? 0
         let hours = v.kind == "network" ? Settings.periodicRescanHours : Settings.rescanAfterHours
         if !force && Date().timeIntervalSince1970 - lastScan < hours * 3600 { return }
+        lock.lock(); let stopped = stoppedAt[v.key] ?? 0; lock.unlock()
+        if !force && Date().timeIntervalSince1970 - stopped < 12 * 3600 { return }   // the user stopped it recently
 
         let oldGen = d["gen"] as? Int ?? 0
         let gen = oldGen + 1
@@ -288,7 +317,7 @@ final class Scanner {
         let label = labelText.isEmpty ? v.name : labelText
         lock.lock(); cancelled.remove(v.url.standardizedFileURL.path); lock.unlock()
 
-        let job = ScanJob(id: id, gen: gen, mount: v.url, includeHidden: Settings.includeHidden)
+        let job = ScanJob(id: id, gen: gen, mount: v.url, includeHidden: Settings.includeHidden, key: v.key)
         db.setStatus(id, "scanning", "starting")
         db.run("UPDATE drives SET scan_started=?, scan_files=0 WHERE id=?", [Date().timeIntervalSince1970, id])
         let t0 = Date()
@@ -308,6 +337,12 @@ final class Scanner {
             if db.row("SELECT role FROM drives WHERE id=?", [id])?["role"] as? String == "main" { mains.append(id) }
             for m in Set(mains) { recompute(m) }
             exportToSync([id])
+        } catch ScanError.stopped {
+            job.batch.removeAll()
+            db.deleteGen(id, gen)
+            db.setStatus(id, "ok", "Last scan was stopped")
+            db.logScan(id, result: "stopped", files: job.files, dirs: job.dirs, bytes: 0,
+                       seconds: Date().timeIntervalSince(t0), detail: "Stopped. The previous catalog was kept.", machine: SyncFolder.machine)
         } catch {
             job.batch.removeAll()
             db.deleteGen(id, gen)
@@ -332,6 +367,7 @@ final class Scanner {
     /// Returns (total size, number of direct children).
     private func walk(_ job: ScanJob, _ rel: String, _ url: URL, depth: Int) throws -> (Int64, Int) {
         if isCancelled(job.mount) { throw ScanError.disconnected }
+        if isStopped(job.key) { throw ScanError.stopped }
         let items: [URL]
         do {
             items = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: entryKeys, options: [])

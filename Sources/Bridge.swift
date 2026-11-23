@@ -176,6 +176,16 @@ enum Bridge {
             }
             return ok
 
+        case "stopScan":
+            guard let id = int("id"), let key = db.row("SELECT key FROM drives WHERE id=?", [id])?["key"] as? String
+            else { return err("missing drive") }
+            Scanner.shared.stop(key)
+            return ok
+
+        case "stopAll":
+            Scanner.shared.stopAll()
+            return ok
+
         case "scanLog":
             guard let id = int("id") else { return [Any]() }
             return db.scanLog(id)

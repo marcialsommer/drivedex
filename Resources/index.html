@@ -94,6 +94,10 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .spin{width:12px;height:12px;border:2px solid var(--acc);border-right-color:transparent;border-radius:50%;animation:spin 0.9s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .actbar{display:inline-block;width:90px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin-left:4px}.actbar i{display:block;height:100%;background:var(--acc)}
+#home{cursor:pointer}.homeitem{margin-bottom:6px}.homeitem .t{font-weight:600}
+.badge{margin-left:auto;background:var(--warn);color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:1px 8px}
+button.x{border:0;background:transparent;color:var(--mute);padding:0 4px;font-size:11px}button.x:hover{color:var(--err)}
+.activity button.sm{padding:2px 8px;font-size:12px}
 #navgrip{flex:none;width:6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;z-index:20;position:relative}
 #navgrip:hover,#navgrip.on{background:var(--acc);opacity:.35}
 .kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
@@ -132,7 +136,7 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 @media (max-width:720px){main{flex-direction:column}nav{width:auto;max-height:35vh;border-right:0;border-bottom:1px solid var(--line)}
  header{flex-wrap:wrap}.qwrap{order:3;flex-basis:100%}section{padding:12px 16px}.hide-sm{display:none}}
 </style></head><body>
-<header><h1>DriveDex</h1>
+<header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
 <select id="kind"><option value="all">Everything</option><option value="folders">Folders</option><option value="files">Files</option><option value="video">Videos</option><option value="photo">Photos</option><option value="audio">Audio</option><option value="doc">Documents</option><option value="project">Projects &amp; libraries</option><option value="archive">Archives &amp; disk images</option></select>
 <select id="scope"><option value="">All drives</option></select>
@@ -199,11 +203,18 @@ function drawActivity(){
   if(!scan.length&&!wait.length&&!check.length){el.style.display='none';el.innerHTML='';return}
   const mins=t=>{const s=now-(t||now);return s<60?'just started':s<3600?Math.round(s/60)+' min':(s/3600).toFixed(1)+' h'};
   const parts=scan.map(d=>{const f=d.scan_files||0,pc=d.file_count&&d.file_count>0?Math.min(99,Math.floor(100*f/d.file_count)):null;
-    return `<span class="act"><span class="spin"></span>Scanning <a class="lnk" data-act="${d.id}">${esc(d.display)}</a> · ${f.toLocaleString()} files${pc!=null?` · about ${pc}%`:''} · ${mins(d.scan_started)}${pc!=null?`<span class="actbar"><i style="width:${pc}%"></i></span>`:''}</span>`});
-  if(wait.length)parts.push(`<span class="act mute">Next: ${wait.map(d=>`<a class="lnk" data-act="${d.id}">${esc(d.display)}</a>`).join(', ')}</span>`);
+    return `<span class="act"><span class="spin"></span>Scanning <a class="lnk" data-act="${d.id}">${esc(d.display)}</a> · ${f.toLocaleString()} files${pc!=null?` · about ${pc}%`:''} · ${mins(d.scan_started)}${pc!=null?`<span class="actbar"><i style="width:${pc}%"></i></span>`:''}<button class="sm" data-stop="${d.id}" title="Stop this scan (the previous catalog is kept)">Stop</button></span>`});
+  if(wait.length)parts.push(`<span class="act mute">Next: ${wait.map(d=>`<a class="lnk" data-act="${d.id}">${esc(d.display)}</a><button class="x" data-stop="${d.id}" title="Don't scan this drive now">✕</button>`).join(' ')}</span>`);
+  if(scan.length+wait.length>1)parts.push(`<button class="sm" id="stopall">Stop all</button>`);
   if(check.length)parts.push(`<span class="act mute"><span class="spin"></span>Checking backups of ${check.map(d=>esc(d.display)).join(', ')}</span>`);
   el.innerHTML=parts.join('');el.style.display='flex';
   el.querySelectorAll('[data-act]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.act,''));
+  el.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>stopScan(+b.dataset.stop));
+  if($('#stopall'))$('#stopall').onclick=()=>api('stopAll').then(()=>{toast('Stopping all scans. Previous catalogs are kept.');setTimeout(loadDrives,800)});
+}
+function stopScan(id){
+  const d=drives.find(x=>x.id==id)||{};
+  api('stopScan',{id}).then(()=>{toast(d.status=='scanning'?`Stopping the scan of “${d.display}”. Its previous catalog is kept.`:`“${d.display}” won't be scanned now.`);$('#dh')&&($('#dh').dataset.id='');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
 }
 const ls=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}};
 let compact=ls('dd_compact',false),folded=new Set(ls('dd_folded',[]));
@@ -267,13 +278,16 @@ async function loadDrives(){
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
-  $('#drives').innerHTML=newHTML+(drives.length?
+  const nAtt=attentionItems().filter(x=>x.lvl>0).length;
+  const homeHTML=drives.length?`<div class="drv homeitem ${state.mode=='home'?'sel':''}" id="homeitem"><div class="t"><span class="kn">🏠 Overview</span>${nAtt?`<span class="badge">${nAtt}</span>`:'<span class="okc" style="margin-left:auto">✓</span>'}</div></div>`:'';
+  $('#drives').innerHTML=homeHTML+newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
     (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(d=>`<div class="restw" draggable="true" data-sec="rest" data-oid="${d.id}">${full(d)}</div>`).join('')}`:'')
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
   document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,el.dataset.path||'',null,el.dataset.path||''));
   wireReorder();
   drawActivity();
+  if($('#homeitem'))$('#homeitem').onclick=goHome;
   $('#drives').classList.toggle('compact',compact);
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
   if($('#doupdate'))$('#doupdate').onclick=installUpdate;
@@ -433,7 +447,7 @@ function renderDriveHeader(){
   const roleTxt=d.role=='main'?'Main files':d.role=='backup'?'Backup'+((d.backup_of||[]).length?' of '+esc((d.backup_of||[]).map(dname).filter(Boolean).join(', ')):''):'';
   const tabs=[['files','Files'],['backups',d.role=='backup'?'Backup status':'Backups'],['info','Info']];
   el.innerHTML=`<div class="card dcard"><div class="dtop"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">${tagHTML(d)}
-    <span style="flex:1"></span><button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button><button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>
+    <span style="flex:1"></span>${d.status=='scanning'||d.queued?`<button class="danger" id="stopscan">${d.status=='scanning'?'Stop scan':'Don\'t scan'}</button>`:`<button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>`}<button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>
   <div class="dsum"><span id="dstat">${dstat(d)}</span>${d.last_scan&&d.status!='scanning'?` · <a class="lnk" data-tab="info" title="Show scan history">scanned ${ago(d.last_scan)}</a>`:''}${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
   <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
   ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:''}</div>`;
@@ -443,7 +457,8 @@ function renderDriveHeader(){
   spaceLoaded=false;
   const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes')?$('#notes').value:d.notes}).then(()=>{toast('Saved');loadDrives()});
   $('#lbl').onchange=save;if($('#notes'))$('#notes').onchange=save;
-  $('#rescan').onclick=()=>api('rescan',{id:d.id}).then(r=>{toast(r&&r.queued?'Queued: DriveDex scans one drive at a time. This one starts when the current scan is done.':'Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
+  if($('#stopscan'))$('#stopscan').onclick=()=>stopScan(d.id);
+  if($('#rescan'))$('#rescan').onclick=()=>api('rescan',{id:d.id}).then(r=>{toast(r&&r.queued?'Queued: DriveDex scans one drive at a time. This one starts when the current scan is done.':'Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
   if($('#priv'))$('#priv').onclick=()=>api('openPrivacy');
   const redo=()=>{$('#dh').dataset.id='';loadDrives()};
   document.querySelectorAll('#dh [data-type]').forEach(b=>b.onclick=()=>api('setType',{id:d.id,type:d.type==b.dataset.type&&!d.type_auto?'':b.dataset.type}).then(redo));
@@ -601,9 +616,9 @@ async function loadScanLog(d){
   if(!Array.isArray(rows)||!rows.length){el.innerHTML='<span class="mute">No scans recorded yet.</span>';return}
   const here=(window.__machine||'');
   const tr=x=>`<tr><td>${new Date(x.at*1000).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}</td>
-    <td>${x.result=='error'?`<span class="errc">⚠ Failed</span>`:'<span class="okc">✓ Scanned</span>'}${x.detail?`<div class="path">${esc(x.detail)}</div>`:''}</td>
+    <td>${x.result=='stopped'?'<span class="mute">⏹ Stopped</span>':x.result=='error'?`<span class="errc">⚠ Failed</span>`:'<span class="okc">✓ Scanned</span>'}${x.detail?`<div class="path">${esc(x.detail)}</div>`:''}</td>
     <td class="mute">${esc(x.machine||'')}</td>
-    <td class="r">${x.result=='error'?'':`${(x.files||0).toLocaleString()} files`}</td><td class="r">${x.result=='error'?'':hb(x.bytes)}</td>
+    <td class="r">${x.result!='ok'?'':`${(x.files||0).toLocaleString()} files`}</td><td class="r">${x.result!='ok'?'':hb(x.bytes)}</td>
     <td class="r mute">${x.seconds?(x.seconds<90?Math.round(x.seconds)+' s':Math.round(x.seconds/60)+' min'):''}</td></tr>`;
   const show=n=>{el.className='';el.innerHTML=`<table class="bktab">${rows.slice(0,n).map(tr).join('')}</table>`+(rows.length>n?`<a class="lnk" id="slmore" style="display:block;margin-top:4px;font-size:12px">Show all ${rows.length} scans</a>`:'');
     if($('#slmore'))$('#slmore').onclick=()=>show(rows.length)};
@@ -766,6 +781,7 @@ $('#compact').onclick=()=>{compact=!compact;savePrefs();loadDrives()};
 $('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Rescanning connected drives, one after another…');setTimeout(loadDrives,1200)});
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
 let settingsReturn=null;
+function goHome(){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';state={mode:'home'};renderHome();loadDrives()}
 function leaveSettings(){
   const r=settingsReturn||{mode:'home'};settingsReturn=null;$('#gear').classList.remove('on');
   if(r.mode=='drive'){state=r;render()}
@@ -823,5 +839,6 @@ async function openSettings(){
   if($('#s_syncoff'))$('#s_syncoff').onclick=()=>sync('syncOff','Stopped sharing. Your catalog stays on this Mac.');
 }
 $('#gear').onclick=toggleSettings;
+$('#home').onclick=goHome;
 loadDrives();
 </script></body></html>
