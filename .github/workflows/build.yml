@@ -19,18 +19,24 @@ jobs:
           BUILD: ${{ github.run_number }}
         run: bash ./build.sh
 
+      - name: Zip the app for in-app updates
+        run: ditto -c -k --keepParent build/DriveDex.app build/DriveDex.zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: DriveDex
-          path: build/DriveDex.dmg
+          path: |
+            build/DriveDex.dmg
+            build/DriveDex.zip
 
       - name: Publish as the "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest build/DriveDex.dmg --latest --draft=false \
-            --title "DriveDex (build ${{ github.run_number }})" \
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" build/DriveDex.app/Contents/Info.plist)
+          gh release create latest build/DriveDex.dmg build/DriveDex.zip --latest --draft=false \
+            --title "DriveDex $VERSION (build ${{ github.run_number }})" \
             --notes "Download DriveDex.dmg below, open it, and drag DriveDex into Applications."
           # Make sure the release is published (not left as a draft).
           sleep 5

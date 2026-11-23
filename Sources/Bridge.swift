@@ -131,6 +131,15 @@ enum Bridge {
             Scanner.shared.exportMeta(ids)
             return ok
 
+        case "updateStatus":
+            return Updater.status()
+
+        case "checkUpdate":
+            return Updater.check()
+
+        case "installUpdate":
+            do { try Updater.install(); return ok } catch { return err(error.localizedDescription) }
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))

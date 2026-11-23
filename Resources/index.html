@@ -149,7 +149,17 @@ function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)ret
   return `<span class="ticks" title="${esc(bs.map(b=>bkName(b)+': '+(b.n==null?'checking':bkPct(b)+'% backed up')+(b.last_in_sync?', last in sync '+date(b.last_in_sync):'')).join('\n'))}">${bs.map(b=>`<span style="color:${bkColor(b)}">✓</span>`).join('')}</span>`}
 const GROUPS=[['main','Main files'],['backup','Backups'],['','Other']];
 const grpOf=d=>d.role=='main'?0:d.role=='backup'?1:2;
-let pending=[],dragging=null;
+let pending=[],dragging=null,updateInfo=null;
+async function installUpdate(){
+  const b=$('#doupdate')||$('#s_update');if(b){b.disabled=true;b.textContent='Installing…'}
+  toast('Downloading the update…');
+  try{await api('installUpdate');toast('Relaunching…')}catch(e){toast(e.message);if(b){b.disabled=false;b.textContent='Install & Relaunch'}}
+}
+async function checkUpdates(show){
+  const r=await api('checkUpdate').catch(e=>({error:e.message}));updateInfo=r;
+  if(show){if(r.error)toast(r.error);else toast(r.available?`DriveDex ${r.version} is available`:`You have the latest version (${r.current})`)}
+  loadDrives();if(state.mode=='settings')openSettings();
+}
 function wireReorder(){
   const items=[...document.querySelectorAll('#drives [data-sec]')];
   const clear=()=>items.forEach(x=>x.classList.remove('dropb','dropa','dragsrc'));
@@ -170,13 +180,16 @@ function wireReorder(){
   });
 }
 async function loadDrives(){
-  const [dl,pl]=await Promise.all([api('drives'),api('pending').catch(()=>[])]);
+  const [dl,pl,up]=await Promise.all([api('drives'),api('pending').catch(()=>[]),api('updateStatus').catch(()=>null)]);
+  updateInfo=up;
   const so=d=>d.sort_order==null?1e9:d.sort_order;
   drives=dl.sort((a,b)=>so(a)-so(b)||grpOf(a)-grpOf(b)||a.display.localeCompare(b.display,undefined,{numeric:true,sensitivity:'base'}));pending=Array.isArray(pl)?pl:[];
   if(dragging){loadDrives._t=setTimeout(loadDrives,1500);return}   // don't redraw the list in the middle of a drag
   const sel=$('#scope'),selv=sel.value;
   sel.innerHTML='<option value="">All drives</option>'+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
-  const newHTML=pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
+  const upHTML=updateInfo&&updateInfo.available?`<div class="newdrv"><b>Update available: DriveDex ${esc(updateInfo.version)}</b><span class="mute" style="font-size:12px">You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept.</span>
+    <div class="row"><button class="primary" id="doupdate">Install &amp; Relaunch</button></div></div>`:'';
+  const newHTML=upHTML+pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
     <div class="row"><button class="primary" data-approve="${esc(n.key)}">Catalog it</button><button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
@@ -200,6 +213,7 @@ async function loadDrives(){
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
   document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,el.dataset.path||'',null,el.dataset.path||''));
   wireReorder();
+  if($('#doupdate'))$('#doupdate').onclick=installUpdate;
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
   if(state.mode=='home')renderHome();
@@ -530,12 +544,18 @@ async function openSettings(){
   <div class="row">${s.syncIsICloud?'':`<button id="s_icloud" class="primary" ${s.iCloudAvailable?'':'disabled title="Turn on iCloud Drive in System Settings first"'}>Share with iCloud Drive</button>`}
     <button id="s_choose">${s.syncFolder&&!s.syncIsICloud?'Choose another folder…':'Use another folder…'}</button>
     ${s.syncFolder?'<button id="s_syncnow">Sync now</button><button id="s_syncoff" class="danger">Stop sharing</button>':''}</div>
+  <h3>Updates</h3><div class="row" id="uprow"><span class="mute">Checking…</span></div>
   <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} on ${esc(s.machine)}<br>Working copy on this Mac (fast searching, works offline): ${esc(s.catalogPath)}${s.syncFolder?`<br>Shared copy, exchanged with your other Macs: ${esc(s.syncFolder)}`:''}</div></div>`;
   const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,askNew:$('#s_ask').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
     periodicRescanHours:parseFloat($('#s_periodic').value)||12,includeHidden:$('#s_hidden').checked,skipDiskImages:$('#s_dmg').checked,
     ignoreVolumes:$('#s_ignore').value.split('\n')}).then(r=>{toast(r.loginStatus=='requiresApproval'?'Approve DriveDex in System Settings → Login Items':'Saved')});
   document.querySelectorAll('#view input,#view textarea').forEach(i=>i.onchange=save);
   if($('#li'))$('#li').onclick=e=>{e.preventDefault();api('openLoginItems')};
+  api('updateStatus').then(u=>{const el=$('#uprow');if(!el)return;
+    el.innerHTML=(u.available?`<span class="okc">DriveDex ${esc(u.version)} is available.</span> <button class="primary" id="s_update">Install &amp; Relaunch</button>`:`<span class="mute">${u.checked?`Up to date (${esc(u.current)}). Last checked ${ago(u.checked)}.`:'Not checked yet.'}</span>`)
+      +` <button id="s_check">Check now</button>${u.error?` <span class="errc">${esc(u.error)}</span>`:''}<div class="mute" style="font-size:12px;width:100%">DriveDex looks for updates automatically a few times a day. Updates installed from here don't need "Open Anyway".</div>`;
+    if($('#s_update'))$('#s_update').onclick=installUpdate;
+    $('#s_check').onclick=()=>{$('#s_check').textContent='Checking…';checkUpdates(true)}});
   const sync=(a,msg)=>api(a).then(()=>{if(msg)toast(msg);openSettings()}).catch(e=>toast(e.message));
   if($('#s_icloud'))$('#s_icloud').onclick=()=>sync('syncICloud','Sharing through iCloud Drive');
   $('#s_choose').onclick=()=>sync('syncChoose');

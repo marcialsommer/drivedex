@@ -34,6 +34,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         defaults.set(true, forKey: "shownOnce")
 
         Scanner.shared.start()
+
+        // Look for app updates shortly after launch and then a few times a day.
+        let checkUpdates = {
+            DispatchQueue.global(qos: .utility).async {
+                Updater.checkInBackgroundIfDue { text in
+                    guard Settings.notify else { return }
+                    let c = UNMutableNotificationContent()
+                    c.title = "DriveDex"
+                    c.body = text
+                    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: checkUpdates)
+        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in checkUpdates() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -59,6 +74,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     @objc func openSettings() {
         showWindow()
         webView.evaluateJavaScript("openSettings()", completionHandler: nil)
+    }
+
+    @objc func checkForUpdates() {
+        showWindow()
+        webView.evaluateJavaScript("checkUpdates(true)", completionHandler: nil)
     }
 
     @objc func focusSearch() {
@@ -110,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About DriveDex", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "").target = self
         appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Rescan Connected Drives", action: #selector(rescanConnected), keyEquivalent: "r").target = self
