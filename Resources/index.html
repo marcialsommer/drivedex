@@ -191,6 +191,12 @@ th[data-hk]{cursor:pointer}
 .dpi.finder{font-weight:600;border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:2px}
 .dph{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);padding:6px 8px 2px}
 .addcardrow{position:relative;display:inline-block}.addcardrow .dpick{width:380px}
+.sidetabs{display:flex;gap:0;margin:2px 4px 8px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--bg)}
+.stab{flex:1;border:0;border-radius:0;background:transparent;padding:7px 0;font-weight:600;color:var(--mute);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.stab+.stab{border-left:1px solid var(--line)}.stab.on{background:var(--panel);color:var(--ink);box-shadow:inset 0 -2px 0 var(--acc)}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--err);display:inline-block;animation:pulse 1.6s infinite}
+.shootrow .live{font-size:11.5px}
+.sech{margin:16px 0 6px;padding-top:10px;border-top:1px solid var(--line);font-weight:700;font-size:13.5px}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -199,7 +205,7 @@ th[data-hk]{cursor:pointer}
 <button id="gear" title="Settings">⚙︎ Settings</button>
 </header>
 <div id="activity" class="activity" style="display:none"></div>
-<main><nav><div class="hd"><span>Drives</span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
+<main><nav><div class="sidetabs"><button class="stab" data-side="drives">Drives</button><button class="stab" data-side="shoots">Shoots</button></div><div class="hd" id="drvhd"><span id="hdtitle">Drives</span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
 <section id="view"></section></main><div id="toast"></div><div id="ctx"></div>
 <script>
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -363,8 +369,23 @@ async function loadDrives(){
   const nAtt=attentionItems().filter(x=>x.lvl>0).length;
   const homeHTML=drives.length?`<div class="drv homeitem ${state.mode=='home'?'sel':''}" id="homeitem"><div class="t"><span class="kn">Overview</span>${nAtt?`<span class="badge">${nAtt}</span>`:'<span class="okc" style="margin-left:auto">✓</span>'}</div></div>`:'';
   const act=activeShoot();
-  const shootHTML=drives.length?`<div class="drv homeitem ${state.mode=='shoots'||state.mode=='shoot'||state.mode=='shootEdit'?'sel':''}" id="shootsitem" title="Shoot mode: check memory cards against your main drive and backups"><div class="t"><span class="kn">Shoots</span>${act?`<span class="live">${esc(act.name)}</span>`:''}</div></div>`:'';
-  $('#drives').innerHTML=homeHTML+shootHTML+newHTML+(drives.length?
+  // Sidebar tabs: Drives (overview + drive list) and Shoots (each shoot). Shoot pages show the Shoots tab.
+  const inShoots=['shoots','shoot','shootEdit'].includes(state.mode);
+  document.querySelectorAll('.stab').forEach(b=>b.classList.toggle('on',(b.dataset.side=='shoots')==inShoots));
+  $('.stab[data-side="shoots"]').innerHTML=`Shoots${act?' <span class="livedot" title="A shoot is active on this Mac"></span>':''}`;
+  $('#drvhd').style.display=inShoots?'none':'';
+  if(inShoots){$('#drives').innerHTML=newHTML+shootsSide();wireShootsSide();
+    document.querySelectorAll('[data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
+    document.querySelectorAll('[data-newshoot]').forEach(b=>b.onclick=()=>editShoot(null));
+    document.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>api('dismissDrive',{key:b.dataset.dismiss}).then(loadDrives));
+    document.querySelectorAll('#drives [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard,a.dataset.name));
+    document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
+    document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
+    if($('#doupdate'))$('#doupdate').onclick=installUpdate;
+    drawActivity();
+    clearTimeout(loadDrives._t);loadDrives._t=setTimeout(loadDrives,drives.some(d=>d.status=='scanning'||d.queued)?2500:15000);
+    return}
+  $('#drives').innerHTML=homeHTML+newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
     (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(d=>`<div class="restw" draggable="true" data-sec="rest" data-oid="${d.id}">${full(d)}</div>`).join('')}`:'')
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
@@ -372,7 +393,7 @@ async function loadDrives(){
   wireReorder();
   drawActivity();
   if($('#homeitem'))$('#homeitem').onclick=goHome;
-  if($('#shootsitem'))$('#shootsitem').onclick=()=>{const a=activeShoot();a?openShoot(a.uuid):openShoots()};
+
   document.querySelectorAll('[data-sethead]').forEach(h=>h.onclick=e=>{e.stopPropagation();driveTab='backups';openDrive(+h.dataset.sethead,'');driveTab='backups';render()});
   $('#drives').classList.toggle('compact',compact);drawDensity();
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
@@ -887,7 +908,7 @@ function covHTML(d){
   const bk=(d.backed_up_by||[]).map(id=>drives.find(x=>x.id==id)).filter(Boolean);
   if(!bk.length)return `<div class="mute" style="margin-top:8px">No backup drive assigned yet. Open a backup drive, set it to <b>Backup</b> and tick “${esc(d.display)}”.</div>`;
   const ex=d.excluded||[];
-  const exl=`<div style="margin-top:8px;font-size:12px"><span class="mute">Excluded from the check${d.cov_excluded?` (${d.cov_excluded.toLocaleString()} files)`:''}: </span>${ex.length?ex.map(p=>`<span class="xchip"><a data-goto="${esc(p)}">${esc(p)}</a><button data-unex="${esc(p)}" title="Check this folder again">×</button></span>`).join(''):'<span class="mute">none. Open a folder and choose “Exclude from backup check” if it doesn\'t need a backup.</span>'}</div>`;
+  const exl=`<div class="sech">⊘ Excluded folders</div><div style="font-size:12px"><span class="mute">Excluded from the check${d.cov_excluded?` (${d.cov_excluded.toLocaleString()} files)`:''}: </span>${ex.length?ex.map(p=>`<span class="xchip"><a data-goto="${esc(p)}">${esc(p)}</a><button data-unex="${esc(p)}" title="Check this folder again">×</button></span>`).join(''):'<span class="mute">none. Open a folder and choose “Exclude from backup check” if it doesn\'t need a backup.</span>'}</div>`;
   const bs=d.backup_status||[],rd=d.remind_days||0,now=Date.now()/1000;
   const due=bs.filter(b=>rd&&now-(b.backup_scan||0)>rd*86400);
   const tab=`<table class="bktab"><tr><th>Backup</th><th>Backed up</th><th>Missing</th><th>Last in sync</th><th>Catalog from</th><th></th></tr>${bs.map(b=>{const miss=(b.n||0)-(b.have||0),mem=b.members&&b.members.length?b.members:[b];
@@ -899,10 +920,10 @@ function covHTML(d){
     <td>${b.n==null?'':miss?`<a class="lnk warnc" data-missset="${esc(b.set)}" title="Show which files this backup doesn't have">⚠ ${miss.toLocaleString()} files · ${hb(b.missing_bytes)} ›</a>`:'<span class="okc">✓ none</span>'}</td>
     <td>${b.last_in_sync?date(b.last_in_sync):'<span class="mute">not yet</span>'}</td>
     <td class="${due.includes(b)?'warnc':''}">${ago(b.backup_scan)}</td><td>${act}</td></tr>`}).join('')}</table>`;
-  const rem=`<div class="row" style="margin-top:8px;font-size:12px"><span class="mute">Remind me when a backup hasn't been updated for</span>
+  const rem=`<div class="sech">⏰ Reminder</div><div class="row" style="font-size:13px"><span>Remind me when a backup hasn't been updated for</span>
     <select class="sm" id="remind">${[[0,'never'],[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month']].map(([v,l])=>`<option value="${v}" ${rd==v?'selected':''}>${l}</option>`).join('')}</select>
     ${due.length?`<span class="warnc">⏰ Due: ${due.map(b=>esc(dname(b.id)||'?')).join(', ')}</span>`:''}</div>`;
-  const bl=tab+rem+exl+`<div style="margin-top:10px"><b style="font-size:13px">History</b><div class="hist" id="hist"><span class="mute">Loading…</span></div></div>
+  const bl=tab+rem+exl+`<div class="sech">History</div><div><div class="hist" id="hist"><span class="mute">Loading…</span></div></div>
     <div class="mute" style="margin-top:8px;font-size:12px">Files count as backed up when a file with the same name and size is in the backup location. Each backup is only as current as its last catalog.</div>`;
   if(!covReady(d))return `<div style="margin-top:8px" class="status scanning">Checking backups…</div>`+bl;
   const n=d.cov_files||0;if(!n)return bl;
@@ -1037,7 +1058,7 @@ let settingsReturn=null;
 let deepTimer=null,shootsData={shoots:[],active:''},shootTimer=null,shootBusy=false,shootMiss=null;
 const activeShoot=()=>(shootsData.shoots||[]).find(s=>s.uuid==shootsData.active&&!s.done);
 function enterPage(st){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';
-  clearInterval(shootTimer);shootTimer=null;state=st;document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));if($('#shootsitem'))$('#shootsitem').classList.add('sel')}
+  clearInterval(shootTimer);shootTimer=null;state=st;loadDrives()}
 const dByKey=k=>drives.find(d=>d.key==k);
 const realDrives=()=>drives.filter(d=>!d.card&&d.is_card!=1);
 async function openShoots(){
@@ -1145,6 +1166,18 @@ function addCard(key,name){const a=activeShoot();
 // Add a memory card to the drive list on purpose (cards used as storage or backup)
 function notACard(key,name){if(!confirm(`Add “${name||'this card'}” to your drives?\n\nDriveDex catalogs it and shows it in the drive list like any other drive, and keeps doing so whenever you connect it. Good for cards you use as storage or backup.`))return;
   api('notACard',{key}).then(()=>{toast(`“${name||'The card'}” is now one of your drives.`);setTimeout(loadDrives,800)}).catch(e=>toast(e.message))}
+// Sidebar list in the Shoots tab
+function shootsSide(){const list=(shootsData.shoots||[]).slice().sort((a,b)=>(b.uuid==shootsData.active)-(a.uuid==shootsData.active)||(a.done?1:0)-(b.done?1:0)||(b.created||0)-(a.created||0));
+  const cur=state.mode=='shoot'||state.mode=='shootEdit'?state.uuid:null;
+  return `<div class="hd"><span>Shoots</span><span style="flex:1"></span><button class="primary sm" id="side_newshoot">+ New shoot</button></div>`
+    +(list.length?list.map(x=>`<div class="drv shootrow ${x.uuid==cur?'sel':''}" data-shoot="${esc(x.uuid)}"><div class="t"><span class="kn">${esc(x.name)}</span>${x.uuid==shootsData.active&&!x.done?'<span class="live">Active</span>':x.done?'<span class="mute" style="margin-left:auto;font-weight:500;font-size:12px">Done</span>':'<span class="mute" style="margin-left:auto;font-weight:500;font-size:12px">Paused</span>'}</div>
+      <div class="s">${(x.cards||[]).length} card${(x.cards||[]).length==1?'':'s'} · ${esc((dByKey((x.main||{}).key)||{}).display||((x.main||{}).local?((x.main||{}).mac||'')+' internal':'?'))}${x.created?' · '+date(x.created):''}</div></div>`).join('')
+      :`<div class="empty" style="padding:24px 10px">No shoots yet.<br><span style="font-size:12.5px">A shoot checks memory cards against your main drive and backups, card by card.</span></div>`)
+    +`<div class="hd" style="margin-top:10px"><a class="lnk" id="side_allshoots">About shoots</a></div>`}
+function wireShootsSide(){
+  document.querySelectorAll('#drives [data-shoot]').forEach(el=>el.onclick=()=>openShoot(el.dataset.shoot));
+  if($('#side_newshoot'))$('#side_newshoot').onclick=()=>editShoot(null);
+  if($('#side_allshoots'))$('#side_allshoots').onclick=()=>openShoots()}
 async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
 // Small folder browser for a drive's catalog
 async function folderPicker(box,d,start,done){
@@ -1337,6 +1370,8 @@ async function openSettings(){
 }
 $('#gear').onclick=toggleSettings;
 $('#home').onclick=goHome;
+document.querySelectorAll('.stab').forEach(b=>b.onclick=()=>{if(b.dataset.side=='shoots'){if(!['shoots','shoot','shootEdit'].includes(state.mode)){const a=activeShoot();a?openShoot(a.uuid):openShoots()}}
+  else if(['shoots','shoot','shootEdit'].includes(state.mode))goHome()});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b&&!b.disabled)goNav(+b.dataset.nav)});
 document.addEventListener('keydown',e=>{
   const t=document.activeElement.tagName,typing=t=='INPUT'||t=='TEXTAREA'||t=='SELECT';

@@ -64,7 +64,7 @@ Key facts:
 - Undo: link changes go through `undoable(ids, fn, msg)` → `linksSnapshot` before, `linksRestore` on Undo (toast
   button, ⌘Z via Edit → Undo when no text field is focused). `removeLink` deletes one link. Use `undoable` for any
   new action that changes roles or backup links.
-- Shoot mode (`Sources/Shoots.swift`, "Shoots" in the sidebar): a shoot = name + main {key,path} + backups [{key,path}]
+- Shoot mode (`Sources/Shoots.swift`, the "Shoots" tab of the sidebar: `shootsSide()`; tabs switch by `state.mode`): a shoot = name + main {key,path} + backups [{key,path}]
   + cards [{key,label,vol}], stored as JSON in table `shoots`, synced as `shoots.json` (newest per uuid wins).
   While a shoot is active on this Mac (`Settings activeShoot`), `Scanner.scan` calls `Shoots.claimCard` first: new local
   drives become cards only if the shoot has `autoAdd` and `Shoots.looksLikeCard` (camera folders); otherwise the normal

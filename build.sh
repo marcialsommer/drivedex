@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 trap 'echo "::error title=build.sh failed::line $LINENO: $BASH_COMMAND"' ERR
-VERSION="${VERSION:-2.6.6}"
+VERSION="${VERSION:-2.7}"
 BUILD="${BUILD:-1}"
 OUT=build
 APP="$OUT/DriveDex.app"
