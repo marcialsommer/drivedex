@@ -60,11 +60,24 @@ final class DB {
             is_dir INTEGER, size INTEGER, mtime REAL, items INTEGER);
         CREATE INDEX IF NOT EXISTS entries_parent ON entries(drive_id, gen, parent);
         """)
+        // v1.1: drive roles + backup coverage
+        addColumn("drives", "role", "TEXT DEFAULT ''")
+        for c in ["cov_files", "cov_none", "cov_one", "cov_two", "cov_none_bytes"] { addColumn("drives", c, "INTEGER") }
+        addColumn("drives", "cov_state", "TEXT DEFAULT ''")
+        addColumn("entries", "copies", "INTEGER")
+        addColumn("drives", "meta_updated", "REAL")
+        exec("CREATE TABLE IF NOT EXISTS backups(main_id INTEGER, backup_id INTEGER, PRIMARY KEY(main_id, backup_id))")
+        exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
     }
 
     deinit { sqlite3_close(h) }
+
+    private func addColumn(_ table: String, _ column: String, _ type: String) {
+        let cols = rows("PRAGMA table_info(\(table))").compactMap { $0["name"] as? String }
+        if !cols.contains(column) { exec("ALTER TABLE \(table) ADD COLUMN \(column) \(type)") }
+    }
 
     @discardableResult
     func exec(_ sql: String) -> Bool {
@@ -196,19 +209,29 @@ final class DB {
     }
 
     func forget(_ id: Int) {
+        run("DELETE FROM backups WHERE main_id=? OR backup_id=?", [id, id])
         if hasFTS { run("DELETE FROM names WHERE rowid IN (SELECT id FROM entries WHERE drive_id=?)", [id]) }
         run("DELETE FROM entries WHERE drive_id=?", [id])
         run("DELETE FROM drives WHERE id=?", [id])
     }
 
     func drivesList(online: [String: VolumeInfo]) -> [[String: Any]] {
-        rows("SELECT * FROM drives ORDER BY COALESCE(NULLIF(label,''), name) COLLATE NOCASE").map { r in
+        var backupOf: [Int: [Int]] = [:], backedUpBy: [Int: [Int]] = [:]
+        for r in rows("SELECT main_id, backup_id FROM backups") {
+            guard let m = r["main_id"] as? Int, let b = r["backup_id"] as? Int else { continue }
+            backupOf[b, default: []].append(m)
+            backedUpBy[m, default: []].append(b)
+        }
+        return rows("SELECT * FROM drives ORDER BY COALESCE(NULLIF(label,''), name) COLLATE NOCASE").map { r in
             var d = r
             let key = r["key"] as? String ?? ""
             let label = r["label"] as? String ?? ""
             d["online"] = online[key] != nil
             if let v = online[key] { d["mount_path"] = v.url.path }
             d["display"] = label.isEmpty ? (r["name"] as? String ?? "") : label
+            let id = r["id"] as? Int ?? -1
+            d["backup_of"] = backupOf[id] ?? []
+            d["backed_up_by"] = backedUpBy[id] ?? []
             return d
         }
     }
@@ -216,7 +239,7 @@ final class DB {
     func listFolder(_ id: Int, _ path: String) -> [[String: Any]] {
         guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [] }
         return rows("""
-            SELECT id,name,is_dir,size,mtime,items FROM entries WHERE drive_id=? AND gen=? AND parent=?
+            SELECT id,name,is_dir,size,mtime,items,copies FROM entries WHERE drive_id=? AND gen=? AND parent=?
             ORDER BY (is_dir=1) DESC, name COLLATE NOCASE
             """, [id, gen, path])
     }
@@ -254,5 +277,237 @@ final class DB {
             GROUP BY e.drive_id ORDER BY n DESC
             """, args)
         return ["results": results, "per_drive": perDrive]
+    }
+
+    // MARK: - backups
+
+    func mainsBackedUpBy(_ id: Int) -> [Int] {
+        rows("SELECT main_id FROM backups WHERE backup_id=?", [id]).compactMap { $0["main_id"] as? Int }
+    }
+
+    /// Returns the main drives whose coverage must be recomputed.
+    func setRole(_ id: Int, _ role: String) -> [Int] {
+        var affected: [Int] = []
+        if role != "backup" {
+            affected += mainsBackedUpBy(id)
+            run("DELETE FROM backups WHERE backup_id=?", [id])
+        }
+        if role == "main" {
+            affected.append(id)
+        } else {
+            run("DELETE FROM backups WHERE main_id=?", [id])
+            clearCoverage(id)
+        }
+        run("UPDATE drives SET role=? WHERE id=?", [role, id])
+        return affected
+    }
+
+    /// Marks `backupID` as a backup of exactly `mains`. Returns the mains to recompute.
+    func setBackupOf(_ backupID: Int, _ mains: [Int]) -> [Int] {
+        let old = mainsBackedUpBy(backupID)
+        run("DELETE FROM backups WHERE backup_id=?", [backupID])
+        run("DELETE FROM backups WHERE main_id=?", [backupID])
+        clearCoverage(backupID)
+        run("UPDATE drives SET role='backup' WHERE id=?", [backupID])
+        for m in mains where m != backupID {
+            run("INSERT OR IGNORE INTO backups(main_id, backup_id) VALUES(?,?)", [m, backupID])
+            run("UPDATE drives SET role='main' WHERE id=?", [m])
+        }
+        return Array(Set(old + mains))
+    }
+
+    func markChecking(_ ids: [Int]) {
+        for id in ids { run("UPDATE drives SET cov_state='checking' WHERE id=?", [id]) }
+    }
+
+    func clearCoverage(_ id: Int) {
+        run("UPDATE entries SET copies=NULL WHERE drive_id=? AND copies IS NOT NULL", [id])
+        run("""
+            UPDATE drives SET cov_files=NULL, cov_none=NULL, cov_one=NULL, cov_two=NULL, cov_none_bytes=NULL,
+            cov_state='' WHERE id=?
+            """, [id])
+    }
+
+    /// For every file on a main drive, count how many of its backup drives hold a file with the same name and size.
+    func recomputeCoverage(_ mainID: Int) {
+        guard let d = row("SELECT gen FROM drives WHERE id=?", [mainID]), let gen = d["gen"] as? Int else { return }
+        let bks = rows("SELECT d.id AS id, d.gen AS gen FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?", [mainID])
+        if bks.isEmpty { clearCoverage(mainID); return }
+        run("UPDATE drives SET cov_state='checking' WHERE id=?", [mainID])
+        let cond = bks.map { "(b.drive_id=\($0["id"] as? Int ?? -1) AND b.gen=\($0["gen"] as? Int ?? -1))" }
+            .joined(separator: " OR ")
+        exec("BEGIN")
+        run("""
+            UPDATE entries SET copies = (
+                SELECT COUNT(DISTINCT b.drive_id) FROM entries b
+                WHERE b.name = entries.name AND b.size = entries.size AND b.is_dir <> 1 AND (\(cond)))
+            WHERE drive_id = ? AND gen = ? AND is_dir <> 1
+            """, [mainID, gen])
+        let s = row("""
+            SELECT COUNT(*) AS n, SUM(copies=0) AS c0, SUM(copies=1) AS c1, SUM(copies>=2) AS c2,
+                   SUM(CASE WHEN copies=0 THEN size ELSE 0 END) AS nb
+            FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1
+            """, [mainID, gen]) ?? [:]
+        run("""
+            UPDATE drives SET cov_files=?, cov_none=?, cov_one=?, cov_two=?, cov_none_bytes=?, cov_state='ok' WHERE id=?
+            """, [s["n"] as? Int ?? 0, s["c0"] as? Int ?? 0, s["c1"] as? Int ?? 0, s["c2"] as? Int ?? 0,
+                  s["nb"] as? Int ?? 0, mainID])
+        exec("COMMIT")
+    }
+
+    func mainsNeedingCoverage() -> [Int] {
+        rows("SELECT DISTINCT main_id FROM backups b JOIN drives d ON d.id=b.main_id WHERE d.cov_state='checking' OR d.cov_files IS NULL")
+            .compactMap { $0["main_id"] as? Int }
+    }
+
+    /// Backup status of each child (file or folder) of `path`: {name: {n, none, one}}.
+    func folderCoverage(_ id: Int, _ path: String) -> [String: Any] {
+        guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [:] }
+        let agg = "SUM(copies=0) AS none, SUM(copies=1) AS one, COUNT(*) AS n"
+        let sql: String
+        let args: [Any?]
+        if path.isEmpty {
+            sql = """
+                SELECT CASE WHEN parent='' THEN name ELSE substr(parent, 1, instr(parent||'/', '/')-1) END AS child, \(agg)
+                FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies IS NOT NULL GROUP BY child
+                """
+            args = [id, gen]
+        } else {
+            let start = path.unicodeScalars.count + 2
+            sql = """
+                SELECT CASE WHEN parent=? THEN name ELSE substr(parent, ?, instr(substr(parent, ?)||'/', '/')-1) END AS child, \(agg)
+                FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies IS NOT NULL
+                  AND (parent=? OR (parent >= ? AND parent < ?)) GROUP BY child
+                """
+            args = [path, start, start, id, gen, path, path + "/", path + "0"]
+        }
+        var out: [String: Any] = [:]
+        for r in rows(sql, args) {
+            guard let c = r["child"] as? String else { continue }
+            out[c] = ["n": r["n"] as? Int ?? 0, "none": r["none"] as? Int ?? 0, "one": r["one"] as? Int ?? 0]
+        }
+        return out
+    }
+
+    /// Files on a main drive with at most `maxCopies` backups.
+    func missingFiles(_ id: Int, maxCopies: Int, limit: Int = 3000) -> [String: Any] {
+        guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [:] }
+        let base = "FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies <= ?"
+        let args: [Any?] = [id, gen, maxCopies]
+        let total = row("SELECT COUNT(*) AS n, SUM(size) AS bytes \(base)", args) ?? [:]
+        return [
+            "total": total["n"] as? Int ?? 0,
+            "bytes": total["bytes"] as? Int ?? 0,
+            "rows": rows("SELECT id, parent, name, is_dir, size, mtime, copies \(base) ORDER BY parent, name LIMIT ?", args + [limit]),
+            "folders": rows("SELECT parent, COUNT(*) AS n, SUM(size) AS bytes \(base) GROUP BY parent ORDER BY n DESC LIMIT 20", args),
+        ]
+    }
+
+    // MARK: - sync between Macs
+
+    func touchMeta(_ ids: [Int]) {
+        let now = Date().timeIntervalSince1970
+        for id in ids { run("UPDATE drives SET meta_updated=? WHERE id=?", [now, id]) }
+    }
+
+    /// Editable, user-facing info about a drive, shared between Macs.
+    func metaDict(_ id: Int) -> [String: Any]? {
+        guard let d = row("SELECT key, name, label, notes, role, meta_updated FROM drives WHERE id=?", [id]),
+              let key = d["key"] as? String else { return nil }
+        let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=?", [id])
+            .compactMap { $0["key"] as? String }
+        return [
+            "key": key, "name": d["name"] as? String ?? "", "label": d["label"] as? String ?? "",
+            "notes": d["notes"] as? String ?? "", "role": d["role"] as? String ?? "",
+            "backup_of": mains, "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
+        ]
+    }
+
+    /// Writes one drive's catalog into a standalone SQLite file.
+    func exportDrive(_ id: Int, to path: String, machine: String) -> Bool {
+        guard let d = row("SELECT * FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int, gen > 0,
+              d["last_scan"] as? Double != nil else { return false }
+        run("ATTACH DATABASE ? AS x", [path])
+        defer { exec("DETACH DATABASE x") }
+        guard exec("""
+            CREATE TABLE x.entries(parent TEXT, name TEXT, is_dir INTEGER, size INTEGER, mtime REAL, items INTEGER);
+            CREATE TABLE x.info(k TEXT PRIMARY KEY, v);
+            """) else { return false }
+        exec("BEGIN")
+        run("INSERT INTO x.entries SELECT parent, name, is_dir, size, mtime, items FROM entries WHERE drive_id=? AND gen=?", [id, gen])
+        for k in ["key", "name", "kind", "source", "fs", "total_bytes", "free_bytes", "used_bytes", "file_count",
+                  "dir_count", "catalog_bytes", "last_scan", "scan_seconds", "first_seen"] {
+            run("INSERT INTO x.info(k, v) VALUES(?, ?)", [k, d[k]])
+        }
+        run("INSERT INTO x.info(k, v) VALUES('machine', ?)", [machine])
+        run("INSERT INTO x.info(k, v) VALUES('format', 1)")
+        exec("COMMIT")
+        return true
+    }
+
+    /// Imports a drive catalog written by another Mac if it is newer than ours. Returns the local drive id if imported.
+    func importDrive(from path: String) -> Int? {
+        run("ATTACH DATABASE ? AS y", [path])
+        defer { exec("DETACH DATABASE y") }
+        var info: [String: Any] = [:]
+        for r in rows("SELECT k, v FROM y.info") { if let k = r["k"] as? String { info[k] = r["v"] } }
+        guard let key = info["key"] as? String, let remoteScan = info["last_scan"] as? Double else { return nil }
+        let local = row("SELECT id, gen, last_scan, status FROM drives WHERE key=?", [key])
+        if let l = local {
+            if let ls = l["last_scan"] as? Double, ls >= remoteScan - 1 { return nil }
+            if l["status"] as? String == "scanning" { return nil }
+        }
+        let id: Int, gen: Int
+        if let l = local, let lid = l["id"] as? Int {
+            id = lid
+            gen = (l["gen"] as? Int ?? 0) + 1
+        } else {
+            run("INSERT INTO drives(key, name, kind, source, fs, first_seen, last_seen) VALUES(?,?,?,?,?,?,?)",
+                [key, info["name"], info["kind"], info["source"], info["fs"], info["first_seen"], info["last_scan"]])
+            id = lastID
+            gen = 1
+        }
+        exec("BEGIN")
+        run("INSERT INTO entries(drive_id, gen, parent, name, is_dir, size, mtime, items) SELECT ?, ?, parent, name, is_dir, size, mtime, items FROM y.entries", [id, gen])
+        exec("COMMIT")
+        let machine = info["machine"] as? String ?? "another Mac"
+        finishScan(id: id, gen: gen, files: info["file_count"] as? Int ?? 0, dirs: info["dir_count"] as? Int ?? 0,
+                   bytes: Int64(info["catalog_bytes"] as? Int ?? 0), seconds: info["scan_seconds"] as? Double ?? 0,
+                   detail: "Scanned on \(machine)")
+        run("""
+            UPDATE drives SET last_scan=?, total_bytes=COALESCE(?, total_bytes), free_bytes=COALESCE(?, free_bytes),
+            used_bytes=COALESCE(?, used_bytes), name=COALESCE(?, name) WHERE id=?
+            """, [remoteScan, info["total_bytes"], info["free_bytes"], info["used_bytes"], info["name"], id])
+        return id
+    }
+
+    enum MetaResult { case unknownDrive, unchanged, applied([Int]) }
+
+    /// Applies names/notes/roles/backup assignments from another Mac if newer than ours.
+    func applyMeta(_ m: [String: Any]) -> MetaResult {
+        guard let key = m["key"] as? String, let updated = m["updated"] as? Double else { return .unchanged }
+        guard let l = row("SELECT id, meta_updated, last_scan FROM drives WHERE key=?", [key]), let id = l["id"] as? Int
+        else { return .unknownDrive }
+        if (l["meta_updated"] as? Double ?? 0) >= updated { return .unchanged }
+        if m["forgotten"] as? Bool == true {
+            // Ignore the tombstone if the drive was scanned again after it was forgotten.
+            if (l["last_scan"] as? Double ?? 0) > updated { return .unchanged }
+            let mains = mainsBackedUpBy(id)
+            forget(id)
+            return .applied(mains)
+        }
+        let role = m["role"] as? String ?? ""
+        run("UPDATE drives SET label=?, notes=?, role=?, meta_updated=? WHERE id=?",
+            [m["label"] as? String ?? "", m["notes"] as? String ?? "", role, updated, id])
+        var affected = mainsBackedUpBy(id)
+        run("DELETE FROM backups WHERE backup_id=?", [id])
+        for mk in m["backup_of"] as? [String] ?? [] {
+            if let mid = row("SELECT id FROM drives WHERE key=?", [mk])?["id"] as? Int {
+                run("INSERT OR IGNORE INTO backups(main_id, backup_id) VALUES(?,?)", [mid, id])
+                affected.append(mid)
+            }
+        }
+        if role == "main" { affected.append(id) } else if role != "backup" { clearCoverage(id) }
+        return .applied(affected)
     }
 }

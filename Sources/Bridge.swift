@@ -31,11 +31,77 @@ enum Bridge {
             guard let id = int("id") else { return err("missing id") }
             db.run("UPDATE drives SET label=?, notes=? WHERE id=?",
                    [str("label").trimmingCharacters(in: .whitespacesAndNewlines), str("notes"), id])
+            db.touchMeta([id])
+            Scanner.shared.exportMeta([id])
             return ok
 
         case "forget":
             guard let id = int("id") else { return err("missing id") }
+            let key = db.row("SELECT key FROM drives WHERE id=?", [id])?["key"] as? String
+            let mains = db.mainsBackedUpBy(id)
             db.forget(id)
+            if let key = key { Scanner.shared.exportTombstone(key: key) }
+            Scanner.shared.recomputeCoverage(mains)
+            Scanner.shared.exportMeta(mains)
+            return ok
+
+        case "setRole":
+            guard let id = int("id") else { return err("missing id") }
+            let role = ["main", "backup"].contains(str("role")) ? str("role") : ""
+            let affected = db.setRole(id, role)
+            db.markChecking(affected)
+            db.touchMeta([id])
+            Scanner.shared.recomputeCoverage(affected)
+            Scanner.shared.exportMeta([id])
+            return ok
+
+        case "setBackupOf":
+            guard let id = int("id") else { return err("missing id") }
+            let mains = (a["mains"] as? [Any] ?? []).compactMap { ($0 as? Int) ?? Int("\($0)") }
+            let affected = db.setBackupOf(id, mains)
+            db.markChecking(mains)
+            db.touchMeta([id] + mains)
+            Scanner.shared.recomputeCoverage(affected)
+            Scanner.shared.exportMeta([id] + mains)
+            return ok
+
+        case "folderCoverage":
+            guard let id = int("drive") else { return [String: Any]() }
+            return db.folderCoverage(id, str("path"))
+
+        case "missing":
+            guard let id = int("drive") else { return err("missing drive") }
+            return db.missingFiles(id, maxCopies: int("max") ?? 0)
+
+        case "syncICloud":
+            guard SyncFolder.iCloudAvailable else { return err("iCloud Drive isn't turned on for this Mac (System Settings → Apple Account → iCloud → iCloud Drive).") }
+            SyncFolder.set(SyncFolder.iCloudFolder)
+            Scanner.shared.syncNow(exportAll: true)
+            return settings()
+
+        case "syncChoose":
+            let chosen: URL? = DispatchQueue.main.sync { MainActor.assumeIsolated {
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.canCreateDirectories = true
+                panel.prompt = "Use This Folder"
+                panel.message = "Choose a folder that all your Macs can reach (Dropbox, a NAS share…). Pick the same folder on each Mac."
+                NSApp.activate(ignoringOtherApps: true)
+                return panel.runModal() == .OK ? panel.url : nil
+            } }
+            guard var url = chosen else { return settings() }
+            if url.lastPathComponent != "DriveDex" { url.appendPathComponent("DriveDex", isDirectory: true) }
+            SyncFolder.set(url)
+            Scanner.shared.syncNow(exportAll: true)
+            return settings()
+
+        case "syncOff":
+            SyncFolder.set(nil)
+            return settings()
+
+        case "syncNow":
+            Scanner.shared.syncNow(exportAll: true)
             return ok
 
         case "rescan", "reveal":
@@ -121,6 +187,12 @@ enum Bridge {
             "openAtLogin": status == "enabled",
             "loginStatus": status,
             "catalogPath": Paths.support.path,
+            "syncFolder": SyncFolder.url?.path ?? "",
+            "syncIsICloud": SyncFolder.url?.path == SyncFolder.iCloudFolder.path,
+            "iCloudAvailable": SyncFolder.iCloudAvailable,
+            "lastSync": Settings.d.double(forKey: "lastSync"),
+            "syncError": Settings.d.string(forKey: "syncError") ?? "",
+            "machine": SyncFolder.machine,
             "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
         ]
     }

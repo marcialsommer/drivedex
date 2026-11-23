@@ -59,8 +59,9 @@ private final class ScanJob {
 final class Scanner {
     static let shared = Scanner()
 
-    private let queue = DispatchQueue(label: "drivedex.scan", qos: .utility)
-    private lazy var db = DB()           // only touched on `queue`
+    let queue = DispatchQueue(label: "drivedex.scan", qos: .utility)
+    lazy var db = DB()                   // only touched on `queue`
+    var syncTimer: Timer?
     private let lock = NSLock()
     private var pending = Set<String>()
     private var cancelled = Set<String>()
@@ -134,7 +135,11 @@ final class Scanner {
     // MARK: - lifecycle
 
     func start() {
-        queue.async { self.db.recoverInterruptedScans() }
+        queue.async {
+            self.db.recoverInterruptedScans()
+            for id in self.db.mainsNeedingCoverage() { self.db.recomputeCoverage(id) }
+        }
+        startSync()
         let nc = NSWorkspace.shared.notificationCenter
         nc.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: nil) { [weak self] n in
             guard let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
@@ -170,6 +175,12 @@ final class Scanner {
         }
     }
 
+    /// Recompute backup coverage for these main drives (in the background).
+    func recomputeCoverage(_ ids: [Int]) {
+        guard !ids.isEmpty else { return }
+        queue.async { for id in Set(ids) { self.db.recomputeCoverage(id) } }
+    }
+
     private func isCancelled(_ mount: URL) -> Bool {
         lock.lock(); defer { lock.unlock() }
         return cancelled.contains(mount.standardizedFileURL.path)
@@ -203,6 +214,10 @@ final class Scanner {
             let summary = "\(label): \(job.files.formatted()) files, \(job.dirs.formatted()) folders, " +
                 ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
             notify(oldGen == 0 ? "Catalogued new drive \(summary)" : "Updated \(summary)")
+            var mains = db.mainsBackedUpBy(id)
+            if db.row("SELECT role FROM drives WHERE id=?", [id])?["role"] as? String == "main" { mains.append(id) }
+            for m in Set(mains) { db.recomputeCoverage(m) }
+            exportToSync([id])
         } catch {
             job.batch.removeAll()
             db.deleteGen(id, gen)
