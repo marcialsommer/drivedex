@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.4'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.4.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -114,7 +114,7 @@ s+=[P('4  A drive\'s page and browsing', h1),
     shot('dhead','The top of a drive\'s page: name, type, status, backup status, location, and the three tabs.'),
     table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Main files / backup role, backup status, history and reminders (sections 6–9). On a backup drive this tab is called <b>Backup status</b>: what it backs up, how complete it is, and a link to the files it\'s missing.'),('<b>Info</b>','Size, last connected (and on which Mac), <b>scan history</b> (every scan with date, Mac, files, size and duration, including failed ones), type, location notes, Forget drive. Biggest folders and possible duplicates are in collapsed sections; click to open.')], 26*mm),
     Spacer(1,6), P('Three ways to look at files', h2),
-    P('Like the Finder, the buttons above the files switch between <b>Icons</b> (big icons, double-click a folder to open it), <b>List</b> (a sortable table with a Backups column) and <b>Columns</b>. DriveDex remembers your choice. The <b>&lsaquo; &rsaquo;</b> buttons at the top left go <b>back and forward</b> to where you were before, like in a web browser (also &#8984;[ and &#8984;], or &#8984;&larr; and &#8984;&rarr;).'),
+    P('Like the Finder, the buttons above the files switch between <b>Icons</b> (big icons, double-click a folder to open it), <b>List</b> (a sortable table with a Backups column) and <b>Columns</b>. DriveDex remembers your choice. The <b>&lsaquo; &rsaquo;</b> buttons on the left, above the files, go <b>back and forward</b> to where you were before, like in a web browser (also &#8984;[ and &#8984;], or &#8984;&larr; and &#8984;&rarr;).'),
     P('Column view', h2),
     shot('cols','Column view. Dots show the backup status of each file, and of everything inside each folder; ⊘ marks an excluded folder, ⇄ a folder linked to another drive.', box=(0,0,1640,350)),
     table([('<b>&darr; &uarr;</b>','Move up and down'),('<b>&rarr;</b> or <b>Return</b>','Open the selected folder'),('<b>&larr;</b>','Back to the parent folder'),('<b>Type a name</b>','Jump to the first item starting with those letters')], 38*mm),

@@ -147,7 +147,7 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;display:none;max-width:min(640px,90vw);z-index:60;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);line-height:1.4}
 @media (max-width:720px){main{flex-direction:column}nav{width:auto;max-height:35vh;border-right:0;border-bottom:1px solid var(--line)}
  header{flex-wrap:wrap}.qwrap{order:3;flex-basis:100%}section{padding:12px 16px}.hide-sm{display:none}}
-.navbtns{display:flex;gap:2px}.navbtns button{padding:4px 10px;font-size:16px;line-height:1}.navbtns button:disabled{opacity:.35;cursor:default;border-color:var(--line)}
+.navbtns{display:flex;gap:2px;flex:none}.navrow{margin:-4px 0 10px}.navbtns button{padding:4px 10px;font-size:16px;line-height:1}.navbtns button:disabled{opacity:.35;cursor:default;border-color:var(--line)}
 .tact{margin-left:12px;padding:3px 12px;background:transparent;color:var(--bg);border:1px solid var(--bg);border-radius:6px;font-weight:600}
 .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:4px;padding:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
 .tile{position:relative;text-align:center;padding:10px 6px 8px;border-radius:8px;cursor:default;user-select:none}
@@ -158,7 +158,7 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 .ir .rm{padding:1px 7px;font-size:11px;margin-left:6px}
 th[data-hk]{cursor:pointer}
 </style></head><body>
-<header><div class="navbtns"><button id="nback" title="Back (⌘[ or ⌘←)" aria-label="Back" disabled>‹</button><button id="nfwd" title="Forward (⌘] or ⌘→)" aria-label="Forward" disabled>›</button></div><h1 id="home" title="Overview">DriveDex</h1>
+<header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
 <select id="kind"><option value="all">Everything</option><option value="folders">Folders</option><option value="files">Files</option><option value="video">Videos</option><option value="photo">Photos</option><option value="audio">Audio</option><option value="doc">Documents</option><option value="project">Projects &amp; libraries</option><option value="archive">Archives &amp; disk images</option></select>
 <select id="scope"><option value="">All drives</option></select>
@@ -390,7 +390,7 @@ function renderHome(){
   const att=items.length?`<div class="card"><h2>Needs attention</h2>${items.map((x,i)=>`<div class="attn l${x.lvl}"><span class="ai">${x.lvl==2?'✕':x.lvl==1?'!':'i'}</span><span class="at">${x.text}</span><button data-ai="${i}">${x.act}</button></div>`).join('')}</div>`
     :mains.length?`<div class="card allok"><span class="big">✓</span><div><h2>Everything is backed up</h2><div class="mute">${mains.length} main drive${mains.length==1?'':'s'}, all with complete backups. Nothing needs your attention.</div></div></div>`
     :`<div class="card"><h2>Set up your backups</h2><div class="mute">Mark the drives that hold your originals as <b>Main files</b> and link their backups, and DriveDex will tell you here whenever something isn't backed up.</div><div class="row" style="margin-top:8px"><button class="primary" id="startsetup">Start the setup guide</button></div></div>`;
-  $('#view').innerHTML=att+`<div class="mute" style="margin:4px 2px 8px">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+att+`<div class="mute" style="margin:4px 2px 8px">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
   <table><tr>${[['drive','Drive',''],['backup','Backup',''],['where','Where','hide-sm'],['used','Used','r'],['files','Files','r hide-sm'],['seen','Last connected','r']].map(([k,l,c])=>`<th class="${c}" data-hk="${k}" title="Sort by ${l.toLowerCase()}">${l}${hsort.k==k?(hsort.d>0?' ▲':' ▼'):''}</th>`).join('')}</tr>
   ${homeSorted().map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc((d.notes||'').split('\n')[0]).slice(0,50)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${d.online?'now':ago(d.last_seen)}${!d.online&&d.last_seen_on?`<div class="path">${esc(d.last_seen_on)}</div>`:''}</td></tr>`).join('')}</table>`;
   document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
@@ -454,7 +454,8 @@ function noteNav(){
   if(navCur&&navKey(s)==navKey(navCur)){navCur=s;return}          // same place (maybe another selection): just remember it
   if(navCur&&!(navCur.mode=='search'&&s.mode=='search')){navBack.push(navCur);if(navBack.length>100)navBack.shift();navFwd.length=0}
   navCur=s;drawNavBtns()}
-function drawNavBtns(){const b=$('#nback'),f=$('#nfwd');if(!b)return;b.disabled=!navBack.length&&state.mode!='settings';f.disabled=!navFwd.length}
+const navHTML=()=>`<div class="navbtns"><button class="nb" data-nav="-1" title="Back (⌘[ or ⌘←)" aria-label="Back" ${navBack.length?'':'disabled'}>‹</button><button class="nb" data-nav="1" title="Forward (⌘] or ⌘→)" aria-label="Forward" ${navFwd.length?'':'disabled'}>›</button></div>`;
+function drawNavBtns(){document.querySelectorAll('[data-nav="-1"]').forEach(b=>b.disabled=!navBack.length&&state.mode!='settings');document.querySelectorAll('[data-nav="1"]').forEach(b=>b.disabled=!navFwd.length)}
 function goNav(dir){
   if(dir<0&&state.mode=='settings'){leaveSettings();return}
   const from=dir<0?navBack:navFwd,to=dir<0?navFwd:navBack;if(!from.length)return;
@@ -562,7 +563,7 @@ document.addEventListener('keydown',e=>{
 });
 async function render(){
   if(state.mode!='drive')return;
-  $('#view').innerHTML=`<div id="dh"></div><div id="filesbox" style="${driveTab=='files'?'':'display:none'}"><div class="crumbrow"><div class="crumbs" id="crumbs"></div>
+  $('#view').innerHTML=`<div class="navrow" id="navtop" style="${driveTab=='files'?'display:none':''}">${navHTML()}</div><div id="dh"></div><div id="filesbox" style="${driveTab=='files'?'':'display:none'}"><div class="crumbrow">${navHTML()}<div class="crumbs" id="crumbs"></div>
     <div class="segs">${[['icons','⊞ Icons','as icons'],['list','☰ List','as a list'],['columns','▥ Columns','in columns']].map(([v,l,t])=>`<button class="seg ${viewMode==v?'on':''}" data-view="${v}" title="Show ${t}">${l}</button>`).join('')}</div></div>
     <div id="exbar"></div><div id="list" class="empty">Loading…</div></div>`;
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{viewMode=b.dataset.view;try{localStorage.setItem('dd_view',viewMode)}catch(e){}render()});
@@ -637,7 +638,7 @@ function renderDriveHeader(){
 }
 function switchTab(t){
   driveTab=t;const fb=$('#filesbox');
-  if(fb)fb.style.display=t=='files'?'':'none';
+  if(fb)fb.style.display=t=='files'?'':'none';if($('#navtop'))$('#navtop').style.display=t=='files'?'none':'';
   $('#dh').dataset.id='';renderDriveHeader();
   if(t=='files'&&fb&&!fb.dataset.loaded)render();
   noteNav();
@@ -854,7 +855,7 @@ async function openMissing(id,max,set,from){
   const r=set?await api('missingFromSet',{drive:id,set}):await api('missing',{drive:id,max});
   const sb=set&&(d.backup_status||[]).find(x=>x.set==set);
   const title=set?`missing from ${sb?bkName(sb):'this backup'}`:max==0?'not backed up':'with fewer than 2 backups';
-  $('#view').innerHTML=`<div class="card"><div class="crumbs" style="margin:0 0 6px"><a id="back">${esc(d.display)}</a> / Files ${title}</div>
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><div class="crumbs" style="margin:0 0 6px"><a id="back">${esc(d.display)}</a> / Files ${title}</div>
   <h2>${r.total.toLocaleString()} file${r.total==1?'':'s'} ${title} · ${hb(r.bytes)}</h2>
   <div class="mute">${r.total>r.rows.length?`Showing the first ${r.rows.length.toLocaleString()}. `:''}Click a file to open its folder.</div>
   ${r.folders.length?`<h3>Folders with the most</h3><div>${r.folders.map(f=>`<span class="chip" data-p="${esc(f.parent)}">${esc(f.parent||'/')} · ${f.n.toLocaleString()}</span>`).join('')}</div>`:''}</div>
@@ -932,7 +933,7 @@ function drawSearch(r){
     return `<tr class="click" data-g="${esc(g.key)}"><td class="n"><span class="ic">${icon(g)}</span>${esc(g.name)}<div class="path">${multi?`${g.items.length} copies`:esc(g.parent||'/')}</div></td>
       <td>${multi?`<span class="mute">${open?'▾':'▸'}</span> on ${g.items.length} drives: ${esc([...new Set(g.items.map(x=>x.drive))].join(', '))}`:where(g)}</td><td class="r">${hb(g.size)}</td><td class="r hide-sm">${date(g.mtime)}</td></tr>`
       +(multi&&open?g.items.map(e=>`<tr class="click sub" data-id="${e.id}"><td class="n" style="padding-left:34px"><div class="path">${esc(e.parent||'/')}</div></td><td>${where(e)}</td><td></td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join(''):'')};
-  $('#view').innerHTML=`<div class="card"><b>${total.toLocaleString()} match${total==1?'':'es'}</b>${groups.length<res.length?` <span class="mute">· ${groups.length.toLocaleString()} different items</span>`:''}${total>res.length?` <span class="mute">(showing first ${res.length})</span>`:''}<div style="margin-top:8px">${r.per_drive.map(p=>`<span class="chip" data-d="${p.drive_id}">${esc(p.drive)} · ${p.n.toLocaleString()}</span>`).join('')||'<span class="mute">Nothing found on any catalogued drive.</span>'}</div></div>
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><b>${total.toLocaleString()} match${total==1?'':'es'}</b>${groups.length<res.length?` <span class="mute">· ${groups.length.toLocaleString()} different items</span>`:''}${total>res.length?` <span class="mute">(showing first ${res.length})</span>`:''}<div style="margin-top:8px">${r.per_drive.map(p=>`<span class="chip" data-d="${p.drive_id}">${esc(p.drive)} · ${p.n.toLocaleString()}</span>`).join('')||'<span class="mute">Nothing found on any catalogued drive.</span>'}</div></div>
   ${groups.length?`<table>${th('name','Name')}<th>Drive</th>${th('size','Size','r')}${th('mtime','Modified','r hide-sm')}${sorter(groups).map(row).join('')}</table>`:''}`;
   bindSort(()=>drawSearch(r));
   document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{$('#scope').value=c.dataset.d;doSearch()});
@@ -982,7 +983,7 @@ async function openSettings(){
   state={mode:'settings'};$('#q').value='';document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));
   const s=await api('getSettings');
   const lnote=s.loginStatus=='requiresApproval'?' <a href="#" id="li">Approve in Login Items</a>':'';
-  $('#view').innerHTML=`<div class="card"><h2>Settings</h2>
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><h2>Settings</h2>
   <h3>Background</h3>
   <label class="set"><input type="checkbox" id="s_login" ${s.openAtLogin?'checked':''}>Open DriveDex at login <span class="mute">(recommended: it only catalogues drives while running, quietly in the menu bar)</span>${lnote}</label>
   <label class="set"><input type="checkbox" id="s_notify" ${s.notify?'checked':''}>Show a notification when a scan finishes</label>
@@ -1026,7 +1027,7 @@ async function openSettings(){
 }
 $('#gear').onclick=toggleSettings;
 $('#home').onclick=goHome;
-$('#nback').onclick=()=>goNav(-1);$('#nfwd').onclick=()=>goNav(1);
+document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b&&!b.disabled)goNav(+b.dataset.nav)});
 document.addEventListener('keydown',e=>{
   const t=document.activeElement.tagName,typing=t=='INPUT'||t=='TEXTAREA'||t=='SELECT';
   if(e.metaKey&&!e.altKey&&(e.key=='['||(!typing&&e.key=='ArrowLeft'))){e.preventDefault();goNav(-1)}
