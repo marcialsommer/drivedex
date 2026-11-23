@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.5.2'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.5.3'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -192,7 +192,7 @@ s+=[P('12  Sharing between your Macs', h1),
     shot('sync','Sharing is on. "Sync now" checks for changes immediately.'),
     P('Each Mac keeps a <b>working copy</b> of the catalog (fast, works offline) and exchanges updates through the <b>shared copy</b> in your sync folder (a subfolder called <b>DriveDex</b>).'),
     table([('<b>Shared</b>','Drives and catalogs, names, notes and locations, types, roles, backup assignments (drives, folders, sets), excluded folders, reminders, history, drive order, ignored drives, strict check, and which Mac last saw each drive.'),
-           ('<b>Per Mac</b>','Start at login, notifications, rescan timing, compact view, and the green "connected" dot (always about this Mac).')], 22*mm),
+           ('<b>Per Mac</b>','Start at login, menu-bar icon, notifications, rescan timing, compact view, and the green "connected" dot (always about this Mac).')], 22*mm),
     Spacer(1,6)]
 s+=bullets(['Use a folder your Mac keeps in sync in the background. Don\'t edit or move files inside the DriveDex folder.',
             'A folder on an external drive or NAS works only while it\'s connected.',
@@ -201,7 +201,7 @@ s+=[PageBreak()]
 # 12
 s+=[P('13  Settings and shortcuts', h1),
     table([('<b>Open DriveDex at login</b>','Keep on: DriveDex only catalogs drives while running.'),
-           ('<b>Notifications</b>','When scans finish or fail, and for reminders and updates.'),
+           ('<b>Show DriveDex in the menu bar</b>','Turn off to hide the menu-bar icon. DriveDex keeps running; open it from Applications or Spotlight.'),('<b>Notifications</b>','When scans finish or fail, and for reminders and updates.'),
            ('<b>Ask before cataloguing new drives</b>','On: new drives wait for <b>Catalog it</b>.'),
            ('<b>Rescan when plugged in / network shares</b>','How old a catalog may get before a rescan (1 hour / 12 hours).'),
            ('<b>Strict backup check</b>','Also compare modification dates (section 7).'),

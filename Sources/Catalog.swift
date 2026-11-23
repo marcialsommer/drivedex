@@ -25,6 +25,7 @@ enum Settings {
             "notify": true,
             "askNew": true,
             "strictCheck": false,
+            "showMenuBarIcon": true,
         ])
     }
     static var rescanAfterHours: Double { d.double(forKey: "rescanAfterHours") }
@@ -35,6 +36,7 @@ enum Settings {
     static var notify: Bool { d.bool(forKey: "notify") }
     static var askNew: Bool { d.bool(forKey: "askNew") }
     static var strictCheck: Bool { d.bool(forKey: "strictCheck") }
+    static var showMenuBarIcon: Bool { d.bool(forKey: "showMenuBarIcon") }
 }
 
 struct Entry {

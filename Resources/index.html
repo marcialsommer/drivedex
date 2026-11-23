@@ -1162,6 +1162,7 @@ async function openSettings(){
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><h2>Settings</h2>
   <h3>Background</h3>
   <label class="set"><input type="checkbox" id="s_login" ${s.openAtLogin?'checked':''}>Open DriveDex at login <span class="mute">(recommended: it only catalogues drives while running, quietly in the menu bar)</span>${lnote}</label>
+  <label class="set"><input type="checkbox" id="s_menubar" ${s.showMenuBarIcon!==false?'checked':''}>Show DriveDex in the menu bar <span class="mute">(the drive icon that turns orange or red when backups need attention; when hidden, DriveDex still runs in the background: open it from Applications or Spotlight)</span></label>
   <label class="set"><input type="checkbox" id="s_notify" ${s.notify?'checked':''}>Show a notification when a scan finishes</label>
   <label class="set"><input type="checkbox" id="s_ask" ${s.askNew?'checked':''}>Ask before cataloguing a drive DriveDex hasn't seen before</label>
   <h3>Scanning</h3>
@@ -1183,7 +1184,7 @@ async function openSettings(){
   <h3>Help</h3><div class="row"><button id="s_guide">Open the user guide (PDF)</button><button id="s_setup">Run the setup guide again</button></div>
   <h3>Updates</h3><div class="row" id="uprow"><span class="mute">Checking…</span></div>
   <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} on ${esc(s.machine)}<br>Working copy on this Mac (fast searching, works offline): ${esc(s.catalogPath)}${s.syncFolder?`<br>Shared copy, exchanged with your other Macs: ${esc(s.syncFolder)}`:''}</div></div>`;
-  const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,askNew:$('#s_ask').checked,strictCheck:$('#s_strict').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
+  const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,showMenuBarIcon:$('#s_menubar').checked,askNew:$('#s_ask').checked,strictCheck:$('#s_strict').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
     periodicRescanHours:parseFloat($('#s_periodic').value)||12,includeHidden:$('#s_hidden').checked,skipDiskImages:$('#s_dmg').checked,
     ignoreVolumes:$('#s_ignore').value.split('\n')}).then(r=>{toast(r.loginStatus=='requiresApproval'?'Approve DriveDex in System Settings → Login Items':'Saved')});
   document.querySelectorAll('#view input,#view textarea').forEach(i=>i.onchange=save);

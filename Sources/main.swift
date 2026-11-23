@@ -141,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let menu = NSMenu()
         menu.delegate = self            // rebuilt every time it opens (see menuNeedsUpdate)
         statusItem.menu = menu
+        statusItem.isVisible = Settings.showMenuBarIcon   // can be hidden in Settings
         refreshStatusIcon()
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshStatusIcon() }

@@ -403,6 +403,10 @@ enum Bridge {
             if let v = a["skipDiskImages"] as? Bool { d.set(v, forKey: "skipDiskImages") }
             if let v = a["notify"] as? Bool { d.set(v, forKey: "notify") }
             if let v = a["askNew"] as? Bool { d.set(v, forKey: "askNew") }
+            if let v = a["showMenuBarIcon"] as? Bool {
+                d.set(v, forKey: "showMenuBarIcon")
+                DispatchQueue.main.async { MainActor.assumeIsolated { (NSApp.delegate as? AppDelegate)?.statusItem?.isVisible = v } }
+            }
             if let v = a["onboarded"] as? Bool { d.set(v, forKey: "onboarded") }
             if let v = a["strictCheck"] as? Bool, v != Settings.strictCheck {
                 d.set(v, forKey: "strictCheck")
@@ -460,6 +464,7 @@ enum Bridge {
             "notify": Settings.notify,
             "askNew": Settings.askNew,
             "strictCheck": Settings.strictCheck,
+            "showMenuBarIcon": Settings.showMenuBarIcon,
             "onboarded": Settings.d.bool(forKey: "onboarded"),
             "ignoreVolumes": Settings.ignoreVolumes,
             "openAtLogin": status == "enabled",
