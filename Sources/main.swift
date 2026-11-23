@@ -82,6 +82,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         webView.evaluateJavaScript("checkUpdates(true)", completionHandler: nil)
     }
 
+    @objc func sendFeedback() {
+        showWindow()
+        webView.evaluateJavaScript("openSettings().then(()=>{const f=document.querySelector('#s_fb');if(f)f.scrollIntoView({block:'center'})})", completionHandler: nil)
+    }
+
     @objc func focusSearch() {
         showWindow()
         webView.evaluateJavaScript("document.querySelector('#q').focus()", completionHandler: nil)
@@ -184,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         appMenu.addItem(withTitle: "About DriveDex", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "").target = self
+        appMenu.addItem(withTitle: "Send Feedback…", action: #selector(sendFeedback), keyEquivalent: "").target = self
         appMenu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Rescan Connected Drives", action: #selector(rescanConnected), keyEquivalent: "r").target = self

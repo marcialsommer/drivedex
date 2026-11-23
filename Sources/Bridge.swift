@@ -144,6 +144,25 @@ enum Bridge {
             guard let id = int("id") else { return [String: Any]() }
             return db.spaceInfo(id)
 
+        case "feedback":
+            let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+            let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+            let body = """
+                **What happened / what would you like?**
+
+
+                **Steps to see it (if it's a problem):**
+
+
+                ---
+                DriveDex \(v) (build \(b)) · \(ProcessInfo.processInfo.operatingSystemVersionString)
+                """
+            var c = URLComponents(string: "https://github.com/marcialsommer/drivedexloo/issues/new")!
+            c.queryItems = [URLQueryItem(name: "title", value: str("kind") == "bug" ? "Problem: " : "Idea: "),
+                            URLQueryItem(name: "body", value: body)]
+            if let url = c.url { DispatchQueue.main.async { NSWorkspace.shared.open(url) } }
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))

@@ -67,6 +67,7 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 #ctx div{padding:6px 10px;border-radius:5px;cursor:default}#ctx div:hover{background:var(--acc);color:#fff}
 #ctx div.dis{opacity:.4;pointer-events:none}#ctx div.red{color:var(--err)}#ctx div.red:hover{color:#fff;background:var(--err)}#ctx hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 .tag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:1px;border:1px solid currentColor;opacity:.85}
+.cap{font-size:11px;color:var(--mute);margin-left:5px;white-space:nowrap;font-weight:500}
 .tag.ssd{color:#8a4fd8}.tag.hdd{color:#b5762a}.tag.nas{color:#2f8fa8}.tag.other{color:var(--mute)}
 .crumbrow{display:flex;align-items:center;gap:10px;margin:8px 0 12px}.crumbrow .crumbs{flex:1;margin:0}
 .cols{display:flex;height:min(64vh,600px);border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow-x:auto;overflow-y:hidden;outline:none}
@@ -157,7 +158,9 @@ function covShort(d){
   return d.cov_none?`<span class="errc">${pct}% backed up</span>`:d.cov_one?`<span class="warnc">100% backed up · ${(d.cov_two||0)==n?'':Math.floor(100*(d.cov_two||0)/n)+'% twice'}</span>`:'<span class="okc">✓ Backed up twice</span>';
 }
 let prevCov={};
-const TYPES=[['hdd','HDD'],['ssd','SSD'],['nas','NAS'],['other','Other']];
+const TYPES=[['hdd','HDD'],['ssd','SSD'],['nas','NAS']];
+const capLabel=b=>{if(!b)return'';const tb=b/1e12;return tb>=1?(Math.round(tb*10)/10).toString().replace(/\.0$/,'')+' TB':Math.round(b/1e9)+' GB'};
+const capHTML=d=>d.total_bytes?`<span class="cap">${capLabel(d.total_bytes)}</span>`:'';
 const tagHTML=d=>d.type?`<span class="tag ${d.type}">${d.type=='other'?'OTHER':d.type.toUpperCase()}</span>`:'';
 const bkColor=b=>b.n==null?'var(--off)':!b.n||b.have>=b.n?'var(--ok)':b.have/b.n>=0.9?'var(--warn)':'var(--err)';
 const bkPct=b=>b.n?Math.floor(1000*b.have/b.n)/10:100;
@@ -215,7 +218,7 @@ async function loadDrives(){
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
-    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${ticks(d)}</div>
+    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
     ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}<div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
@@ -224,7 +227,7 @@ async function loadDrives(){
       return mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
         const status=b.n==null?'<span class="mute">checking…</span>':`<span style="color:${bkColor(b)}">${!b.n||b.have>=b.n?'✓ ':''}${bkPct(b)}%</span>`;
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
-          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
+          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
           <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${mem.length>1?'part of a set · ':''}catalog from ${ago(bd.last_scan)}</div></div>`}).join('')}).join('');
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
@@ -311,7 +314,7 @@ const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitiv
 async function listOf(drive,path){const k=drive+'\u0000'+path;if(lcache.has(k))return lcache.get(k);
   const r=(await api('list',{drive,path})).slice().sort(byName);lcache.set(k,r);return r}
 const joinP=(a,b)=>a?a+'/'+b:b;
-function openDrive(id,path,hl,kidPath){prevState=null;state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
+function openDrive(id,path,hl,kidPath){prevState=null;if(path||hl)driveTab='files';state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
 function drawCrumbs(){
   const parts=state.path?state.path.split('/'):[];
   $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
@@ -463,7 +466,7 @@ document.addEventListener('contextmenu',e=>{
   const items=[it('Open',()=>openDrive(d.id,'')),
     it('Rescan now',()=>api('rescan',{id:d.id}).then(()=>{toast('Scan started');setTimeout(loadDrives,800)}).catch(x=>toast(x.message)),d.online?'':'dis'),
     it('Show in Finder',()=>api('reveal',{id:d.id,path:''}).catch(x=>toast(x.message)),d.online?'':'dis'),'-',
-    ...TYPES.map(([v,l])=>it((d.type==v?'✓ ':'\u2003')+'Type: '+l,()=>api('setType',{id:d.id,type:v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
+    ...TYPES.map(([v,l])=>it((d.type==v?'✓ ':'\u2003')+'Type: '+l,()=>api('setType',{id:d.id,type:d.type==v&&!d.type_auto?'':v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     ...[['main','Main files'],['backup','Backup'],['','Other']].map(([v,l])=>it((d.role||'')==v?'✓ '+l:'\u2003'+l,()=>api('setRole',{id:d.id,role:v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     it('Forget drive…',()=>forgetDrive(d),'red')];
   showCtx(e,items);
@@ -501,7 +504,7 @@ function roleHTML(d){
 }
 function typeRow(d){
   const tseg=TYPES.map(([v,l])=>`<button class="seg ${d.type==v?'on':''}" data-type="${v}">${l}</button>`).join('');
-  const tnote=d.type?(d.type_auto?'<span class="mute" style="font-size:12px">detected automatically</span>':''):'<span class="mute" style="font-size:12px">not detected. Pick one</span>';
+  const tnote=d.type?(d.type_auto?'<span class="mute" style="font-size:12px">detected automatically</span>':'<span class="mute" style="font-size:12px">click again to clear</span>'):'<span class="mute" style="font-size:12px">not detected. Pick one</span>';
   return `<div class="row"><span class="mute">Type</span><div class="segs">${tseg}</div>${tnote}</div>`;
 }
 let driveTab='files';
@@ -683,6 +686,8 @@ async function openSettings(){
   <div class="row">${s.syncIsICloud?'':`<button id="s_icloud" class="primary" ${s.iCloudAvailable?'':'disabled title="Turn on iCloud Drive in System Settings first"'}>Share with iCloud Drive</button>`}
     <button id="s_choose">${s.syncFolder&&!s.syncIsICloud?'Choose another folder…':'Use another folder…'}</button>
     ${s.syncFolder?'<button id="s_syncnow">Sync now</button><button id="s_syncoff" class="danger">Stop sharing</button>':''}</div>
+  <h3>Feedback</h3><div class="row" id="s_fb"><button id="s_fb_bug">Report a problem</button><button id="s_fb_idea">Suggest an idea</button>
+    <span class="mute" style="font-size:12px;width:100%">Opens a short form on GitHub (sign in needed) with your DriveDex and macOS versions filled in. Please don't include private file names you don't want others to see: the feedback page is public.</span></div>
   <h3>Setup guide</h3><div class="row"><button id="s_setup">Run the setup guide again</button></div>
   <h3>Updates</h3><div class="row" id="uprow"><span class="mute">Checking…</span></div>
   <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} on ${esc(s.machine)}<br>Working copy on this Mac (fast searching, works offline): ${esc(s.catalogPath)}${s.syncFolder?`<br>Shared copy, exchanged with your other Macs: ${esc(s.syncFolder)}`:''}</div></div>`;
@@ -697,6 +702,7 @@ async function openSettings(){
     if($('#s_update'))$('#s_update').onclick=installUpdate;
     $('#s_check').onclick=()=>{$('#s_check').textContent='Checking…';checkUpdates(true)}});
   $('#s_setup').onclick=openSetup;
+  $('#s_fb_bug').onclick=()=>api('feedback',{kind:'bug'});$('#s_fb_idea').onclick=()=>api('feedback',{kind:'idea'});
   const sync=(a,msg)=>api(a).then(()=>{if(msg)toast(msg);openSettings()}).catch(e=>toast(e.message));
   if($('#s_icloud'))$('#s_icloud').onclick=()=>sync('syncICloud','Sharing through iCloud Drive');
   $('#s_choose').onclick=()=>sync('syncChoose');
