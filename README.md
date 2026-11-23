@@ -27,7 +27,7 @@
 - **Browse and search drives that aren't connected.** Finder-style icon, list and column views with back and forward buttons, and search across all your drives at once. Identical files show as one result ("on 3 drives"), and you can filter by videos, photos, projects and more.
 - **Shows whether everything is backed up.** Mark which drives hold your originals and where their backups are: whole drives, a folder on a NAS, or a backup split over several drives. DriveDex checks file by file and shows what's on 2+ backups, on 1, or on none, with the exact list of what's missing. Changed a link by mistake? Every change can be undone.
 - **Tells you when something needs attention.** A "Needs attention" home screen and a menu-bar icon that turns orange or red. There's also an optional reminder when a backup drive hasn't been connected for a while, handy if you swap backups between home and the office.
-- **Shoot mode for filming days.** Plug in memory cards and see, card by card, whether everything is on your main drive and on every backup, and when a card is safe to format.
+- **Shoot mode for productions.** Plug in memory cards and see, card by card, whether everything is on your main drive and on every backup, and when a card is safe to format.
 - **Remembers where drives live.** A location note ("office, top drawer") and which Mac last saw each drive, shown in the drive list and in search results.
 - **Works across your Macs.** Share the catalog through iCloud Drive, Google Drive or Dropbox, so every Mac sees every drive.
 - **Updates itself.** One click installs new versions.

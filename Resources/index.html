@@ -3,7 +3,7 @@
 <title>DriveDex</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
 <style>
-:root{--bg:#f6f6f4;--panel:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e3e3e0;--acc:#2f6fdf;--accbg:#e8f0fd;
+:root{color-scheme:light dark;--bg:#f6f6f4;--panel:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e3e3e0;--acc:#2f6fdf;--accbg:#e8f0fd;
 --ok:#2e9d58;--off:#b8b8b8;--warn:#d9822b;--err:#d33f3f;--hl:#fff4c2}
 @media (prefers-color-scheme:dark){:root{--bg:#18181a;--panel:#222225;--ink:#ececee;--mute:#9a9aa0;--line:#333337;
 --acc:#6ea0ff;--accbg:#253553;--hl:#4a4320}}
@@ -120,7 +120,7 @@ button.x{border:0;background:transparent;color:var(--mute);padding:0 4px;font-si
 .fold{position:absolute;left:3px;top:11px;border:0;background:transparent;color:var(--mute);font-size:10px;padding:2px 3px;white-space:nowrap;z-index:2}
 .fam>.drv{padding-left:20px}
 .fam.folded .kids{display:none}.fam{position:relative}
-.compact .s,.compact .bar,.compact .kidnone{display:none}.compact .drv{padding:5px 10px}.compact .fold{top:6px}
+.compact .s,.compact .bar,.compact .barrow,.compact .kidnone{display:none}.compact .drv{padding:5px 10px}.compact .fam>.drv{padding-left:20px}.compact .fold{top:6px}
 .compact .fam{margin:4px 2px 6px}
 .setup{display:flex;gap:14px}.setup .sn{width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
 .setup.done .sn{background:var(--ok)}.setup h2{margin-top:3px}
@@ -175,6 +175,14 @@ th[data-hk]{cursor:pointer}
 .misslist{font-size:12.5px;max-height:260px;overflow:auto;margin-top:6px}.misslist div{padding:2px 0}
 .ej{border:0;background:transparent;color:var(--mute);padding:0 3px;margin:0 -4px 0 -6px;font-size:13px;line-height:18px;border-radius:5px;flex:none}
 .ej:hover{color:var(--ink);background:var(--bg)}
+#compact{display:inline-flex;align-items:center;justify-content:center;padding:6px 8px}#compact.on{background:var(--accbg);border-color:var(--acc);color:var(--acc)}
+.barrow{display:flex;align-items:center;gap:8px;margin:5px 0 0 16px}.barrow .bar{flex:1;margin:0}
+.barrow.kbar{margin:4px 0 2px 16px;height:auto}.barrow.kbar .bar{height:3px}
+.capc{display:none}.compact .capc{display:inline}.compact .kid .capc{display:none}
+.used{font-size:11px;color:var(--mute);white-space:nowrap;flex:none}
+@media (prefers-color-scheme:dark){button.primary,.seg.on{background:#3a73dc;border-color:#3a73dc;color:#fff}}
+.upd1{display:flex;align-items:center;gap:8px;margin:4px 2px 10px;padding:7px 10px;border:1px solid var(--acc);border-radius:10px;background:var(--accbg);font-size:12.5px}
+.upd1 b{flex:1}.upd1 button{padding:4px 10px;font-size:12px}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -183,7 +191,7 @@ th[data-hk]{cursor:pointer}
 <button id="gear" title="Settings">⚙︎ Settings</button>
 </header>
 <div id="activity" class="activity" style="display:none"></div>
-<main><nav><div class="hd"><span>Drives</span><span style="flex:1"></span><button id="compact" title="Compact list">☰</button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
+<main><nav><div class="hd"><span>Drives</span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
 <section id="view"></section></main><div id="toast"></div><div id="ctx"></div>
 <script>
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -223,7 +231,11 @@ function covShort(d){
 let prevCov={};
 const TYPES=[['hdd','HDD'],['ssd','SSD'],['nas','NAS']];
 const capLabel=b=>{if(!b)return'';const tb=b/1e12;return tb>=1?(Math.round(tb*10)/10).toString().replace(/\.0$/,'')+' TB':Math.round(b/1e9)+' GB'};
-const capHTML=d=>d.total_bytes?`<span class="cap">${capLabel(d.total_bytes)}</span>`:'';
+const capHTML=d=>d.total_bytes?`<span class="cap capc">${capLabel(d.total_bytes)}</span>`:'';
+// Fill bar with the used amount next to it (the capacity is on the name line)
+const barHTML=(d,cls='')=>d.total_bytes?`<div class="barrow ${cls}"><div class="bar"><i style="width:${Math.round(100*d.used_bytes/d.total_bytes)}%"></i></div><span class="used" title="${hb(d.used_bytes)} used of ${capLabel(d.total_bytes)}">${usedOf(d)}</span></div>`:'';
+// "2.1 of 4 TB" (unit once when both are the same), "800 GB of 2 TB" otherwise
+const usedOf=d=>{const u=hb(d.used_bytes),c=capLabel(d.total_bytes),uu=u.split(' '),cu=c.split(' ');return uu[1]==cu[1]?`${uu[0]} of ${c}`:`${u} of ${c}`};
 const tagHTML=d=>d.type?`<span class="tag ${d.type}">${d.type=='other'?'OTHER':d.type.toUpperCase()}</span>`:'';
 // Percentages are by data (bytes); never show 100% while any file is missing.
 const pctOf=(okBytes,totalBytes,missingFiles,okFiles,totalFiles)=>{
@@ -298,6 +310,11 @@ function ejectDrive(id){const d=drives.find(x=>x.id==id)||{};
   toast(`Ejecting “${d.display}”…`);
   api('eject',{id}).then(()=>{toast(`“${d.display}” was ejected. You can unplug it.`);setTimeout(loadDrives,800)}).catch(e=>toast(e.message))}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-eject]');if(!b)return;e.stopPropagation();e.preventDefault();ejectDrive(+b.dataset.eject)},true);
+// The list-density button shows which mode you're in: rows with details, or a compact list.
+const ICON_FULL='<svg width="16" height="14" viewBox="0 0 16 14" fill="currentColor" aria-hidden="true"><rect x="1" y="1" width="14" height="2.4" rx="1.2"/><rect x="1" y="4.6" width="9" height="1.5" rx=".75" opacity=".5"/><rect x="1" y="8" width="14" height="2.4" rx="1.2"/><rect x="1" y="11.6" width="9" height="1.5" rx=".75" opacity=".5"/></svg>';
+const ICON_COMPACT='<svg width="16" height="14" viewBox="0 0 16 14" fill="currentColor" aria-hidden="true"><rect x="1" y="1.2" width="14" height="1.7" rx=".85"/><rect x="1" y="4.6" width="14" height="1.7" rx=".85"/><rect x="1" y="8" width="14" height="1.7" rx=".85"/><rect x="1" y="11.4" width="14" height="1.7" rx=".85"/></svg>';
+function drawDensity(){const b=$('#compact');if(!b)return;b.innerHTML=compact?ICON_COMPACT:ICON_FULL;
+  b.title=compact?'Compact list. Click to show details':'Showing details. Click for a compact list';b.setAttribute('aria-label',b.title);b.classList.toggle('on',compact)}
 async function loadDrives(){
   const [dl,pl,up,sh]=await Promise.all([api('drives'),api('pending').catch(()=>[]),api('updateStatus').catch(()=>null),api('shoots').catch(()=>null)]);
   if(sh&&sh.shoots)shootsData=sh;
@@ -307,15 +324,14 @@ async function loadDrives(){
   if(dragging){loadDrives._t=setTimeout(loadDrives,1500);return}   // don't redraw the list in the middle of a drag
   const sel=$('#scope'),selv=sel.value;
   sel.innerHTML='<option value="">All drives</option>'+(here?`<option value="here">In “${esc(here.label)}”</option>`:'')+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
-  const upHTML=updateInfo&&updateInfo.available?`<div class="newdrv"><b>Update available: DriveDex ${esc(updateInfo.version)}</b><span class="mute" style="font-size:12px">You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept.</span>
-    <div class="row"><button class="primary" id="doupdate">Install &amp; Relaunch</button></div></div>`:'';
+  const upHTML=updateInfo&&updateInfo.available?`<div class="upd1" title="You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept."><b>DriveDex ${esc(updateInfo.version)} is available</b><button class="primary" id="doupdate">Install</button></div>`:'';
   const newHTML=upHTML+pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
     <div class="row"><button class="primary" data-approve="${esc(n.key)}">Catalog it</button><button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
-    const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
-    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t">${ejBtn(d)}<span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
-    ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}<div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
+    const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:'';
+    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}" title="${esc(d.display)}: ${(d.file_count||0).toLocaleString()} files · scanned ${esc(ago(d.last_scan))}"><div class="t">${ejBtn(d)}<span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
+    ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}${barHTML(d)}${st?`<div class="s">${st}</div>`:''}${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
   const fams=mains.map(m=>{inFamily.add(m.id);
@@ -323,10 +339,12 @@ async function loadDrives(){
       const status=b.n==null?'<span class="mute">checking…</span>':`<span style="color:${bkColor(b)}">${!b.n||b.have>=b.n?'✓ ':''}${bkPct(b)}%</span>`;
       const isSet=mem.length>1;
       const rows=mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
-        return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
+        return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))} · catalog from ${esc(ago(bd.last_scan))}">
           <div class="t">${ejBtn(bd)}<span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${!isSet&&b.source?`<span class="scope" title="Only this folder of ${esc(m.display)} is compared: ${esc(b.source)}">only ${esc(b.source.split('/').pop())}</span>`:''}${isSet?'':`<span class="ticks">${status}</span>`}</div>
-          ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
-          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
+          ${barHTML(bd,'kbar')}
+          ${(()=>{const old=bd.last_scan&&Date.now()/1000-bd.last_scan>7*86400;
+            const st=bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':old?`<span class="warnc" title="The backup check uses this drive's last catalog. Connect it to update.">catalog ${ago(bd.last_scan).replace(/ ago$/,'')} old</span>`:'';
+            return x.path||st?`<div class="s">${x.path?`📁 ${esc(x.path)}`:''}${x.path&&st?'<br>':''}${st}</div>`:''})()}</div>`}).join('');
       // A backup split over several drives: one heading with the combined percentage, the drives indented below.
       return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives${b.source?` · only ${esc(b.source.split('/').pop())}`:''}</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
     const nk=(m.backup_status||[]).length;
@@ -346,7 +364,7 @@ async function loadDrives(){
   if($('#homeitem'))$('#homeitem').onclick=goHome;
   if($('#shootsitem'))$('#shootsitem').onclick=()=>{const a=activeShoot();a?openShoot(a.uuid):openShoots()};
   document.querySelectorAll('[data-sethead]').forEach(h=>h.onclick=e=>{e.stopPropagation();driveTab='backups';openDrive(+h.dataset.sethead,'');driveTab='backups';render()});
-  $('#drives').classList.toggle('compact',compact);
+  $('#drives').classList.toggle('compact',compact);drawDensity();
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
   if($('#doupdate'))$('#doupdate').onclick=installUpdate;
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
@@ -1013,7 +1031,7 @@ async function openShoots(){
   await api('shoots').then(r=>{shootsData=r}).catch(()=>{});if(state.mode!='shoots')return;
   const list=shootsData.shoots||[];
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><div class="row"><h2 style="margin:0">Shoots</h2><span style="flex:1"></span><button class="primary" id="newshoot">New shoot</button></div>
-    <div class="mute" style="margin-top:6px">For a day of filming. Say where the footage goes (a folder on your main drive) and where the backups go. While the shoot is active, every memory card you plug in is added automatically, and DriveDex shows card by card whether everything is on the main drive and on every backup: <b>safe to format</b>. DriveDex never copies or changes anything. Copy with the Finder or your copy tool as usual.</div></div>
+    <div class="mute" style="margin-top:6px">For film and photo productions with memory cards, whether it's one day or a ten-day project. Say where the footage goes (a folder on your main drive) and where the backups go. While the shoot is active, every memory card you plug in is added automatically, and DriveDex shows card by card whether everything is on the main drive and on every backup: <b>safe to format</b>. DriveDex never copies or changes anything. Copy with the Finder or your copy tool as usual.</div></div>
     ${list.length?`<table><tr><th>Shoot</th><th class="r">Cards</th><th>Folder</th><th class="r">Started</th><th></th></tr>${list.map(x=>`<tr class="click" data-shoot="${esc(x.uuid)}"><td class="n"><b>${esc(x.name)}</b></td><td class="r">${(x.cards||[]).length}</td><td class="mute">${esc((dByKey((x.main||{}).key)||{}).display||'?')} › ${esc((x.main||{}).path||'')}</td><td class="r">${date(x.created)}</td><td>${x.done?'<span class="pill wait">Done</span>':x.uuid==shootsData.active?'<span class="pill err">● Active</span>':'<span class="pill wait">Paused</span>'}</td></tr>`).join('')}</table>`:''}`;
   $('#newshoot').onclick=()=>editShoot(null);
   document.querySelectorAll('[data-shoot]').forEach(r=>r.onclick=()=>openShoot(r.dataset.shoot));

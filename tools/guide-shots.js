@@ -23,7 +23,7 @@ const o=(process.argv[2]||'guide-work')+'/g3';require('fs').mkdirSync(o,{recursi
 const L=(sel,n)=>p.locator(sel).nth(n||0);
 await p.goto('http://app.local/');await p.waitForTimeout(700);
 await p.screenshot({path:o+'/home.png',clip:{x:290,y:60,width:860,height:420}});
-await L('.newdrv',0).screenshot({path:o+'/up.png'});await L('.newdrv',1).screenshot({path:o+'/new.png'});
+await L('.upd1',0).screenshot({path:o+'/up.png'});await L('.newdrv',0).screenshot({path:o+'/new.png'});
 await L('.fam',2).screenshot({path:o+'/fam.png'});
 await p.click('.drv[data-id="4"]',{button:'right'});await p.waitForTimeout(300);await L('#ctx').screenshot({path:o+'/dmenu.png'});await p.keyboard.press('Escape');
 await p.click('.fam .drv[data-id="1"]');await p.waitForTimeout(800);
