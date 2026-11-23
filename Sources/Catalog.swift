@@ -302,6 +302,7 @@ final class DB {
             else { folderBackups[b, default: []].append(["main": m, "path": path]) }
             backedUpBy[m, default: []].append(b)
         }
+        let cards = Shoots.cardKeys(self)
         return rows("SELECT * FROM drives ORDER BY COALESCE(NULLIF(label,''), name) COLLATE NOCASE").map { r in
             var d = r
             let key = r["key"] as? String ?? ""
@@ -317,6 +318,7 @@ final class DB {
             d["backed_up_by"] = backedUpBy[id] ?? []
             d["excluded"] = excl[id] ?? []
             d["folder_backups"] = folderBackups[id] ?? []
+            if let shoot = cards[key] { d["card"] = shoot }
             if !(backedUpBy[id] ?? []).isEmpty { d["backup_status"] = backupStatus(id) }
             return d
         }

@@ -49,6 +49,7 @@ extension Scanner {
                     let mains = self.db.rows("SELECT DISTINCT main_id FROM backups").compactMap { $0["main_id"] as? Int }
                     for id in mains { self.writeHistory(id, dir) }
                     self.writePrefs(dir)
+                    self.writeShoots(dir)
                 }
                 self.importAll(dir)
                 Settings.d.set(Date().timeIntervalSince1970, forKey: "lastSync")
@@ -241,6 +242,7 @@ extension Scanner {
             s[f.lastPathComponent] = modDate(f)
         }
         stamps = s
+        importShoots(dir)
         for id in Set(affected) { recompute(id) }
     }
 }

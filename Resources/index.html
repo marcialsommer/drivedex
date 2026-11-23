@@ -157,6 +157,22 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 .lk{color:var(--acc);font-size:12px;margin-left:4px;flex:none}.ci.sel .lk{color:#fff}
 .ir .rm{padding:1px 7px;font-size:11px;margin-left:6px}
 th[data-hk]{cursor:pointer}
+.live{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--err);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60%}
+.live:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--err);margin-right:5px;vertical-align:1px;animation:pulse 1.6s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.safe{background:#e2f4e8;color:#1f7a43}.pill.copy{background:#fdf0e1;color:#a65a12}.pill.wait{background:var(--bg);color:var(--mute)}.pill.err{background:#fbe5e5;color:#b02b2b}
+@media (prefers-color-scheme:dark){.pill.safe{background:#1d3a28;color:#7fd8a0}.pill.copy{background:#3d2c17;color:#f0b26b}.pill.err{background:#3d1c1c;color:#f08a8a}}
+.shtab td{vertical-align:middle}.shtab input.cl{font:inherit;font-weight:600;border:1px solid transparent;border-radius:6px;padding:2px 5px;background:transparent;color:var(--ink);width:170px}
+.shtab input.cl:hover,.shtab input.cl:focus{border-color:var(--line);background:var(--bg)}
+.dests{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:10px}
+.dests>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px}.dests b{display:block;font-size:13.5px}
+.bigsum{font-size:22px;font-weight:700;margin:6px 0 2px}
+.frm label.f{display:block;margin:12px 0 4px;font-weight:600}.frm input[type=text]{font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+.frm .drow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}.frm .drow input[type=text]{flex:1;min-width:160px}
+.picker{border:1px solid var(--line);border-radius:8px;margin:2px 0 8px;max-height:220px;overflow:auto;background:var(--panel)}
+.picker div{padding:5px 10px;cursor:pointer}.picker div:hover{background:var(--bg)}.picker .ph{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);cursor:default;position:sticky;top:0;background:var(--panel)}
+.misslist{font-size:12.5px;max-height:260px;overflow:auto;margin-top:6px}.misslist div{padding:2px 0}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -275,7 +291,8 @@ function wireReorder(){
   });
 }
 async function loadDrives(){
-  const [dl,pl,up]=await Promise.all([api('drives'),api('pending').catch(()=>[]),api('updateStatus').catch(()=>null)]);
+  const [dl,pl,up,sh]=await Promise.all([api('drives'),api('pending').catch(()=>[]),api('updateStatus').catch(()=>null),api('shoots').catch(()=>null)]);
+  if(sh&&sh.shoots)shootsData=sh;
   updateInfo=up;
   const so=d=>d.sort_order==null?1e9:d.sort_order;
   drives=dl.sort((a,b)=>so(a)-so(b)||grpOf(a)-grpOf(b)||a.display.localeCompare(b.display,undefined,{numeric:true,sensitivity:'base'}));pending=Array.isArray(pl)?pl:[];
@@ -306,10 +323,12 @@ async function loadDrives(){
       return isSet?`<div class="setgrp"><div class="sethead" data-sethead="${m.id}" title="Open ${esc(m.display)}'s backup details"><span>Backup set · ${mem.length} drives${b.source?` · only ${esc(b.source.split('/').pop())}`:''}</span><span class="ticks">${status}</span></div>${rows}</div>`:rows}).join('');
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
-  const rest=drives.filter(d=>!inFamily.has(d.id));
+  const rest=drives.filter(d=>!inFamily.has(d.id)&&!d.card);
   const nAtt=attentionItems().filter(x=>x.lvl>0).length;
   const homeHTML=drives.length?`<div class="drv homeitem ${state.mode=='home'?'sel':''}" id="homeitem"><div class="t"><span class="kn">Overview</span>${nAtt?`<span class="badge">${nAtt}</span>`:'<span class="okc" style="margin-left:auto">✓</span>'}</div></div>`:'';
-  $('#drives').innerHTML=homeHTML+newHTML+(drives.length?
+  const act=activeShoot();
+  const shootHTML=drives.length?`<div class="drv homeitem ${state.mode=='shoots'||state.mode=='shoot'||state.mode=='shootEdit'?'sel':''}" id="shootsitem" title="Shoot mode: check memory cards against your main drive and backups"><div class="t"><span class="kn">Shoots</span>${act?`<span class="live">${esc(act.name)}</span>`:''}</div></div>`:'';
+  $('#drives').innerHTML=homeHTML+shootHTML+newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
     (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(d=>`<div class="restw" draggable="true" data-sec="rest" data-oid="${d.id}">${full(d)}</div>`).join('')}`:'')
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
@@ -317,6 +336,7 @@ async function loadDrives(){
   wireReorder();
   drawActivity();
   if($('#homeitem'))$('#homeitem').onclick=goHome;
+  if($('#shootsitem'))$('#shootsitem').onclick=()=>{const a=activeShoot();a?openShoot(a.uuid):openShoots()};
   document.querySelectorAll('[data-sethead]').forEach(h=>h.onclick=e=>{e.stopPropagation();driveTab='backups';openDrive(+h.dataset.sethead,'');driveTab='backups';render()});
   $('#drives').classList.toggle('compact',compact);
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
@@ -377,11 +397,11 @@ function attentionItems(){
 let hsort=ls('dd_hsort',{k:'',d:1});
 // Overview table order: '' = the sidebar order (families); otherwise by the clicked column.
 function homeSorted(){
-  const k=hsort.k,d=hsort.d;if(!k)return drives;
+  const k=hsort.k,d=hsort.d,list=realDrives();if(!k)return list;
   const bk=x=>x.role=='main'?(hasBackups(x)?(covReady(x)?covPct(x):-0.5):-1):x.role=='backup'?-2:-3;
   const val={drive:x=>x.display.toLowerCase(),backup:bk,where:x=>(x.notes||'').toLowerCase()||'\uffff',used:x=>x.used_bytes||0,files:x=>x.file_count||0,seen:x=>x.online?Infinity:(x.last_seen||0)}[k];
-  if(!val)return drives;
-  return drives.slice().sort((a,b)=>{const va=val(a),vb=val(b);const c=typeof va=='string'?va.localeCompare(vb,undefined,{numeric:true}):(va>vb?1:va<vb?-1:0);
+  if(!val)return list;
+  return list.slice().sort((a,b)=>{const va=val(a),vb=val(b);const c=typeof va=='string'?va.localeCompare(vb,undefined,{numeric:true}):(va>vb?1:va<vb?-1:0);
     return c*d||a.display.localeCompare(b.display,undefined,{numeric:true})})}
 function renderHome(){
   if(!drives.length&&!pending.length){$('#view').innerHTML=`<div class="hero"><h2>Plug in a drive</h2><p>DriveDex catalogues every drive and NAS share you connect. It only records file and folder names, sizes and dates, never contents.</p><p><button class="primary" id="startsetup">Start the setup guide</button></p></div>`;$('#startsetup').onclick=openSetup;return}
@@ -390,7 +410,7 @@ function renderHome(){
   const att=items.length?`<div class="card"><h2>Needs attention</h2>${items.map((x,i)=>`<div class="attn l${x.lvl}"><span class="ai">${x.lvl==2?'✕':x.lvl==1?'!':'i'}</span><span class="at">${x.text}</span><button data-ai="${i}">${x.act}</button></div>`).join('')}</div>`
     :mains.length?`<div class="card allok"><span class="big">✓</span><div><h2>Everything is backed up</h2><div class="mute">${mains.length} main drive${mains.length==1?'':'s'}, all with complete backups. Nothing needs your attention.</div></div></div>`
     :`<div class="card"><h2>Set up your backups</h2><div class="mute">Mark the drives that hold your originals as <b>Main files</b> and link their backups, and DriveDex will tell you here whenever something isn't backed up.</div><div class="row" style="margin-top:8px"><button class="primary" id="startsetup">Start the setup guide</button></div></div>`;
-  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+att+`<div class="mute" style="margin:4px 2px 8px">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+att+`<div class="mute" style="margin:4px 2px 8px">${realDrives().length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
   <table><tr>${[['drive','Drive',''],['backup','Backup',''],['where','Where','hide-sm'],['used','Used','r'],['files','Files','r hide-sm'],['seen','Last connected','r']].map(([k,l,c])=>`<th class="${c}" data-hk="${k}" title="Sort by ${l.toLowerCase()}">${l}${hsort.k==k?(hsort.d>0?' ▲':' ▼'):''}</th>`).join('')}</tr>
   ${homeSorted().map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc((d.notes||'').split('\n')[0]).slice(0,50)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${d.online?'now':ago(d.last_seen)}${!d.online&&d.last_seen_on?`<div class="path">${esc(d.last_seen_on)}</div>`:''}</td></tr>`).join('')}</table>`;
   document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
@@ -447,8 +467,10 @@ function navSnap(){const s=state;
   if(s.mode=='search')return{mode:'search',q:s.q};
   if(s.mode=='missing')return{mode:'missing',drive:s.drive,max:s.max,set:s.set,from:s.from};
   if(s.mode=='home')return{mode:'home'};
+  if(s.mode=='shoots')return{mode:'shoots'};
+  if(s.mode=='shoot')return{mode:'shoot',uuid:s.uuid};
   return null}
-const navKey=x=>x?JSON.stringify([x.mode,x.drive,x.path,x.tab,x.max,x.set]):'';
+const navKey=x=>x?JSON.stringify([x.mode,x.drive,x.path,x.tab,x.max,x.set,x.uuid]):'';
 function noteNav(){
   const s=navSnap();if(!s)return;
   if(navCur&&navKey(s)==navKey(navCur)){navCur=s;return}          // same place (maybe another selection): just remember it
@@ -464,6 +486,8 @@ function goNav(dir){
   if(s.mode=='drive'){driveTab=s.tab||'files';prevState=null;state={mode:'drive',drive:s.drive,path:s.path,sel:s.sel,hl:null,kidPath:''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
   else if(s.mode=='search'){$('#q').value=s.q;$('#qx').style.display='block';doSearch()}
   else if(s.mode=='missing')openMissing(s.drive,s.max,s.set,s.from);
+  else if(s.mode=='shoots')openShoots();
+  else if(s.mode=='shoot')openShoot(s.uuid);
   else{$('#q').value='';$('#qx').style.display='none';state={mode:'home'};renderHome();loadDrives()}
   drawNavBtns()}
 let viewMode=(()=>{try{const v=localStorage.getItem('dd_view');return ['icons','list','columns'].includes(v)?v:'columns'}catch(e){return'columns'}})();
@@ -968,12 +992,155 @@ $('#compact').onclick=()=>{compact=!compact;savePrefs();loadDrives()};
 $('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Rescanning connected drives, one after another…');setTimeout(loadDrives,1200)});
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
 let settingsReturn=null;
-function goHome(){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';state={mode:'home'};renderHome();loadDrives()}
+// ---- Shoot mode: memory cards checked against a main folder and its backups. DriveDex never copies anything.
+let shootsData={shoots:[],active:''},shootTimer=null,shootBusy=false,shootMiss=null;
+const activeShoot=()=>(shootsData.shoots||[]).find(s=>s.uuid==shootsData.active&&!s.done);
+function enterPage(st){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';
+  clearInterval(shootTimer);shootTimer=null;state=st;document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));if($('#shootsitem'))$('#shootsitem').classList.add('sel')}
+const dByKey=k=>drives.find(d=>d.key==k);
+const realDrives=()=>drives.filter(d=>!d.card);
+async function openShoots(){
+  enterPage({mode:'shoots'});
+  await api('shoots').then(r=>{shootsData=r}).catch(()=>{});if(state.mode!='shoots')return;
+  const list=shootsData.shoots||[];
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><div class="row"><h2 style="margin:0">Shoots</h2><span style="flex:1"></span><button class="primary" id="newshoot">New shoot</button></div>
+    <div class="mute" style="margin-top:6px">For a day of filming. Say where the footage goes (a folder on your main drive) and where the backups go. While the shoot is active, every memory card you plug in is added automatically, and DriveDex shows card by card whether everything is on the main drive and on every backup: <b>safe to format</b>. DriveDex never copies or changes anything. Copy with the Finder or your copy tool as usual.</div></div>
+    ${list.length?`<table><tr><th>Shoot</th><th class="r">Cards</th><th>Folder</th><th class="r">Started</th><th></th></tr>${list.map(x=>`<tr class="click" data-shoot="${esc(x.uuid)}"><td class="n"><b>${esc(x.name)}</b></td><td class="r">${(x.cards||[]).length}</td><td class="mute">${esc((dByKey((x.main||{}).key)||{}).display||'?')} › ${esc((x.main||{}).path||'')}</td><td class="r">${date(x.created)}</td><td>${x.done?'<span class="pill wait">Done</span>':x.uuid==shootsData.active?'<span class="pill err">● Active</span>':'<span class="pill wait">Paused</span>'}</td></tr>`).join('')}</table>`:''}`;
+  $('#newshoot').onclick=()=>editShoot(null);
+  document.querySelectorAll('[data-shoot]').forEach(r=>r.onclick=()=>openShoot(r.dataset.shoot));
+  noteNav();
+}
+// New / edit form
+function editShoot(uuid){
+  const old=uuid?(shootsData.shoots||[]).find(x=>x.uuid==uuid):null;
+  enterPage({mode:'shootEdit',uuid});
+  const ds=realDrives();
+  const opt=sel=>`<option value="">Choose a drive…</option>`+ds.map(d=>`<option value="${esc(d.key)}" ${d.key==sel?'selected':''}>${esc(d.display)}${d.type?' ('+d.type.toUpperCase()+')':''}</option>`).join('');
+  const bks=old?(old.backups||[]):[{key:'',path:''},{key:'',path:''}];
+  const drow=(cls,key,path,i)=>`<div class="drow" data-row="${cls}" data-i="${i}"><select class="sm dsel">${opt(key)}</select><input type="text" class="fpath" placeholder="Folder, e.g. XP Shoot" value="${esc(path||'')}"><button class="pick" type="button">Choose folder…</button>${cls=='bk'?'<button class="rmrow" type="button" title="Remove">✕</button>':''}</div><div class="pk"></div>`;
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card frm"><h2>${old?'Edit shoot':'New shoot'}</h2>
+    <label class="f">Name</label><input type="text" id="sh_name" style="width:min(420px,100%)" placeholder="e.g. XP shoot" value="${esc(old?old.name:'')}">
+    <label class="f">Main drive: where you copy the cards to</label><div id="sh_main">${drow('main',old&&old.main&&old.main.key,old&&old.main&&old.main.path,0)}</div>
+    <label class="f">Backups: the copies of that folder</label><div id="sh_bks">${bks.map((b,i)=>drow('bk',b.key,b.path,i)).join('')}</div>
+    <button id="sh_addbk" type="button">+ Add a backup</button>
+    <div class="mute" style="font-size:12.5px;margin-top:8px">The folders don't need to exist yet. Leave a folder empty to use the whole drive. The backup folders follow the main folder's name until you change them.</div>
+    <label class="set" style="margin-top:14px"><input type="checkbox" id="sh_proxy" ${!old||old.skipProxies!==false?'checked':''}>Ignore GoPro / DJI preview files (.LRV, .THM) on the cards <span class="mute">(they're often not copied)</span></label>
+    <div class="row" style="margin-top:14px"><button class="primary" id="sh_save">${old?'Save':'Start shoot'}</button><button id="sh_cancel">Cancel</button></div></div>`;
+  const wireRows=()=>{
+    document.querySelectorAll('#view .drow').forEach(r=>{
+      const pk=r.nextElementSibling,inp=r.querySelector('.fpath');
+      r.querySelector('.pick').onclick=()=>{const k=r.querySelector('.dsel').value;const d=dByKey(k);if(!d){toast('Choose the drive first');return}
+        if(pk.innerHTML){pk.innerHTML='';return}folderPicker(pk,d,inp.value.replace(/^\/+|\/+$/g,''),p=>{inp.value=p;inp.dispatchEvent(new Event('input'));pk.innerHTML=''})};
+      if(r.querySelector('.rmrow'))r.querySelector('.rmrow').onclick=()=>{pk.remove();r.remove()};
+    })};
+  // backup folders follow the main folder name while they're empty or still the same
+  let lastMain=old&&old.main?old.main.path||'':'';
+  const mainInp=$('#sh_main .fpath');
+  mainInp.addEventListener('input',()=>{document.querySelectorAll('#sh_bks .fpath').forEach(b=>{if(!b.value||b.value==lastMain)b.value=mainInp.value});lastMain=mainInp.value});
+  wireRows();
+  $('#sh_addbk').onclick=()=>{$('#sh_bks').insertAdjacentHTML('beforeend',drow('bk','',mainInp.value,Date.now()));wireRows()};
+  $('#sh_cancel').onclick=()=>uuid?openShoot(uuid):openShoots();
+  $('#sh_save').onclick=async()=>{
+    const name=$('#sh_name').value.trim();if(!name){toast('Give the shoot a name');$('#sh_name').focus();return}
+    const get=r=>({key:r.querySelector('.dsel').value,path:r.querySelector('.fpath').value.trim().replace(/^\/+|\/+$/g,'')});
+    const main=get($('#sh_main .drow'));if(!main.key){toast('Choose the main drive');return}
+    const backups=[...document.querySelectorAll('#sh_bks .drow')].map(get).filter(b=>b.key);
+    if(backups.some(b=>b.key==main.key&&b.path==main.path)){toast('A backup can\'t be the same folder as the main one');return}
+    const shoot={...(old||{}),uuid:old?old.uuid:'',name,main,backups,skipProxies:$('#sh_proxy').checked};
+    try{const r=await api('shootSave',{shoot,activate:!old});
+      toast(old?'Saved':`“${name}” started. Plug in your cards: each one is added here automatically.`);
+      await loadShoots();loadDrives();openShoot(r.uuid)}catch(e){toast(e.message)}};
+  setTimeout(()=>$('#sh_name').focus(),50);
+}
+async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
+// Small folder browser for a drive's catalog
+async function folderPicker(box,d,start,done){
+  let path=start||'';
+  const draw=async()=>{
+    let rows=await listOf(d.id,path).catch(()=>[]);
+    if(!rows.length&&path){path='';rows=await listOf(d.id,'').catch(()=>[])}
+    const dirs=rows.filter(e=>e.is_dir==1);
+    box.innerHTML=`<div class="picker"><div class="ph">${path?'<button class="sm" data-up>‹ Up</button>':''}<span class="mute" style="flex:1">${esc(d.display)}${path?' › '+esc(path.split('/').join(' › ')):''}</span><button class="sm primary" data-use>Use this folder</button></div>
+      ${dirs.map(e=>`<div data-dir="${esc(e.name)}">📁 ${esc(e.name)}</div>`).join('')||'<div class="mute" style="cursor:default">No folders here (from the last catalog)</div>'}</div>`;
+    box.querySelectorAll('[data-dir]').forEach(x=>x.onclick=()=>{path=joinP(path,x.dataset.dir);draw()});
+    if(box.querySelector('[data-up]'))box.querySelector('[data-up]').onclick=()=>{const p=path.split('/');p.pop();path=p.join('/');draw()};
+    box.querySelector('[data-use]').onclick=()=>done(path);
+  };
+  draw();
+}
+// Shoot page: card-by-card status
+async function openShoot(uuid){
+  if(!(state.mode=='shoot'&&state.uuid==uuid)){enterPage({mode:'shoot',uuid});shootMiss=null;$('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="empty">Checking the cards…</div>`}
+  noteNav();
+  await drawShoot(uuid);
+  clearInterval(shootTimer);
+  shootTimer=setInterval(()=>{if(state.mode!='shoot'||state.uuid!=uuid){clearInterval(shootTimer);return}
+    if(document.activeElement&&document.activeElement.classList.contains('cl'))return;drawShoot(uuid)},8000);
+}
+async function drawShoot(uuid){
+  if(shootBusy)return;shootBusy=true;
+  let st;try{st=await api('shootStatus',{uuid})}catch(e){st={error:e.message}}finally{shootBusy=false}
+  if(state.mode!='shoot'||state.uuid!=uuid)return;
+  if(st.error){$('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="empty">${esc(st.error)}</div>`;return}
+  const s=st.shoot,cards=st.cards||[],dests=st.dests||[],active=shootsData.active==s.uuid&&!s.done;
+  const pct=(have,n)=>n?Math.floor(1000*have/n)/10:0;
+  const cell=(c,j)=>{const x=(c.dests||[])[j];if(!x)return'<td class="r mute">—</td>';
+    if(!x.missing)return '<td class="r okc">✓ all</td>';
+    const done=c.bytes?Math.min(99.9,Math.floor(1000*(c.bytes-x.missing_bytes)/c.bytes)/10):0;
+    return `<td class="r"><a class="lnk warnc" data-miss="${esc(c.key)}" data-j="${j}">${x.missing.toLocaleString()} missing</a><div class="path">${done}% copied</div></td>`};
+  const stPill=c=>c.state=='safe'?'<span class="pill safe">✓ Safe to format</span>':c.state=='copying'?'<span class="pill copy">Not safe yet</span>':c.state=='scanning'?'<span class="pill wait">Reading card…</span>':c.state=='empty'?'<span class="pill wait">Empty card</span>':c.state=='error'?`<span class="pill err" title="${esc(c.detail||'')}">Couldn't read</span>`:'<span class="pill wait">Waiting</span>';
+  const finalNote=c=>s.done&&c.final&&c.final.state!=c.state?`<div class="path">at the end of the shoot: ${c.final.state=='safe'?'safe':'not safe'}, ${(c.final.files||0).toLocaleString()} files</div>`:'';
+  const nSafe=st.safe||0;
+  const head=`<div class="card"><div class="row"><h2 style="margin:0">${esc(s.name)}</h2>${s.done?'<span class="pill wait">Done</span>':active?'<span class="pill err">● Active on this Mac</span>':'<span class="pill wait">Paused</span>'}<span style="flex:1"></span>
+      ${s.done?'<button id="sh_reopen">Reopen</button>':active?'<button id="sh_pause" title="Stop adding new drives to this shoot">Pause</button>':'<button class="primary" id="sh_act">Make active</button>'}
+      <button id="sh_check">Check now</button><button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
+    <div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div>
+    <div class="mute">${active?'Plug in a memory card and it is added here automatically. ':''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
+    <div class="dests">${dests.map((d,j)=>`<div><span class="mute">${j==0?'Main':'Backup '+j}</span><b>${esc(d.name)}</b>${esc(d.path||'whole drive')}<div class="path">${d.error?`<span class="warnc">${esc(d.error)}</span>`:d.live?'<span class="okc">● connected, checked live</span>':`not connected · catalog from ${d.last_scan?ago(d.last_scan):'never'}`}</div></div>`).join('')}</div></div>`;
+  const table=cards.length?`<table class="shtab"><tr><th>Card</th><th class="r">Size</th>${dests.map((d,j)=>`<th class="r">${j==0?'Main':'Backup '+j}<div class="path">${esc(d.name)}</div></th>`).join('')}<th>Status</th><th></th></tr>
+    ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename, e.g. GoPro 3"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
+      <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>`:'<span class="mute">—</span>'}</td>
+      ${c.files!=null&&c.files>0?dests.map((d,j)=>cell(c,j)).join(''):dests.map(()=>'<td class="r mute">—</td>').join('')}
+      <td>${stPill(c)}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
+    :`<div class="card empty" style="padding:30px">${active?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;
+  const others=realDrives().filter(d=>!Shoots_destKeys(s).includes(d.key));
+  const add=s.done?'':`<div class="row" style="margin-top:10px"><span class="mute">A card that DriveDex already knew as a normal drive?</span><select class="sm" id="sh_addcard"><option value="">Add it as a card…</option>${others.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('')}</select></div>`;
+  let miss='';
+  if(shootMiss){const c=cards.find(x=>x.key==shootMiss.key),x=c&&(c.dests||[])[shootMiss.j];
+    if(x&&x.missing)miss=`<div class="card" id="missbox"><div class="row"><b>${esc(c.label)}: ${x.missing.toLocaleString()} file${x.missing==1?'':'s'} not in ${shootMiss.j==0?'the main folder':'backup '+shootMiss.j} (${esc(dests[shootMiss.j].name)} › ${esc(dests[shootMiss.j].path||'whole drive')}) · ${hb(x.missing_bytes)}</b><span style="flex:1"></span><button class="sm" id="missclose">Close</button></div>
+      <div class="misslist">${x.sample.map(f=>`<div>📄 ${esc(f.name)} <span class="mute">· ${hb(f.size)} · ${esc(f.parent||'/')}</span></div>`).join('')}${x.missing>x.sample.length?`<div class="mute">and ${(x.missing-x.sample.length).toLocaleString()} more</div>`:''}</div></div>`;
+    else shootMiss=null}
+  const keepScroll=$('#view').scrollTop;
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+table+add+miss;
+  $('#view').scrollTop=keepScroll;
+  const re=()=>{loadShoots().then(()=>{loadDrives();drawShoot(uuid)})};
+  if($('#sh_pause'))$('#sh_pause').onclick=()=>api('shootActivate',{uuid:''}).then(()=>{toast('Paused. New drives are treated normally again.');re()});
+  if($('#sh_act'))$('#sh_act').onclick=()=>api('shootActivate',{uuid}).then(()=>{toast(`“${s.name}” is active. Plug in your cards.`);re()});
+  if($('#sh_reopen'))$('#sh_reopen').onclick=()=>api('shootDone',{uuid,done:false}).then(re);
+  if($('#sh_done'))$('#sh_done').onclick=()=>{const bad=cards.filter(c=>c.state!='safe').length;
+    if(bad&&!confirm(`${bad} card${bad==1?' is':'s are'} not safe to format yet. Mark “${s.name}” as done anyway?`))return;
+    api('shootDone',{uuid,done:true}).then(()=>{toast('Marked as done. The result for each card is kept.');re()})};
+  $('#sh_check').onclick=()=>{toast('Checking…');drawShoot(uuid)};
+  $('#sh_edit').onclick=()=>editShoot(uuid);
+  $('#sh_del').onclick=()=>{if(!confirm(`Delete the shoot “${s.name}”?\n\nThis only removes the shoot from DriveDex. Nothing on the cards or drives is touched, and the cards' catalogs stay searchable.`))return;
+    api('shootDelete',{uuid}).then(()=>{toast('Shoot deleted');loadShoots().then(()=>{loadDrives();openShoots()})})};
+  document.querySelectorAll('[data-cl]').forEach(i=>i.onchange=()=>api('shootCard',{uuid,op:'label',key:i.dataset.cl,label:i.value.trim()||'Card'}).then(()=>loadShoots()));
+  document.querySelectorAll('[data-notcard]').forEach(b=>b.onclick=()=>{const c=cards.find(x=>x.key==b.dataset.notcard);
+    if(!confirm(`Remove “${c.label}” from this shoot?\n\nUse this if it isn't a memory card (for example a drive you plugged in for something else). It won't be added to this shoot again; it becomes a normal drive in your list.`))return;
+    api('shootCard',{uuid,op:'remove',key:c.key}).then(()=>{toast('Removed from the shoot');re()})});
+  if($('#sh_addcard'))$('#sh_addcard').onchange=()=>{const v=+$('#sh_addcard').value;if(v)api('shootCard',{uuid,op:'add',id:v}).then(()=>{toast('Added as a card');re()})};
+  document.querySelectorAll('[data-miss]').forEach(a=>a.onclick=()=>{shootMiss={key:a.dataset.miss,j:+a.dataset.j};drawShoot(uuid).then(()=>{const m=$('#missbox');if(m)m.scrollIntoView({block:'nearest'})})});
+  if($('#missclose'))$('#missclose').onclick=()=>{shootMiss=null;$('#missbox').remove()};
+}
+const Shoots_destKeys=s=>[(s.main||{}).key,...(s.backups||[]).map(b=>b.key)].filter(Boolean);
+function goHome(){clearInterval(shootTimer);prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';state={mode:'home'};renderHome();loadDrives()}
 function leaveSettings(){
   const r=settingsReturn||{mode:'home'};settingsReturn=null;$('#gear').classList.remove('on');
   if(r.mode=='drive'){state=r;render()}
   else if(r.mode=='search'){state=r;$('#q').value=r.q||'';doSearch()}
   else if(r.mode=='missing')openMissing(r.drive,r.max,r.set,r.from);
+  else if(r.mode=='shoots')openShoots();
+  else if(r.mode=='shoot')openShoot(r.uuid);
   else{state={mode:'home'};renderHome()}
   loadDrives();
 }

@@ -195,6 +195,86 @@ enum Bridge {
             Scanner.shared.exportMeta([main, copy])
             return ok
 
+        // MARK: shoot mode
+        case "shoots":
+            return ["shoots": Shoots.all(db), "active": Shoots.activeID] as [String: Any]
+
+        case "shootSave":
+            guard var s = a["shoot"] as? [String: Any] else { return err("Nothing to save.") }
+            if (s["uuid"] as? String ?? "").isEmpty {
+                s["uuid"] = UUID().uuidString.lowercased(); s["created"] = Date().timeIntervalSince1970
+                s["cards"] = [Any](); s["skipProxies"] = s["skipProxies"] ?? true
+            } else if let old = Shoots.get(db, s["uuid"] as? String ?? "") {
+                s["cards"] = old["cards"] ?? [Any](); s["notCards"] = old["notCards"] ?? [Any]()   // cards are only changed below
+            }
+            Shoots.put(db, s)
+            if a["activate"] as? Bool == true {
+                Shoots.activeID = s["uuid"] as? String ?? ""
+                Scanner.shared.scanAllConnected(force: false)
+            }
+            return ["uuid": s["uuid"] ?? ""] as [String: Any]
+
+        case "shootActivate":
+            Shoots.activeID = str("uuid")
+            if !str("uuid").isEmpty { Scanner.shared.scanAllConnected(force: false) }
+            return ok
+
+        case "shootDelete":
+            guard var s = Shoots.get(db, str("uuid")) else { return ok }
+            s["deleted"] = true; s["cards"] = [Any]()
+            Shoots.put(db, s)
+            if Shoots.activeID == str("uuid") { Shoots.activeID = "" }
+            return ok
+
+        case "shootDone":
+            guard var s = Shoots.get(db, str("uuid")) else { return err("Shoot not found.") }
+            let done = a["done"] as? Bool ?? true
+            s["done"] = done
+            if done {
+                // Keep a record of how each card ended up, in case the cards are formatted and reused.
+                let st = Shoots.status(db, str("uuid"))
+                var cards = s["cards"] as? [[String: Any]] ?? []
+                let res = st["cards"] as? [[String: Any]] ?? []
+                for i in cards.indices {
+                    if let r = res.first(where: { $0["key"] as? String == cards[i]["key"] as? String }) {
+                        cards[i]["final"] = ["state": r["state"] ?? "", "files": r["files"] ?? 0, "bytes": r["bytes"] ?? 0] as [String: Any]
+                    }
+                }
+                s["cards"] = cards
+                if Shoots.activeID == str("uuid") { Shoots.activeID = "" }
+            }
+            Shoots.put(db, s)
+            return ok
+
+        case "shootStatus":
+            return Shoots.status(db, str("uuid"))
+
+        case "shootCard":   // rename, remove ("not a card") or add a catalogued drive as a card
+            guard var s = Shoots.get(db, str("uuid")) else { return err("Shoot not found.") }
+            var cards = s["cards"] as? [[String: Any]] ?? []
+            let key = str("key")
+            switch str("op") {
+            case "label":
+                if let i = cards.firstIndex(where: { $0["key"] as? String == key }) { cards[i]["label"] = str("label") }
+            case "remove":
+                cards.removeAll { $0["key"] as? String == key }
+                var nc = s["notCards"] as? [String] ?? []
+                if !nc.contains(key) { nc.append(key) }
+                s["notCards"] = nc
+            case "add":
+                guard let id = int("id"), let k = db.driveKey(id) else { return err("Drive not found.") }
+                if !cards.contains(where: { $0["key"] as? String == k }) {
+                    let name = db.row("SELECT name FROM drives WHERE id=?", [id])?["name"] as? String ?? ""
+                    cards.append(["key": k, "label": "Card \(cards.count + 1)", "vol": name, "added": Date().timeIntervalSince1970,
+                                  "mac": SyncFolder.machine])
+                }
+                s["notCards"] = (s["notCards"] as? [String] ?? []).filter { $0 != k }
+            default: return err("Unknown change.")
+            }
+            s["cards"] = cards
+            Shoots.put(db, s)
+            return ok
+
         case "removeLink":
             guard let main = int("main"), let bk = int("backup") else { return err("missing drive") }
             db.removeLink(mainID: main, backupID: bk)

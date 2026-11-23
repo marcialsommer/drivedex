@@ -64,6 +64,12 @@ Key facts:
 - Undo: link changes go through `undoable(ids, fn, msg)` → `linksSnapshot` before, `linksRestore` on Undo (toast
   button, ⌘Z via Edit → Undo when no text field is focused). `removeLink` deletes one link. Use `undoable` for any
   new action that changes roles or backup links.
+- Shoot mode (`Sources/Shoots.swift`, "Shoots" in the sidebar): a shoot = name + main {key,path} + backups [{key,path}]
+  + cards [{key,label,vol}], stored as JSON in table `shoots`, synced as `shoots.json` (newest per uuid wins).
+  While a shoot is active on this Mac (`Settings activeShoot`), `Scanner.scan` calls `Shoots.claimCard` first: new local
+  drives become cards (no "new drive" prompt, always re-read). `Shoots.status` compares card files (name+size) with
+  each destination folder: live walk if connected, else catalog. Cards are hidden from the sidebar (`d.card`).
+  DriveDex never copies files; the owner may later want copying/offload built in.
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

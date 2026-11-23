@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.4.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.5'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -69,7 +69,7 @@ s+=[P("Know what's on every drive, and whether it's backed up.", st(fontName='He
     P('DriveDex keeps a catalog of every drive and NAS share you connect to your Mac. Once a drive is added, it is re-catalogued automatically whenever you plug it in. Browse and search all your drives (even ones in a drawer), see which drives back up which, get told when something isn\'t backed up, and share the whole catalog between your Macs.'),
     P('DriveDex only records file and folder <b>names, sizes and dates</b>. It never opens or reads the contents of your files.'),
     P('In this guide', h2)]
-toc=['Install and update','Adding drives','The drive list','A drive\'s page and browsing','Searching','Setting up your backups','Is everything backed up?','Folders that don\'t need a backup','Backup reminders','Space and duplicates','Sharing between your Macs','Settings and shortcuts','Questions and troubleshooting']
+toc=['Install and update','Adding drives','The drive list','A drive\'s page and browsing','Searching','Setting up your backups','Is everything backed up?','Folders that don\'t need a backup','Backup reminders','Space and duplicates','Shoot mode: memory cards','Sharing between your Macs','Settings and shortcuts','Questions and troubleshooting']
 half=(len(toc)+1)//2; cw=CW/2
 rows=[[P(f'<font color="#2f6fdf"><b>{i+1}</b></font>'),P(toc[i]),P(f'<font color="#2f6fdf"><b>{i+1+half}</b></font>') if i+half<len(toc) else '',P(toc[i+half]) if i+half<len(toc) else ''] for i in range(half)]
 t=Table(rows, colWidths=[8*mm, cw-12*mm, 8*mm, cw-4*mm]); t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('TOPPADDING',(0,0),(-1,-1),3),('BOTTOMPADDING',(0,0),(-1,-1),3),('LEFTPADDING',(0,0),(-1,-1),0)]))
@@ -171,8 +171,21 @@ s+=[P('8  Folders that don\'t need a backup', h1),
     P('10  Space and duplicates', h1),
     shot('info','Info tab: biggest folders, and large files that also exist on other (non-backup) drives.', width=CW*0.85),
     PageBreak()]
+# 11 shoot mode
+s+=[P('11  Shoot mode: memory cards', h1),
+    P('For a day of filming: lots of memory cards, one main drive and a couple of backups. Click <b>Shoots</b> in the drive list &rarr; <b>New shoot</b>, give it a name, choose the <b>main drive</b> and the folder you copy the cards into, and the <b>backup drives</b> with their folders. The folders don\'t need to exist yet, and the backup folders take the main folder\'s name automatically. Click <b>Start shoot</b>.'),
+    P('While a shoot is <b>active</b> (a red dot next to Shoots), every new drive you plug into this Mac counts as one of its memory cards: it\'s read right away, without asking, and listed in the shoot, not in your drive list. Copy the cards as usual (Finder, or your copy tool). DriveDex never copies, moves or deletes anything.'),
+    shot('shoot','A shoot: each card, whether all its files are in the main folder and in each backup, and whether it is safe to format.', width=CW*0.9),
+    P('A card is <font color="#2e9d58"><b>safe to format</b></font> when every file on it is in the main folder <b>and</b> in every backup folder: same name and same size, in any subfolder. Connected drives are checked live (just the shoot folder, in seconds); others from their last catalog. The page updates by itself. Click <b>… missing</b> to see which files are still missing where.'),
+    table([('<b>Rename a card</b>','Click its name, e.g. "GoPro 3" or "FX6 A".'),
+           ('<b>Not a card</b>','The <b>&#10005;</b> button removes a drive you plugged in for something else; it becomes a normal drive.'),
+           ('<b>Pause</b>','New drives are treated normally again until you click <b>Make active</b>.'),
+           ('<b>Preview files</b>','GoPro / DJI .LRV and .THM files are ignored by default (option when editing the shoot).'),
+           ('<b>Mark as done</b>','Keeps the final result of every card, even after the cards are formatted and reused.')], 32*mm),
+    note('Shoots are shared between your Macs like everything else. Cards are only added on the Mac where the shoot is active.', colors.HexColor('#eef4ff')),
+    PageBreak()]
 # 11
-s+=[P('11  Sharing between your Macs', h1),
+s+=[P('12  Sharing between your Macs', h1),
     steps(['On the Mac that knows the most drives: <b>Settings</b> (&#8984;,) &rarr; <b>Share with iCloud Drive</b>, or <b>Use another folder…</b> (Google Drive, Dropbox…).',
            'On every other Mac choose <b>the same</b> option or folder.',
            'After a few minutes all drives appear on every Mac.']),
@@ -186,19 +199,19 @@ s+=bullets(['Use a folder your Mac keeps in sync in the background. Don\'t edit 
             '<b>Stop sharing</b> keeps everything already on this Mac.'])
 s+=[PageBreak()]
 # 12
-s+=[P('12  Settings and shortcuts', h1),
+s+=[P('13  Settings and shortcuts', h1),
     table([('<b>Open DriveDex at login</b>','Keep on: DriveDex only catalogs drives while running.'),
            ('<b>Notifications</b>','When scans finish or fail, and for reminders and updates.'),
            ('<b>Ask before cataloguing new drives</b>','On: new drives wait for <b>Catalog it</b>.'),
            ('<b>Rescan when plugged in / network shares</b>','How old a catalog may get before a rescan (1 hour / 12 hours).'),
            ('<b>Strict backup check</b>','Also compare modification dates (section 7).'),
            ('<b>Never scan these drives</b>','Names to skip. Drives you Ignore are added here.'),
-           ('<b>Share between Macs</b>','Section 11.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
+           ('<b>Share between Macs</b>','Section 12.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
     P('Keyboard shortcuts', h2),
     table([('<b>&#8984; ,</b>','Settings (press again, or click Settings again, to go back)'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view'),('<b>&#8984; [</b> / <b>&#8984; ]</b>','Back / forward (also &#8984;&larr; / &#8984;&rarr;, and the Go menu)'),('<b>&#8679;&#8984; O</b>','Overview'),('<b>&#8984; Z</b>','Undo the last backup-link change')], 38*mm),
     PageBreak()]
 # 13
-s+=[P('13  Questions and troubleshooting', h1)]
+s+=[P('14  Questions and troubleshooting', h1)]
 faq=[('A drive shows "macOS blocked access".','Info tab &rarr; <b>Open Privacy Settings</b> and allow DriveDex (or add it under Full Disk Access). Then <b>Rescan now</b>.'),
      ('I plugged in a drive and nothing happened.','Look for the <b>New drive</b> card. Otherwise check DriveDex is running (menu-bar icon); a drive scanned within the last hour is skipped (use <b>Rescan now</b>).'),
      ('A backup I just finished shows 99.x%.','Rescan the backup (its catalog may predate the end of the backup), then click the amber <b>&#9888; missing</b> link to see which files. Often they are files changed after the backup, like an open Lightroom catalog.'),

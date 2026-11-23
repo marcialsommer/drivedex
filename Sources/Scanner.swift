@@ -295,7 +295,8 @@ final class Scanner {
     // MARK: - scanning
 
     private func scan(_ v: VolumeInfo, force: Bool, approved: Bool) {
-        if !approved && Settings.askNew && db.row("SELECT id FROM drives WHERE key=?", [v.key]) == nil {
+        let card = Shoots.claimCard(v, db: db)          // a memory card of the active shoot?
+        if card == nil && !approved && Settings.askNew && db.row("SELECT id FROM drives WHERE key=?", [v.key]) == nil {
             lock.lock()
             let isNew = pendingNew[v.key] == nil
             pendingNew[v.key] = v
@@ -307,7 +308,7 @@ final class Scanner {
         guard let d = db.row("SELECT * FROM drives WHERE id=?", [id]) else { return }
         let lastScan = d["last_scan"] as? Double ?? 0
         let hours = v.kind == "network" ? Settings.periodicRescanHours : Settings.rescanAfterHours
-        if !force && Date().timeIntervalSince1970 - lastScan < hours * 3600 { return }
+        if !force && Date().timeIntervalSince1970 - lastScan < (card != nil ? 90 : hours * 3600) { return }   // cards: always re-read
         lock.lock(); let stopped = stoppedAt[v.key] ?? 0; lock.unlock()
         if !force && Date().timeIntervalSince1970 - stopped < 12 * 3600 { return }   // the user stopped it recently
 
@@ -332,7 +333,11 @@ final class Scanner {
                        machine: SyncFolder.machine)
             let summary = "\(label): \(job.files.formatted()) files, \(job.dirs.formatted()) folders, " +
                 ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
-            notify(oldGen == 0 ? "Catalogued new drive \(summary)" : "Updated \(summary)")
+            if let shoot = card {
+                notify("Card \(summary) (\(shoot)). Open DriveDex to see when it's safe to format.", force: true)
+            } else {
+                notify(oldGen == 0 ? "Catalogued new drive \(summary)" : "Updated \(summary)")
+            }
             var mains = db.mainsBackedUpBy(id)
             if db.row("SELECT role FROM drives WHERE id=?", [id])?["role"] as? String == "main" { mains.append(id) }
             for m in Set(mains) { recompute(m) }
