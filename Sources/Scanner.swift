@@ -67,7 +67,8 @@ final class Scanner {
     private let lock = NSLock()
     private var pending = Set<String>()
     private var cancelled = Set<String>()
-    private var pendingNew: [String: VolumeInfo] = [:]   // new drives waiting for the user's OK
+    private var pendingNew: [String: VolumeInfo] = [:]
+    private var current: String?                         // key of the drive being scanned right now   // new drives waiting for the user's OK
     private var timer: Timer?
 
     // MARK: - volumes
@@ -220,13 +221,22 @@ final class Scanner {
         }
     }
 
+    /// Drives waiting for their turn (scans run one at a time) and whether a scan is running.
+    func queueState() -> (busy: Bool, queued: Set<String>) {
+        lock.lock(); defer { lock.unlock() }
+        var q = pending
+        if let c = current { q.remove(c) }
+        return (current != nil, q)
+    }
+
     func enqueue(_ v: VolumeInfo, force: Bool, approved: Bool = false) {
         lock.lock()
         if pending.contains(v.key) { lock.unlock(); return }
         pending.insert(v.key)
         lock.unlock()
         queue.async {
-            defer { self.lock.lock(); self.pending.remove(v.key); self.lock.unlock() }
+            self.lock.lock(); self.current = v.key; self.lock.unlock()
+            defer { self.lock.lock(); self.pending.remove(v.key); self.current = nil; self.lock.unlock() }
             self.scan(v, force: force, approved: approved)
         }
     }

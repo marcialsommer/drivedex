@@ -67,6 +67,7 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 #ctx div{padding:6px 10px;border-radius:5px;cursor:default}#ctx div:hover{background:var(--acc);color:#fff}
 #ctx div.dis{opacity:.4;pointer-events:none}#ctx div.red{color:var(--err)}#ctx div.red:hover{color:#fff;background:var(--err)}#ctx hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 .tag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:1px;border:1px solid currentColor;opacity:.85}
+.kbar{height:3px;margin:4px 0 2px 16px}
 .cap{font-size:11px;color:var(--mute);margin-left:5px;white-space:nowrap;font-weight:500}
 .tag.ssd{color:#8a4fd8}.tag.hdd{color:#b5762a}.tag.nas{color:#2f8fa8}.tag.other{color:var(--mute)}
 .crumbrow{display:flex;align-items:center;gap:10px;margin:8px 0 12px}.crumbrow .crumbs{flex:1;margin:0}
@@ -217,7 +218,7 @@ async function loadDrives(){
     <div class="row"><button class="primary" data-approve="${esc(n.key)}">Catalog it</button><button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
-    const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
+    const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
     return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
     ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}<div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
@@ -228,7 +229,8 @@ async function loadDrives(){
         const status=b.n==null?'<span class="mute">checking…</span>':`<span style="color:${bkColor(b)}">${!b.n||b.have>=b.n?'✓ ':''}${bkPct(b)}%</span>`;
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
           <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
-          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${mem.length>1?'part of a set · ':''}catalog from ${ago(bd.last_scan)}</div></div>`}).join('')}).join('');
+          ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
+          <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${mem.length>1?'part of a set · ':''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('')}).join('');
     const nk=(m.backup_status||[]).length;
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
@@ -246,7 +248,7 @@ async function loadDrives(){
   if(!setupChecked){setupChecked=true;api('getSettings').then(s=>{if(!s.onboarded&&state.mode=='home'&&!drives.some(d=>d.role))openSetup()}).catch(()=>{})}
   if(state.mode=='home')renderHome();
   if(state.mode=='drive'){renderDriveHeader();const d=cur(),k=d.id+':'+covReady(d)+':'+d.cov_files+':'+d.cov_none+':'+(d.backed_up_by||[]).join(',');if(prevCov[d.id]&&prevCov[d.id]!=k)render();prevCov[d.id]=k}
-  clearTimeout(loadDrives._t);loadDrives._t=setTimeout(loadDrives,drives.some(d=>d.status=='scanning'||d.cov_state=='checking')?2500:15000);
+  clearTimeout(loadDrives._t);loadDrives._t=setTimeout(loadDrives,drives.some(d=>d.status=='scanning'||d.queued||d.cov_state=='checking')?2500:15000);
 }
 async function openSetup(){
   state={mode:'setup'};$('#q').value='';
@@ -405,7 +407,7 @@ function renderDriveHeader(){
   if(driveTab=='info')loadSpace(d);
   const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes')?$('#notes').value:d.notes}).then(()=>{toast('Saved');loadDrives()});
   $('#lbl').onchange=save;if($('#notes'))$('#notes').onchange=save;
-  $('#rescan').onclick=()=>api('rescan',{id:d.id}).then(()=>{toast('Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
+  $('#rescan').onclick=()=>api('rescan',{id:d.id}).then(r=>{toast(r&&r.queued?'Queued: DriveDex scans one drive at a time. This one starts when the current scan is done.':'Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
   if($('#priv'))$('#priv').onclick=()=>api('openPrivacy');
   const redo=()=>{$('#dh').dataset.id='';loadDrives()};
   document.querySelectorAll('#dh [data-type]').forEach(b=>b.onclick=()=>api('setType',{id:d.id,type:d.type==b.dataset.type&&!d.type_auto?'':b.dataset.type}).then(redo));
@@ -464,7 +466,7 @@ document.addEventListener('contextmenu',e=>{
   const d=drives.find(x=>x.id==el.dataset.id);if(!d)return;
   const it=(label,fn,cls='')=>({label,fn,cls});
   const items=[it('Open',()=>openDrive(d.id,'')),
-    it('Rescan now',()=>api('rescan',{id:d.id}).then(()=>{toast('Scan started');setTimeout(loadDrives,800)}).catch(x=>toast(x.message)),d.online?'':'dis'),
+    it('Rescan now',()=>api('rescan',{id:d.id}).then(r=>{toast(r&&r.queued?'Queued: DriveDex scans one drive at a time. This one starts when the current scan is done.':'Scan started');setTimeout(loadDrives,800)}).catch(x=>toast(x.message)),d.online?'':'dis'),
     it('Show in Finder',()=>api('reveal',{id:d.id,path:''}).catch(x=>toast(x.message)),d.online?'':'dis'),'-',
     ...TYPES.map(([v,l])=>it((d.type==v?'✓ ':'\u2003')+'Type: '+l,()=>api('setType',{id:d.id,type:d.type==v&&!d.type_auto?'':v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     ...[['main','Main files'],['backup','Backup']].map(([v,l])=>it((d.role||'')==v?'✓ '+l:'\u2003'+l,()=>api('setRole',{id:d.id,role:(d.role||'')==v?'':v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
@@ -599,7 +601,7 @@ function covCell(e){const c=state.cov;if(!c)return'';
     return '<td class="r okc"><span class="cd c2"></span>All twice</td>'}
   const k=e.copies;if(k==null)return '<td class="r mute">—</td>';if(k<0)return '<td class="r mute">⊘ Excluded</td>';
   return `<td class="r"><span class="cd ${k>=2?'c2':k==1?'c1':'c0'}"></span>${k==0?'None':k==1?'1 backup':k+' backups'}</td>`}
-const dstat=d=>(d.online?'🟢 Connected':'⚪ Not connected')+(d.status=='scanning'?` · <span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?` · <span class="status error">⚠ ${esc(d.status_detail)}</span>`:d.status_detail?` · ${esc(d.status_detail)}`:'');
+const dstat=d=>(d.online?'🟢 Connected':'⚪ Not connected')+(d.status=='scanning'?` · <span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?' · <span class="status scanning">⏳ Waiting to scan (one drive at a time)</span>':d.status=='error'?` · <span class="status error">⚠ ${esc(d.status_detail)}</span>`:d.status_detail?` · ${esc(d.status_detail)}`:'');
 function sorter(rows){const k=sort.k,dr=sort.d;return rows.slice().sort((a,b)=>{if(k=='name'){if((a.is_dir==1)!=(b.is_dir==1))return a.is_dir==1?-1:1;return dr*a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})}return dr*((a[k]||0)-(b[k]||0))})}
 function th(k,label,cls=''){return `<th class="${cls}" data-k="${k}">${label}${sort.k==k?(sort.d>0?' ▲':' ▼'):''}</th>`}
 function bindSort(redraw){document.querySelectorAll('th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;sort.d=sort.k==k?-sort.d:(k=='name'?1:-1);sort.k=k;redraw()})}
@@ -661,7 +663,7 @@ $('#qx').onclick=clearSearch;
 $('#q').addEventListener('keydown',e=>{if(e.key=='Escape'&&$('#q').value){e.preventDefault();clearSearch()}});
 $('#kind').onchange=$('#scope').onchange=doSearch;
 $('#compact').onclick=()=>{compact=!compact;savePrefs();loadDrives()};
-$('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Checking connected drives…');setTimeout(loadDrives,1500)});
+$('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Rescanning connected drives, one after another…');setTimeout(loadDrives,1200)});
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
 async function openSettings(){
   state={mode:'settings'};$('#q').value='';document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));

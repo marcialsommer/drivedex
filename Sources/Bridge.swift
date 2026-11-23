@@ -18,7 +18,12 @@ enum Bridge {
 
         switch action {
         case "drives":
-            return db.drivesList(online: Scanner.onlineMap())
+            let q = Scanner.shared.queueState()
+            return db.drivesList(online: Scanner.onlineMap()).map { d -> [String: Any] in
+                var d = d
+                if q.queued.contains(d["key"] as? String ?? "") { d["queued"] = true }
+                return d
+            }
 
         case "list":
             guard let id = int("drive") else { return [Any]() }
@@ -212,8 +217,9 @@ enum Bridge {
                   let vol = Scanner.onlineMap()[key]
             else { return err("That drive isn't connected right now.") }
             if action == "rescan" {
+                let busy = Scanner.shared.queueState().busy
                 Scanner.shared.enqueue(vol, force: true)
-                return ok
+                return ["ok": true, "queued": busy]
             }
             let root = vol.url.standardizedFileURL
             let path = str("path")
