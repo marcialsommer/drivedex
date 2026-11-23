@@ -190,6 +190,7 @@ th[data-hk]{cursor:pointer}
 .dpi{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer}.dpi:hover{background:var(--accbg)}
 .dpi.finder{font-weight:600;border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:2px}
 .dph{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);padding:6px 8px 2px}
+.addcardrow{position:relative;display:inline-block}.addcardrow .dpick{width:380px}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -1112,19 +1113,19 @@ function destLabel(spec){spec=spec||{};
   const d=spec.key&&dByKey(spec.key);
   return d?`<span class="dot ${d.online?'on':''}"></span>${esc(d.display)} ${tagHTML(d)} <span class="chev2">▾</span>`:spec.key?`${esc(spec.name||'Unknown drive')} <span class="chev2">▾</span>`:'Choose a drive… <span class="chev2">▾</span>'}
 // Searchable drive list: connected drives first, then the others; "Choose in Finder…" on top
-function drivePicker(anchor,onDrive,onFinder){
+function drivePicker(anchor,onDrive,onFinder,opt){opt=opt||{};
   document.querySelectorAll('.dpick').forEach(x=>x.remove());
-  const ds=realDrives().slice().sort((a,b)=>(b.online?1:0)-(a.online?1:0)||a.display.localeCompare(b.display,undefined,{numeric:true}));
+  const ds=realDrives().filter(d=>!(opt.exclude||[]).includes(d.key)).slice().sort((a,b)=>(b.online?1:0)-(a.online?1:0)||a.display.localeCompare(b.display,undefined,{numeric:true}));
   const box=document.createElement('div');box.className='dpick';
   box.innerHTML='<input type="text" placeholder="Type to find a drive…" autocomplete="off"><div class="dpl"></div>';
-  const host=anchor.closest('.drow');host.appendChild(box);
+  const host=anchor.closest('.drow,.addcardrow')||anchor.parentElement;host.appendChild(box);
   const inp=box.querySelector('input'),list=box.querySelector('.dpl');
   const item=d=>`<div class="dpi" data-k="${esc(d.key)}"><span class="dot ${d.online?'on':''}"></span><span>${esc(d.display)}</span>${tagHTML(d)}${capHTML(d).replace('capc','')}</div>`;
   const close=()=>{box.remove();document.removeEventListener('mousedown',out,true)};
   const out=e=>{if(!box.contains(e.target)&&e.target!==anchor&&!anchor.contains(e.target))close()};
   const draw=()=>{const q=inp.value.trim().toLowerCase();const f=ds.filter(d=>!q||d.display.toLowerCase().includes(q));
     const on=f.filter(d=>d.online),off=f.filter(d=>!d.online);
-    list.innerHTML=(q?'':'<div class="dpi finder" data-finder="1">📂 Choose in Finder… <span class="mute">any folder, also on this Mac</span></div>')
+    list.innerHTML=(q?'':`<div class="dpi finder" data-finder="1">📂 ${opt.finder||'Choose in Finder… <span class="mute">any folder, also on this Mac</span>'}</div>`)
       +(on.length?'<div class="dph">Connected</div>'+on.map(item).join(''):'')+(off.length?'<div class="dph">Not connected</div>'+off.map(item).join(''):'')
       +(f.length?'':'<div class="mute" style="padding:8px 10px">No drive with that name</div>');
     list.querySelectorAll('[data-k]').forEach(x=>x.onclick=()=>{close();onDrive(ds.find(d=>d.key==x.dataset.k))});
@@ -1204,7 +1205,7 @@ async function drawShoot(uuid){
       <td style="white-space:normal;min-width:150px">${stPill(c)}${deepNote(c)}${c.deep_live?`<div><button class="sm dbtn" data-deepstop="${esc(c.key)}">Stop deep check</button></div>`:c.online&&c.files>0&&!s.done?`<div><button class="sm dbtn" data-deep="${esc(c.key)}" title="Read every file on the card and each copy, and compare their contents. Takes about as long as copying the card.">${c.deep&&c.deep_valid?'Deep check again':'Deep check'}</button></div>`:''}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
     :`<div class="card empty" style="padding:30px">${active?(s.autoAdd?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'Plug in a memory card, then click <b>Add to this shoot</b> when it appears above.'):'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;
   const others=realDrives().filter(d=>!Shoots_destKeys(s).includes(d.key));
-  const add=s.done?'':`<div class="row" style="margin-top:10px"><span class="mute">A card that DriveDex already knew as a normal drive?</span><select class="sm" id="sh_addcard"><option value="">Add it as a card…</option>${others.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('')}</select></div>`;
+  const add=s.done?'':`<div class="row" style="margin-top:10px"><div class="addcardrow"><button id="sh_addcard" title="Add a memory card that isn't listed yet, also one DriveDex already knew as a normal drive">+ Add a card…</button></div><span class="mute">for a card that isn't listed: pick it from your drives, or click it in Finder</span></div>`;
   let miss='';
   if(shootMiss&&shootMiss.deep){const c=cards.find(x=>x.key==shootMiss.key),d=c&&c.deep;
     if(d&&(d.problems||[]).length){const dn=j=>j<0?'the card':(j==0?'main':'backup '+j)+' ('+esc(dests[j]?dests[j].name:'?')+')';
@@ -1237,7 +1238,11 @@ async function drawShoot(uuid){
   document.querySelectorAll('[data-notcard]').forEach(b=>b.onclick=()=>{const c=cards.find(x=>x.key==b.dataset.notcard);
     if(!confirm(`Remove “${c.label}” from this shoot?\n\nUse this if it isn't a memory card (for example a drive you plugged in for something else). It won't be added to this shoot again; it becomes a normal drive in your list.`))return;
     api('shootCard',{uuid,op:'remove',key:c.key}).then(()=>{toast('Removed from the shoot');re()})});
-  if($('#sh_addcard'))$('#sh_addcard').onchange=()=>{const v=+$('#sh_addcard').value;if(v)api('shootCard',{uuid,op:'add',id:v}).then(()=>{toast('Added as a card');re()})};
+  const addKey=(key,name)=>api('shootCard',{uuid,op:'addKey',key,name}).then(()=>{toast(`“${name}” added as a card. Reading it…`);setTimeout(re,900)}).catch(e=>toast(e.message));
+  if($('#sh_addcard'))$('#sh_addcard').onclick=e=>{e.stopPropagation();drivePicker($('#sh_addcard'),d=>addKey(d.key,d.display),
+    async()=>{try{const f=await api('chooseFolder',{message:'Click the memory card (in the sidebar of this window), then Choose'});
+      if(!f||f.cancelled)return;if(f.local){toast('That folder is on this Mac, not a memory card.');return}addKey(f.key,f.name)}catch(er){toast(er.message)}},
+    {exclude:Shoots_destKeys(s),finder:'Choose in Finder… <span class="mute">click the card</span>'})};
   document.querySelectorAll('[data-miss]').forEach(a=>a.onclick=()=>{shootMiss={key:a.dataset.miss,j:+a.dataset.j};drawShoot(uuid).then(()=>{const m=$('#missbox');if(m)m.scrollIntoView({block:'nearest'})})});
   if($('#missclose'))$('#missclose').onclick=()=>{shootMiss=null;$('#missbox').remove()};
   document.querySelectorAll('[data-deepres]').forEach(a=>a.onclick=()=>{shootMiss={key:a.dataset.deepres,deep:true};drawShoot(uuid).then(()=>{const m=$('#missbox');if(m)m.scrollIntoView({block:'nearest'})})});

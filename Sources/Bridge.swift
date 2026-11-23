@@ -325,6 +325,19 @@ enum Bridge {
                 var nc = s["notCards"] as? [String] ?? []
                 if !nc.contains(key) { nc.append(key) }
                 s["notCards"] = nc
+            case "addKey":   // any drive (catalogued or not) by key; it's read as a card right away
+                let k = str("key")
+                guard !k.isEmpty else { return err("Drive not found.") }
+                if !cards.contains(where: { $0["key"] as? String == k }) {
+                    cards.append(["key": k, "label": "Card \(cards.count + 1)", "vol": str("name"),
+                                  "added": Date().timeIntervalSince1970, "mac": SyncFolder.machine])
+                }
+                s["notCards"] = (s["notCards"] as? [String] ?? []).filter { $0 != k }
+                s["cards"] = cards
+                Shoots.put(db, s)
+                if Scanner.shared.pendingDrives().contains(where: { $0["key"] as? String == k }) { Scanner.shared.approve(k) }
+                else if let v = Scanner.onlineMap()[k] { Scanner.shared.enqueue(v, force: true, approved: true) }
+                return ok
             case "add":
                 guard let id = int("id"), let k = db.driveKey(id) else { return err("Drive not found.") }
                 if !cards.contains(where: { $0["key"] as? String == k }) {

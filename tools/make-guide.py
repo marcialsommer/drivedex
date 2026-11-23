@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.6.3'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.6.4'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -179,7 +179,7 @@ s+=[P('11  Shoot mode: memory cards', h1),
     P('A card is <font color="#2e9d58"><b>safe to format</b></font> when every file on it is in the main folder <b>and</b> in every backup folder: same name and same size, in any subfolder. Connected drives are checked live (just the shoot folder, in seconds); others from their last catalog. The page updates by itself. Click <b>… missing</b> to see which files are still missing where.'),
     P('<b>Deep check.</b> Name and size catch files that were never copied or stopped halfway, but not a damaged copy of the same size. For certainty, click <b>Deep check</b> on a connected card: DriveDex reads every file on the card and every copy in the main and backup folders and compares their contents with xxHash64 fingerprints (the same method Hedge uses). It only reads, never writes. It takes about as long as copying the card, you can keep working meanwhile, and you get a notification when it\'s done. A card that passes shows <font color="#2e9d58"><b>Verified, safe to format</b></font>; any problem is listed file by file. The result stays until the card\'s contents change. For the strictest check, eject and reconnect the drives first, so nothing is read from the Mac\'s memory.'),
     table([('<b>Rename a card</b>','Click its name, e.g. "GoPro 3" or "FX6 A".'),
-           ('<b>Not a card</b>','The <b>&#10005;</b> button removes a drive you plugged in for something else; it becomes a normal drive.'),
+           ('<b>Add a card</b>','A card that isn\'t listed (for example one DriveDex already knew as a normal drive): <b>+ Add a card…</b> below the list, then pick it or click it in Finder.'),('<b>Not a card</b>','The <b>&#10005;</b> button removes a drive you plugged in for something else; it becomes a normal drive.'),
            ('<b>Pause</b>','New drives are treated normally again until you click <b>Make active</b>.'),
            ('<b>What\'s checked</b>','Only photos (RAW, JPEG, HEIF), videos and audio recordings on the cards. Thumbnails, previews (.THM, .LRV, .LRF), index and database files and XML/SRT sidecars are ignored, since they usually aren\'t copied; the card row shows how many were ignored. You can switch this off when editing the shoot.'),
            ('<b>Mark as done</b>','Keeps the final result of every card, even after the cards are formatted and reused.')], 32*mm),
