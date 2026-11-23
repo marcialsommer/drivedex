@@ -126,6 +126,14 @@ button.x{border:0;background:transparent;color:var(--mute);padding:0 4px;font-si
 details.more{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}details.more summary{cursor:pointer;font-weight:600;color:var(--mute);font-size:14px;padding:4px 0}
 details.more[open] summary{margin-bottom:6px}
 .bstat{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.colwrap{display:flex;height:min(64vh,600px);border:1px solid var(--line);border-radius:10px 10px 0 0;background:var(--panel);overflow:hidden}
+.colwrap .cols{flex:1;min-width:0;height:auto;border:0;border-radius:0}
+.infopane{width:250px;flex:none;border-left:1px solid var(--line);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.infopane .big{font-size:40px;line-height:1}.infopane .iname{font-weight:700;word-break:break-word;margin-bottom:6px}
+.infopane .ir{display:flex;flex-direction:column;font-size:12px;color:var(--mute);margin-bottom:4px}.infopane .ir b{font-size:13px;color:var(--ink);font-weight:500}
+.infopane button{margin-top:8px;align-self:flex-start}
+.pathbar{border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;background:var(--panel);padding:6px 12px;font-size:12px;white-space:nowrap;overflow-x:auto}
+.pathbar a{color:var(--ink);cursor:pointer}.pathbar a:hover{color:var(--acc)}
 .ticks{margin-left:auto;font-weight:700;font-size:13px;letter-spacing:-1px;white-space:nowrap}
 .bktab{width:100%;border-collapse:collapse;margin-top:10px;border:0;background:transparent}
 .bktab td,.bktab th{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:normal;font-size:13px}
@@ -394,20 +402,47 @@ async function drawColumns(){
   const col=(rows,i,selName)=>`<div class="col">${rows.length?rows.map(e=>{const ex=exclOf(dd,joinP(cp(i),e.name));return `<div class="ci ${e.name==selName?(i==paths.length-1?'sel':'selp'):''} ${ex?'isex':''}" data-ci="${i}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><span class="ic">${icon(e)}</span><span class="nm">${esc(e.name)}</span>${ex?'<span class="exm" title="Excluded from the backup check">⊘</span>':''}${ex?'':dot(e)}${e.is_dir==1?'<span class="chev">›</span>':''}</div>`}).join(''):'<div class="mute" style="padding:8px">Empty folder</div>'}</div>`;
   let html=paths.map((p,i)=>col(lists[i],i,i<parts.length?parts[i]:state.sel)).join('');
   if(extra)html+=col(extra,paths.length,null);
-  else if(selItem){const k=selItem.copies;
-    html+=`<div class="col info"><div class="big">${icon(selItem)}</div><b>${esc(selItem.name)}</b>
-      <div class="mute">${hb(selItem.size)} · modified ${date(selItem.mtime)}</div>
-      ${k==null?'':k<0?'<div class="mute">⊘ Excluded from the backup check</div>':`<div><span class="cd ${k>=2?'c2':k==1?'c1':'c0'}"></span>${k==0?'Not backed up':k==1?'On 1 backup':'On '+k+' backups'}</div>`}
-      <div class="path">${esc(joinP(state.path,selItem.name))}</div>
-      <button id="inforeveal" ${cur().online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>`}
-  const box=$('#list');box.className='';box.innerHTML=`<div class="cols" id="cols">${html}</div>`;
+  // Path bar along the bottom: drive › folder › … › selected item (each part clickable)
+  const selPath=selItem?joinP(state.path,selItem.name):state.path,segs=selPath?selPath.split('/'):[];
+  const pbar=`<div class="pathbar"><a data-pb="-1">${esc(dd.display||'Drive')}</a>${segs.map((x,i)=>` <span class="mute">›</span> <a data-pb="${i}">${esc(x)}</a>`).join('')}</div>`;
+  const box=$('#list');box.className='';box.innerHTML=`<div class="colwrap"><div class="cols" id="cols">${html}</div><div class="infopane" id="infopane"></div></div>${pbar}`;
+  box.querySelectorAll('[data-pb]').forEach(a=>a.onclick=()=>{const i=+a.dataset.pb;const target=i<0?'':segs.slice(0,i+1).join('/');
+    const tp=target.split('/');state.sel=target?tp.pop():null;state.path=target?tp.join('/'):'';if(!target){state.path='';state.sel=null}navCols()});
+  drawInfoPane(selItem,selPath);
   box.querySelectorAll('.ci').forEach(el=>{
     el.onclick=()=>{const i=+el.dataset.ci;state.path=all[i];state.sel=el.dataset.n;state.hl=null;navCols()};
     el.ondblclick=()=>{if(el.dataset.d==1)colKey('ArrowRight')};
   });
-  if($('#inforeveal'))$('#inforeveal').onclick=()=>api('reveal',{id:state.drive,path:joinP(state.path,state.sel)}).catch(e=>toast(e.message));
   const c=$('#cols');c.scrollLeft=c.scrollWidth;
   const sel=box.querySelector('.ci.sel');if(sel)sel.scrollIntoView({block:'nearest'});
+}
+// Side panel: size, contents (files/folders inside, all levels), modified, backup status.
+const finfo=new Map();let infoT;
+function drawInfoPane(item,path){
+  const el=$('#infopane');if(!el)return;const d=cur();
+  const isFolder=!item||item.is_dir==1, name=item?item.name:(path?path.split('/').pop():d.display);
+  const k=item?item.copies:null;
+  const backup=fi=>{if(!fi)return'';if(!hasBackups(d))return'';
+    if(fi.files&&fi.ex==fi.files)return '<span class="mute">⊘ Excluded from the backup check</span>';
+    if(fi.none)return `<span class="errc">${fi.none.toLocaleString()} file${fi.none==1?'':'s'} not backed up · ${hb(fi.none_bytes)}</span>`;
+    if(fi.one)return `<span class="warnc">all backed up · ${fi.one.toLocaleString()} file${fi.one==1?'':'s'} on only 1 backup</span>`;
+    return fi.files?'<span class="okc">✓ all on 2+ backups</span>':''};
+  const fileBackup=k==null||!hasBackups(d)?'':k<0?'<span class="mute">⊘ Excluded from the backup check</span>':`<span class="${k>=2?'okc':k==1?'warnc':'errc'}">${k==0?'Not backed up':k==1?'On 1 backup':'On '+k+' backups'}</span>`;
+  const row=(l,v)=>v?`<div class="ir"><span>${l}</span><b>${v}</b></div>`:'';
+  const render=fi=>{if($('#infopane')!==el)return;
+    el.innerHTML=`<div class="big">${item?icon(item):'📁'}</div><div class="iname">${esc(name)}</div>
+      ${row('Size',hb(item?item.size:(fi?fi.bytes:d.catalog_bytes)))}
+      ${isFolder?row('Contains',fi?`${(fi.files||0).toLocaleString()} file${fi.files==1?'':'s'} · ${(fi.folders||0).toLocaleString()} folder${fi.folders==1?'':'s'}`:'<span class="mute">counting…</span>'):''}
+      ${item?row('Modified',date(item.mtime)):''}
+      ${row('Backup',isFolder?backup(fi):fileBackup)}
+      <button id="inforeveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button>`;
+    $('#inforeveal').onclick=()=>api('reveal',{id:state.drive,path}).catch(e=>toast(e.message));
+  };
+  if(!isFolder){render(null);return}
+  const key=state.drive+'\u0000'+path;
+  if(finfo.has(key)){render(finfo.get(key));return}
+  render(null);clearTimeout(infoT);
+  infoT=setTimeout(()=>api('folderInfo',{drive:state.drive,path}).then(fi=>{finfo.set(key,fi);if(state.mode=='drive')render(fi)}).catch(()=>{}),120);
 }
 let typeBuf='',typeT;
 async function colKey(k){
@@ -440,7 +475,8 @@ async function render(){
   $('#filesbox').dataset.loaded='1';
   drawExBar();
   drawCrumbs();
-  if(viewMode=='columns'){if(state.hl){state.sel=state.hl}await drawColumns();return}
+  $('#crumbs').style.visibility=viewMode=='columns'?'hidden':'';
+  if(viewMode=='columns'){finfo.clear();if(state.hl){state.sel=state.hl}await drawColumns();return}
   const want=covReady(cur()),me=state;
   const [rows,cov]=await Promise.all([api('list',{drive:state.drive,path:state.path}),want?api('folderCoverage',{drive:state.drive,path:state.path}):Promise.resolve(null)]);
   if(state!==me)return;

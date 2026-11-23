@@ -962,4 +962,23 @@ final class DB {
     func scanLog(_ id: Int, limit: Int = 100) -> [[String: Any]] {
         rows("SELECT at, machine, result, files, dirs, bytes, seconds, detail FROM scan_log WHERE drive_id=? ORDER BY at DESC LIMIT ?", [id, limit])
     }
+
+    // MARK: - folder info (column view side panel)
+
+    /// Everything inside a folder (all levels): number of files and folders, size, and backup state.
+    func folderInfo(_ id: Int, _ path: String) -> [String: Any] {
+        guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [:] }
+        var sql = """
+            SELECT SUM(is_dir<>1) AS files, SUM(is_dir=1) AS folders, SUM(CASE WHEN is_dir<>1 THEN size ELSE 0 END) AS bytes,
+                   SUM(copies=0) AS none, SUM(copies=1) AS one, SUM(copies>=2) AS two, SUM(copies=-1) AS ex,
+                   SUM(CASE WHEN copies=0 THEN size ELSE 0 END) AS none_bytes
+            FROM entries WHERE drive_id=? AND gen=?
+            """
+        var args: [Any?] = [id, gen]
+        if !path.isEmpty {
+            sql += " AND (parent=? OR (parent >= ? AND parent < ?))"
+            args += [path, path + "/", path + "0"]
+        }
+        return row(sql, args) ?? [:]
+    }
 }

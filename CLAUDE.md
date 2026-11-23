@@ -53,6 +53,8 @@ Key facts:
 - Every scan (local, failed, or imported from another Mac) is written to `scan_log`; shown on the Info tab.
 - Live scan progress: `drives.scan_started` / `scan_files` feed the activity bar (`drawActivity()` in index.html)
   and the menu-bar menu. Settings is a toggle (`toggleSettings()` returns to the previous view).
+- Column view has an info panel (`drawInfoPane`, backend `folderInfo`: recursive file/folder counts, size,
+  backup state) and a bottom path bar; the top breadcrumb is hidden in column mode.
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).
 - Ad-hoc signed (no Apple Developer ID): first install needs "Open Anyway"; in-app updates don't.

@@ -186,6 +186,10 @@ enum Bridge {
             Scanner.shared.stopAll()
             return ok
 
+        case "folderInfo":
+            guard let id = int("drive") else { return [String: Any]() }
+            return db.folderInfo(id, str("path"))
+
         case "scanLog":
             guard let id = int("id") else { return [Any]() }
             return db.scanLog(id)
