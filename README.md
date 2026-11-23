@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/marcialsommer/drivedexloo/releases/latest/download/DriveDex.dmg"><b>⬇︎ Download DriveDex for Mac</b></a>
+  <a href="https://github.com/marcialsommer/drivedex/releases/latest/download/DriveDex.dmg"><b>⬇︎ Download DriveDex for Mac</b></a>
   &nbsp;·&nbsp;
   <a href="docs/DriveDex-Guide.pdf"><b>📖 User guide (PDF)</b></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/marcialsommer/drivedexloo/releases/latest">Release notes</a>
+  <a href="https://github.com/marcialsommer/drivedex/releases/latest">Release notes</a>
 </p>
 
 <p align="center">
@@ -45,7 +45,7 @@
 
 ## Install
 
-1. [Download **DriveDex.dmg**](https://github.com/marcialsommer/drivedexloo/releases/latest/download/DriveDex.dmg), open it and drag **DriveDex** into **Applications**.
+1. [Download **DriveDex.dmg**](https://github.com/marcialsommer/drivedex/releases/latest/download/DriveDex.dmg), open it and drag **DriveDex** into **Applications**.
 2. Open DriveDex. macOS will say it can't verify the app. Click **Done** (not Move to Trash).
 3. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to DriveDex.
 4. When asked, allow access to removable and network volumes.
@@ -63,7 +63,7 @@ Requires **macOS 13 Ventura or newer** (Apple Silicon or Intel). The [user guide
 
 ## Feedback
 
-Found a problem or have an idea? Use **Settings → Feedback** in the app, or [open an issue](https://github.com/marcialsommer/drivedexloo/issues/new). Issues are public, so please leave out private file names.
+Found a problem or have an idea? Use **Settings → Feedback** in the app, or [open an issue](https://github.com/marcialsommer/drivedex/issues/new). Issues are public, so please leave out private file names.
 
 DriveDex is a personal project, provided as is. It's a great help for finding things and spotting gaps in your backups, but don't make it your only check.
 

@@ -157,7 +157,7 @@ enum Bridge {
                 ---
                 DriveDex \(v) (build \(b)) · \(ProcessInfo.processInfo.operatingSystemVersionString)
                 """
-            var c = URLComponents(string: "https://github.com/marcialsommer/drivedexloo/issues/new")!
+            var c = URLComponents(string: "https://github.com/marcialsommer/drivedex/issues/new")!
             c.queryItems = [URLQueryItem(name: "title", value: str("kind") == "bug" ? "Problem: " : "Idea: "),
                             URLQueryItem(name: "body", value: body)]
             if let url = c.url { DispatchQueue.main.async { NSWorkspace.shared.open(url) } }

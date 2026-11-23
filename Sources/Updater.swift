@@ -4,7 +4,7 @@ import Foundation
 /// In-app updates from the GitHub "latest" release. The app downloads the update itself (not through a
 /// browser), so macOS doesn't flag it as downloaded from the internet and doesn't ask for "Open Anyway" again.
 enum Updater {
-    static let releaseAPI = URL(string: "https://api.github.com/repos/marcialsommer/drivedexloo/releases/latest")!
+    static let releaseAPI = URL(string: "https://api.github.com/repos/marcialsommer/drivedex/releases/latest")!
 
     static var currentBuild: Int { Int(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "") ?? 0 }
     static var currentVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "" }
