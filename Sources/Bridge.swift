@@ -106,6 +106,14 @@ enum Bridge {
             Scanner.shared.exportMeta([id, main])
             return ok
 
+        case "setType":
+            guard let id = int("id") else { return err("missing id") }
+            let t = ["hdd", "ssd", "nas", "other"].contains(str("type")) ? str("type") : ""
+            db.run("UPDATE drives SET media_user=? WHERE id=?", [t, id])
+            db.touchMeta([id])
+            Scanner.shared.exportMeta([id])
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))
@@ -183,7 +191,11 @@ enum Bridge {
             if let v = a["notify"] as? Bool { d.set(v, forKey: "notify") }
             if let v = a["askNew"] as? Bool { d.set(v, forKey: "askNew") }
             if let v = a["ignoreVolumes"] as? [String] {
-                d.set(v.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, forKey: "ignoreVolumes")
+                let clean = v.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                if clean != Settings.ignoreVolumes {
+                    d.set(clean, forKey: "ignoreVolumes")
+                    Scanner.shared.exportPrefs()
+                }
             }
             if let v = a["openAtLogin"] as? Bool {
                 do {

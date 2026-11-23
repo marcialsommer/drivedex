@@ -46,6 +46,9 @@ extension Scanner {
                 if exportAll {
                     let ids = self.db.rows("SELECT id FROM drives").compactMap { $0["id"] as? Int }
                     for id in ids { self.writeEntries(id, dir); self.writeMeta(id, dir) }
+                    let mains = self.db.rows("SELECT DISTINCT main_id FROM backups").compactMap { $0["main_id"] as? Int }
+                    for id in mains { self.writeHistory(id, dir) }
+                    self.writePrefs(dir)
                 }
                 self.importAll(dir)
                 Settings.d.set(Date().timeIntervalSince1970, forKey: "lastSync")
@@ -82,7 +85,49 @@ extension Scanner {
         }
     }
 
+    /// Recompute a main drive's backup coverage and share any new history entries. Runs on `queue`.
+    func recompute(_ id: Int) {
+        if db.recomputeCoverage(id), let dir = SyncFolder.url { writeHistory(id, dir) }
+    }
+
+    /// Share the "never scan these drives" list (last change wins). Safe from any thread.
+    func exportPrefs() {
+        Settings.d.set(Date().timeIntervalSince1970, forKey: "prefsUpdated")
+        queue.async {
+            guard let dir = SyncFolder.url else { return }
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            self.writePrefs(dir)
+        }
+    }
+
     // MARK: - internals (run on `queue`)
+
+    private func writePrefs(_ dir: URL) {
+        let f = dir.appendingPathComponent("prefs.json")
+        let mine = Settings.d.double(forKey: "prefsUpdated")
+        if let data = try? Data(contentsOf: f), let p = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           (p["updated"] as? Double ?? 0) > mine { return }
+        let p: [String: Any] = ["ignoreVolumes": Settings.ignoreVolumes, "updated": mine, "format": 1]
+        if let data = try? JSONSerialization.data(withJSONObject: p, options: [.prettyPrinted]) {
+            try? data.write(to: f, options: .atomic)
+            rememberStamp(f)
+        }
+    }
+
+    private func writeHistory(_ mainID: Int, _ dir: URL) {
+        guard let key = db.driveKey(mainID) else { return }
+        let f = dir.appendingPathComponent(SyncFolder.fileID(key) + ".history.json")
+        // Merge with what other Macs wrote so nobody's entries get lost.
+        if let data = try? Data(contentsOf: f), let h = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let entries = h["entries"] as? [[String: Any]] {
+            _ = db.mergeHistory(mainKey: key, entries)
+        }
+        let out: [String: Any] = ["main": key, "entries": db.historyForSync(mainID), "format": 1]
+        if let data = try? JSONSerialization.data(withJSONObject: out) {
+            try? data.write(to: f, options: .atomic)
+            rememberStamp(f)
+        }
+    }
 
     private var stamps: [String: Double] {
         get { Settings.d.dictionary(forKey: "syncStamps") as? [String: Double] ?? [:] }
@@ -172,7 +217,26 @@ extension Scanner {
             }
             s[f.lastPathComponent] = mod
         }
+        for f in visible where f.lastPathComponent.hasSuffix(".history.json") {
+            let mod = modDate(f)
+            if s[f.lastPathComponent] == mod { continue }
+            guard let data = try? Data(contentsOf: f),
+                  let h = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let key = h["main"] as? String, let entries = h["entries"] as? [[String: Any]] else { continue }
+            if db.row("SELECT id FROM drives WHERE key=?", [key]) == nil { continue }   // drive not here yet
+            _ = db.mergeHistory(mainKey: key, entries)
+            s[f.lastPathComponent] = mod
+        }
+
+        if let f = visible.first(where: { $0.lastPathComponent == "prefs.json" }), s[f.lastPathComponent] != modDate(f) {
+            if let data = try? Data(contentsOf: f), let p = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let updated = p["updated"] as? Double, updated > Settings.d.double(forKey: "prefsUpdated") {
+                Settings.d.set(p["ignoreVolumes"] as? [String] ?? [], forKey: "ignoreVolumes")
+                Settings.d.set(updated, forKey: "prefsUpdated")
+            }
+            s[f.lastPathComponent] = modDate(f)
+        }
         stamps = s
-        for id in Set(affected) { db.recomputeCoverage(id) }
+        for id in Set(affected) { recompute(id) }
     }
 }

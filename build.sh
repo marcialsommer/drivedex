@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 trap 'echo "::error title=build.sh failed::line $LINENO: $BASH_COMMAND"' ERR
-VERSION="${VERSION:-1.4}"
+VERSION="${VERSION:-1.5}"
 BUILD="${BUILD:-1}"
 OUT=build
 APP="$OUT/DriveDex.app"
@@ -15,7 +15,7 @@ for ARCH in arm64 x86_64; do
   # Errors are also re-emitted as GitHub annotations so they show up on the run page.
   if ! swiftc -O -target "$ARCH-apple-macos13.0" -sdk "$SDK" Sources/*.swift -o "$OUT/DriveDex-$ARCH" \
       -framework AppKit -framework WebKit -framework DiskArbitration -framework ServiceManagement \
-      -framework UserNotifications -lsqlite3 2>&1 | tee "$OUT/swiftc-$ARCH.log"; then :; fi
+      -framework UserNotifications -framework IOKit -lsqlite3 2>&1 | tee "$OUT/swiftc-$ARCH.log"; then :; fi
   if [ ! -f "$OUT/DriveDex-$ARCH" ]; then
     grep -E "^[^ |].*error: " "$OUT/swiftc-$ARCH.log" | sort -u | head -45 | \
       sed -E -e 's#^(.*/)?(Sources/[^:]+):([0-9]+):([0-9]+): error: (.*)$#::error file=\2,line=\3,col=\4::\5#' \

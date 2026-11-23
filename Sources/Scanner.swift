@@ -1,6 +1,7 @@
 import AppKit
 import DiskArbitration
 import Foundation
+import IOKit
 import UserNotifications
 
 struct VolumeInfo {
@@ -13,6 +14,7 @@ struct VolumeInfo {
     var total: Int?
     var free: Int?
     var isDiskImage: Bool
+    var media: String = ""   // "hdd", "ssd", "nas" or "" when unknown
 }
 
 private let skipNames: Set<String> = [
@@ -90,6 +92,7 @@ final class Scanner {
                 share = c.string ?? remount.absoluteString
             }
             info.kind = "network"
+            info.media = "nas"
             info.source = share
             info.key = "net:" + share.lowercased()
             return info
@@ -101,11 +104,29 @@ final class Scanner {
             let model = (desc[kDADiskDescriptionDeviceModelKey as String] as? String ?? "").trimmingCharacters(in: .whitespaces)
             let media = desc[kDADiskDescriptionMediaNameKey as String] as? String ?? ""
             info.isDiskImage = proto == "Disk Image" || proto == "Virtual Interface" || model.contains("Disk Image")
+            info.media = Scanner.mediumType(disk)
             info.source = [model.trimmingCharacters(in: .whitespaces), proto].filter { !$0.isEmpty }.joined(separator: " · ")
             if info.source.isEmpty { info.source = media }
         }
         if let uuid = v.volumeUUIDString { info.key = "uuid:" + uuid } else { info.key = "name:" + name }
         return info
+    }
+
+    /// Asks the I/O Registry whether the disk behind a volume is solid state or rotational.
+    /// Many USB enclosures don't report this; then "" is returned.
+    static func mediumType(_ disk: DADisk) -> String {
+        let media = DADiskCopyIOMedia(disk)
+        guard media != 0 else { return "" }
+        defer { IOObjectRelease(media) }
+        let options = IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)
+        guard let value = IORegistryEntrySearchCFProperty(media, kIOServicePlane, "Device Characteristics" as CFString,
+                                                          kCFAllocatorDefault, options),
+              let dict = value as? [String: Any], let type = dict["Medium Type"] as? String else { return "" }
+        switch type {
+        case "Solid State": return "ssd"
+        case "Rotational": return "hdd"
+        default: return ""
+        }
     }
 
     /// Volumes under /Volumes that DriveDex should catalog.
@@ -142,7 +163,7 @@ final class Scanner {
     func start() {
         queue.async {
             self.db.recoverInterruptedScans()
-            for id in self.db.mainsNeedingCoverage() { self.db.recomputeCoverage(id) }
+            for id in self.db.mainsNeedingCoverage() { self.recompute(id) }
         }
         startSync()
         let nc = NSWorkspace.shared.notificationCenter
@@ -192,7 +213,11 @@ final class Scanner {
         lock.lock(); let v = pendingNew.removeValue(forKey: key); lock.unlock()
         guard let v = v else { return }
         var names = Settings.ignoreVolumes
-        if !names.contains(v.name) { names.append(v.name); Settings.d.set(names, forKey: "ignoreVolumes") }
+        if !names.contains(v.name) {
+            names.append(v.name)
+            Settings.d.set(names, forKey: "ignoreVolumes")
+            exportPrefs()
+        }
     }
 
     func enqueue(_ v: VolumeInfo, force: Bool, approved: Bool = false) {
@@ -209,7 +234,7 @@ final class Scanner {
     /// Recompute backup coverage for these main drives (in the background).
     func recomputeCoverage(_ ids: [Int]) {
         guard !ids.isEmpty else { return }
-        queue.async { for id in Set(ids) { self.db.recomputeCoverage(id) } }
+        queue.async { for id in Set(ids) { self.recompute(id) } }
     }
 
     /// Notify (at most about once a day per backup) when a backup is older than its main drive's reminder interval.
@@ -268,7 +293,7 @@ final class Scanner {
             notify(oldGen == 0 ? "Catalogued new drive \(summary)" : "Updated \(summary)")
             var mains = db.mainsBackedUpBy(id)
             if db.row("SELECT role FROM drives WHERE id=?", [id])?["role"] as? String == "main" { mains.append(id) }
-            for m in Set(mains) { db.recomputeCoverage(m) }
+            for m in Set(mains) { recompute(m) }
             exportToSync([id])
         } catch {
             job.batch.removeAll()

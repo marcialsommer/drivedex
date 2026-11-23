@@ -81,6 +81,9 @@ final class DB {
             CREATE INDEX IF NOT EXISTS backup_history_pair ON backup_history(main_id, backup_id, at);
             """)
         addColumn("drives", "remind_days", "INTEGER DEFAULT 0")
+        // v1.5: drive type (auto-detected + user override)
+        addColumn("drives", "media", "TEXT DEFAULT ''")
+        addColumn("drives", "media_user", "TEXT DEFAULT ''")
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -184,14 +187,14 @@ final class DB {
         if let r = row("SELECT id FROM drives WHERE key=?", [v.key]), let id = r["id"] as? Int {
             run("""
                 UPDATE drives SET name=?, mount_path=?, kind=?, source=?, fs=?, total_bytes=?, free_bytes=?,
-                used_bytes=?, last_seen=? WHERE id=?
-                """, [v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, id])
+                used_bytes=?, last_seen=?, media=CASE WHEN ?='' THEN media ELSE ? END WHERE id=?
+                """, [v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, v.media, v.media, id])
             return id
         }
         run("""
-            INSERT INTO drives(key,name,mount_path,kind,source,fs,total_bytes,free_bytes,used_bytes,first_seen,last_seen)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?)
-            """, [v.key, v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, now])
+            INSERT INTO drives(key,name,mount_path,kind,source,fs,total_bytes,free_bytes,used_bytes,first_seen,last_seen,media)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+            """, [v.key, v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, now, v.media])
         return lastID
     }
 
@@ -251,6 +254,9 @@ final class DB {
             d["online"] = online[key] != nil
             if let v = online[key] { d["mount_path"] = v.url.path }
             d["display"] = label.isEmpty ? (r["name"] as? String ?? "") : label
+            let mu = r["media_user"] as? String ?? "", ma = r["media"] as? String ?? ""
+            d["type"] = !mu.isEmpty ? mu : (!ma.isEmpty ? ma : ((r["kind"] as? String) == "network" ? "nas" : ""))
+            d["type_auto"] = mu.isEmpty
             let id = r["id"] as? Int ?? -1
             d["backup_of"] = backupOf[id] ?? []
             d["backed_up_by"] = backedUpBy[id] ?? []
@@ -422,13 +428,15 @@ final class DB {
     }
 
     /// For every file on a main drive, count how many of its backup drives hold a file with the same name and size.
-    func recomputeCoverage(_ mainID: Int) {
-        guard let d = row("SELECT gen FROM drives WHERE id=?", [mainID]), let gen = d["gen"] as? Int else { return }
+    @discardableResult
+    func recomputeCoverage(_ mainID: Int) -> Bool {
+        guard let d = row("SELECT gen FROM drives WHERE id=?", [mainID]), let gen = d["gen"] as? Int else { return false }
+        var historyGrew = false
         let bks = rows("""
             SELECT d.id AS id, d.gen AS gen, COALESCE(b.backup_path,'') AS path
             FROM backups b JOIN drives d ON d.id = b.backup_id WHERE b.main_id=?
             """, [mainID])
-        if bks.isEmpty { clearCoverage(mainID); return }
+        if bks.isEmpty { clearCoverage(mainID); return false }
         run("UPDATE drives SET cov_state='checking' WHERE id=?", [mainID])
         let cond = bks.map { scopeSQL($0) }.joined(separator: " OR ")
         exec("BEGIN")
@@ -479,9 +487,11 @@ final class DB {
                     INSERT INTO backup_history(main_id, backup_id, at, n, have, missing_bytes, main_scan, backup_scan)
                     VALUES(?,?,?,?,?,?,?,?)
                     """, [mainID, bid, Date().timeIntervalSince1970, n, have, mb, mainScan, backupScan])
+                historyGrew = true
             }
         }
         exec("COMMIT")
+        return historyGrew
     }
 
     func mainsNeedingCoverage() -> [Int] {
@@ -542,7 +552,7 @@ final class DB {
 
     /// Editable, user-facing info about a drive, shared between Macs.
     func metaDict(_ id: Int) -> [String: Any]? {
-        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days FROM drives WHERE id=?", [id]),
+        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user FROM drives WHERE id=?", [id]),
               let key = d["key"] as? String else { return nil }
         let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.backup_path,'')=''", [id])
             .compactMap { $0["key"] as? String }
@@ -555,7 +565,7 @@ final class DB {
             "key": key, "name": d["name"] as? String ?? "", "label": d["label"] as? String ?? "",
             "notes": d["notes"] as? String ?? "", "role": d["role"] as? String ?? "",
             "backup_of": mains, "folder_backups": folders, "excluded": excludedPaths(id),
-            "remind_days": d["remind_days"] as? Int ?? 0,
+            "remind_days": d["remind_days"] as? Int ?? 0, "media_user": d["media_user"] as? String ?? "",
             "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
         ]
     }
@@ -573,7 +583,7 @@ final class DB {
         exec("BEGIN")
         run("INSERT INTO x.entries SELECT parent, name, is_dir, size, mtime, items FROM entries WHERE drive_id=? AND gen=?", [id, gen])
         for k in ["key", "name", "kind", "source", "fs", "total_bytes", "free_bytes", "used_bytes", "file_count",
-                  "dir_count", "catalog_bytes", "last_scan", "scan_seconds", "first_seen"] {
+                  "dir_count", "catalog_bytes", "last_scan", "scan_seconds", "first_seen", "media"] {
             run("INSERT INTO x.info(k, v) VALUES(?, ?)", [k, d[k]])
         }
         run("INSERT INTO x.info(k, v) VALUES('machine', ?)", [machine])
@@ -613,8 +623,10 @@ final class DB {
                    detail: "Scanned on \(machine)")
         run("""
             UPDATE drives SET last_scan=?, total_bytes=COALESCE(?, total_bytes), free_bytes=COALESCE(?, free_bytes),
-            used_bytes=COALESCE(?, used_bytes), name=COALESCE(?, name) WHERE id=?
-            """, [remoteScan, info["total_bytes"], info["free_bytes"], info["used_bytes"], info["name"], id])
+            used_bytes=COALESCE(?, used_bytes), name=COALESCE(?, name),
+            media=CASE WHEN COALESCE(?, '')='' THEN media ELSE ? END WHERE id=?
+            """, [remoteScan, info["total_bytes"], info["free_bytes"], info["used_bytes"], info["name"],
+                  info["media"], info["media"], id])
         return id
     }
 
@@ -652,11 +664,47 @@ final class DB {
             }
         }
         if let rd = m["remind_days"] as? Int { run("UPDATE drives SET remind_days=? WHERE id=?", [rd, id]) }
+        if let mu = m["media_user"] as? String { run("UPDATE drives SET media_user=? WHERE id=?", [mu, id]) }
         if let ex = m["excluded"] as? [String] {
             run("DELETE FROM excluded WHERE drive_id=?", [id])
             for p in ex { setExcluded(id, p, true) }
         }
         if role == "main" { affected.append(id) } else if role != "backup" { clearCoverage(id) }
         return .applied(affected)
+    }
+
+    // MARK: - history sync
+
+    func driveKey(_ id: Int) -> String? { row("SELECT key FROM drives WHERE id=?", [id])?["key"] as? String }
+
+    func historyForSync(_ mainID: Int) -> [[String: Any]] {
+        rows("""
+            SELECT d.key AS backup, h.at, h.n, h.have, h.missing_bytes AS mb, h.main_scan AS ms, h.backup_scan AS bs
+            FROM backup_history h JOIN drives d ON d.id = h.backup_id
+            WHERE h.main_id=? ORDER BY h.at DESC LIMIT 300
+            """, [mainID])
+    }
+
+    /// Adds history entries recorded on another Mac. Returns how many were new.
+    func mergeHistory(mainKey: String, _ entries: [[String: Any]]) -> Int {
+        guard let mid = row("SELECT id FROM drives WHERE key=?", [mainKey])?["id"] as? Int else { return 0 }
+        var added = 0
+        for e in entries {
+            guard let bk = e["backup"] as? String,
+                  let bid = row("SELECT id FROM drives WHERE key=?", [bk])?["id"] as? Int else { continue }
+            let n = e["n"] as? Int ?? 0, have = e["have"] as? Int ?? 0
+            let ms = e["ms"] as? Double ?? 0, bs = e["bs"] as? Double ?? 0
+            let exists = row("""
+                SELECT 1 AS x FROM backup_history WHERE main_id=? AND backup_id=? AND n=? AND have=?
+                AND ABS(COALESCE(main_scan,0)-?) < 0.01 AND ABS(COALESCE(backup_scan,0)-?) < 0.01
+                """, [mid, bid, n, have, ms, bs]) != nil
+            if exists { continue }
+            run("""
+                INSERT INTO backup_history(main_id, backup_id, at, n, have, missing_bytes, main_scan, backup_scan)
+                VALUES(?,?,?,?,?,?,?,?)
+                """, [mid, bid, e["at"] as? Double ?? 0, n, have, e["mb"] as? Int ?? 0, ms, bs])
+            added += 1
+        }
+        return added
     }
 }
