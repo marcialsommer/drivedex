@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.5.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.5.2'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -212,7 +212,7 @@ s+=[P('13  Settings and shortcuts', h1),
     PageBreak()]
 # 13
 s+=[P('14  Questions and troubleshooting', h1)]
-faq=[('"The disk couldn't be ejected because DriveDex is using it."','From version 2.5.1 DriveDex stops reading a drive the moment you eject it (a scan in progress is stopped and the previous catalog kept), so this shouldn\'t happen any more. If macOS still says "one or more programs may be using it" without naming DriveDex, it\'s usually Spotlight indexing a newly connected drive: wait a minute and try again.'),
+faq=[('"The disk couldn\'t be ejected because DriveDex is using it."','DriveDex lets go of a drive the moment you eject it (a scan in progress is stopped and the previous catalog kept), so this shouldn\'t happen any more. You can also eject from DriveDex: the <b>&#9167;</b> button next to each connected drive. If macOS still says "one or more programs may be using it" without naming DriveDex, it\'s usually Spotlight indexing a newly connected drive: wait a minute and try again.'),
      ('A drive shows "macOS blocked access".','Info tab &rarr; <b>Open Privacy Settings</b> and allow DriveDex (or add it under Full Disk Access). Then <b>Rescan now</b>.'),
      ('I plugged in a drive and nothing happened.','Look for the <b>New drive</b> card. Otherwise check DriveDex is running (menu-bar icon); a drive scanned within the last hour is skipped (use <b>Rescan now</b>).'),
      ('A backup I just finished shows 99.x%.','Rescan the backup (its catalog may predate the end of the backup), then click the amber <b>&#9888; missing</b> link to see which files. Often they are files changed after the backup, like an open Lightroom catalog.'),

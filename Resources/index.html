@@ -173,6 +173,8 @@ th[data-hk]{cursor:pointer}
 .picker{border:1px solid var(--line);border-radius:8px;margin:2px 0 8px;max-height:220px;overflow:auto;background:var(--panel)}
 .picker div{padding:5px 10px;cursor:pointer}.picker div:hover{background:var(--bg)}.picker .ph{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);cursor:default;position:sticky;top:0;background:var(--panel)}
 .misslist{font-size:12.5px;max-height:260px;overflow:auto;margin-top:6px}.misslist div{padding:2px 0}
+.ej{margin-left:auto;border:0;background:transparent;color:var(--mute);padding:0 4px;font-size:13px;line-height:18px;border-radius:5px;flex:none}
+.ticks+.ej{margin-left:4px}.ej:hover{color:var(--ink);background:var(--bg)}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -290,6 +292,12 @@ function wireReorder(){
       api('setOrder',{ids:[...famIds,...restIds]}).then(loadDrives).catch(err=>toast(err.message))});
   });
 }
+// Eject button for connected external drives and network shares
+const ejBtn=d=>d.online&&d.kind!='internal'?`<button class="ej" data-eject="${d.id}" title="Eject “${esc(d.display)}”" aria-label="Eject">⏏</button>`:'';
+function ejectDrive(id){const d=drives.find(x=>x.id==id)||{};
+  toast(`Ejecting “${d.display}”…`);
+  api('eject',{id}).then(()=>{toast(`“${d.display}” was ejected. You can unplug it.`);setTimeout(loadDrives,800)}).catch(e=>toast(e.message))}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-eject]');if(!b)return;e.stopPropagation();e.preventDefault();ejectDrive(+b.dataset.eject)},true);
 async function loadDrives(){
   const [dl,pl,up,sh]=await Promise.all([api('drives'),api('pending').catch(()=>[]),api('updateStatus').catch(()=>null),api('shoots').catch(()=>null)]);
   if(sh&&sh.shoots)shootsData=sh;
@@ -306,7 +314,7 @@ async function loadDrives(){
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
-    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
+    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}${ejBtn(d)}</div>
     ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}<div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
@@ -316,7 +324,7 @@ async function loadDrives(){
       const isSet=mem.length>1;
       const rows=mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
-          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${!isSet&&b.source?`<span class="scope" title="Only this folder of ${esc(m.display)} is compared: ${esc(b.source)}">only ${esc(b.source.split('/').pop())}</span>`:''}${isSet?'':`<span class="ticks">${status}</span>`}</div>
+          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${!isSet&&b.source?`<span class="scope" title="Only this folder of ${esc(m.display)} is compared: ${esc(b.source)}">only ${esc(b.source.split('/').pop())}</span>`:''}${isSet?'':`<span class="ticks">${status}</span>`}${ejBtn(bd)}</div>
           ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
           <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
       // A backup split over several drives: one heading with the combined percentage, the drives indented below.
@@ -625,7 +633,7 @@ function renderDriveHeader(){
   const roleTxt=d.role=='main'?'Main files':d.role=='backup'?'Backup'+((d.backup_of||[]).length?' of '+esc((d.backup_of||[]).map(dname).filter(Boolean).join(', ')):''):'';
   const tabs=[['files','Files'],['backups',d.role=='backup'?'Backup status':'Backups'],['info','Info']];
   el.innerHTML=`<div class="card dcard"><div class="dtop"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">${tagHTML(d)}
-    <span style="flex:1"></span>${d.status=='scanning'||d.queued?`<button class="danger" id="stopscan">${d.status=='scanning'?'Stop scan':'Don\'t scan'}</button>`:`<button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>`}<button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>
+    <span style="flex:1"></span>${d.status=='scanning'||d.queued?`<button class="danger" id="stopscan">${d.status=='scanning'?'Stop scan':'Don\'t scan'}</button>`:`<button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>`}<button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button>${d.online&&d.kind!='internal'?`<button data-eject="${d.id}" title="Eject this drive">⏏ Eject</button>`:''}</div>
   <div class="dsum"><span id="dstat">${dstat(d)}</span>${d.last_scan&&d.status!='scanning'?` · <a class="lnk" data-tab="info" title="Show scan history">scanned ${ago(d.last_scan)}</a>`:''}${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
   <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
   ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:''}</div>`;
@@ -716,7 +724,8 @@ document.addEventListener('contextmenu',e=>{
   const it=(label,fn,cls='')=>({label,fn,cls});
   const items=[it('Open',()=>openDrive(d.id,'')),
     it('Rescan now',()=>api('rescan',{id:d.id}).then(r=>{toast(r&&r.queued?'Queued: DriveDex scans one drive at a time. This one starts when the current scan is done.':'Scan started');setTimeout(loadDrives,800)}).catch(x=>toast(x.message)),d.online?'':'dis'),
-    it('Show in Finder',()=>api('reveal',{id:d.id,path:''}).catch(x=>toast(x.message)),d.online?'':'dis'),'-',
+    it('Show in Finder',()=>api('reveal',{id:d.id,path:''}).catch(x=>toast(x.message)),d.online?'':'dis'),
+    it('Eject',()=>ejectDrive(d.id),d.online&&d.kind!='internal'?'':'dis'),'-',
     ...TYPES.map(([v,l])=>it((d.type==v?'✓ ':'\u2003')+'Type: '+l,()=>api('setType',{id:d.id,type:d.type==v&&!d.type_auto?'':v}).then(()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     ...[['main','Main files'],['backup','Backup']].map(([v,l])=>it((d.role||'')==v?'✓ '+l:'\u2003'+l,()=>changeRole(d,(d.role||'')==v?'':v,()=>{$('#dh')&&($('#dh').dataset.id='');loadDrives()}))),'-',
     it('Forget drive…',()=>forgetDrive(d),'red')];
@@ -1017,9 +1026,9 @@ function editShoot(uuid){
   const ds=realDrives();
   const opt=sel=>`<option value="">Choose a drive…</option>`+ds.map(d=>`<option value="${esc(d.key)}" ${d.key==sel?'selected':''}>${esc(d.display)}${d.type?' ('+d.type.toUpperCase()+')':''}</option>`).join('');
   const bks=old?(old.backups||[]):[{key:'',path:''},{key:'',path:''}];
-  const drow=(cls,key,path,i)=>`<div class="drow" data-row="${cls}" data-i="${i}"><select class="sm dsel">${opt(key)}</select><input type="text" class="fpath" placeholder="Folder, e.g. XP Shoot" value="${esc(path||'')}"><button class="pick" type="button">Choose folder…</button>${cls=='bk'?'<button class="rmrow" type="button" title="Remove">✕</button>':''}</div><div class="pk"></div>`;
+  const drow=(cls,key,path,i)=>`<div class="drow" data-row="${cls}" data-i="${i}"><select class="sm dsel">${opt(key)}</select><input type="text" class="fpath" placeholder="Folder" value="${esc(path||'')}"><button class="pick" type="button">Choose folder…</button>${cls=='bk'?'<button class="rmrow" type="button" title="Remove">✕</button>':''}</div><div class="pk"></div>`;
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card frm"><h2>${old?'Edit shoot':'New shoot'}</h2>
-    <label class="f">Name</label><input type="text" id="sh_name" style="width:min(420px,100%)" placeholder="e.g. XP shoot" value="${esc(old?old.name:'')}">
+    <label class="f">Name</label><input type="text" id="sh_name" style="width:min(420px,100%)" value="${esc(old?old.name:'')}">
     <label class="f">Main drive: where you copy the cards to</label><div id="sh_main">${drow('main',old&&old.main&&old.main.key,old&&old.main&&old.main.path,0)}</div>
     <label class="f">Backups: the copies of that folder</label><div id="sh_bks">${bks.map((b,i)=>drow('bk',b.key,b.path,i)).join('')}</div>
     <button id="sh_addbk" type="button">+ Add a backup</button>
@@ -1098,7 +1107,7 @@ async function drawShoot(uuid){
     <div class="mute">${active?'Plug in a memory card and it is added here automatically. ':''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
     <div class="dests">${dests.map((d,j)=>`<div><span class="mute">${j==0?'Main':'Backup '+j}</span><b>${esc(d.name)}</b>${esc(d.path||'whole drive')}<div class="path">${d.error?`<span class="warnc">${esc(d.error)}</span>`:d.live?'<span class="okc">● connected, checked live</span>':`not connected · catalog from ${d.last_scan?ago(d.last_scan):'never'}`}</div></div>`).join('')}</div></div>`;
   const table=cards.length?`<table class="shtab"><tr><th>Card</th><th class="r">Size</th>${dests.map((d,j)=>`<th class="r">${j==0?'Main':'Backup '+j}<div class="path">${esc(d.name)}</div></th>`).join('')}<th>Status</th><th></th></tr>
-    ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename, e.g. GoPro 3"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
+    ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
       <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>`:'<span class="mute">—</span>'}</td>
       ${c.files!=null&&c.files>0?dests.map((d,j)=>cell(c,j)).join(''):dests.map(()=>'<td class="r mute">—</td>').join('')}
       <td>${stPill(c)}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`

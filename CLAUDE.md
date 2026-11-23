@@ -77,6 +77,8 @@ Key facts:
   `ejecting` (never objects) and waits up to 3 s for a running scan to let go. Anything that reads a drive (scan walk,
   `packageSize`, `Shoots.walkLive`) must check `isEjecting` regularly. The owner once got "couldn't be ejected because
   DriveDex is using it".
+  Eject buttons (⏏ in the sidebar, drive header, right-click) call bridge `eject`: `letGo` first, then
+  `NSWorkspace.unmountAndEjectDevice`. The owner wants DriveDex never to hold a drive.
 - Ad-hoc signed (no Apple Developer ID): first install needs "Open Anyway"; in-app updates don't.
 - Swift is compiled in Swift 5 mode by a newer compiler: main-actor rules are enforced for explicitly
   `@MainActor` types (use `MainActor.assumeIsolated` where needed).

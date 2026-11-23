@@ -195,6 +195,18 @@ enum Bridge {
             Scanner.shared.exportMeta([main, copy])
             return ok
 
+        case "eject":
+            guard let id = int("id"), let key = db.driveKey(id), let v = Scanner.onlineMap()[key] else {
+                return err("This drive isn't connected.")
+            }
+            Scanner.shared.letGo(v.url.standardizedFileURL.path)   // stop reading it first
+            do {
+                try NSWorkspace.shared.unmountAndEjectDevice(at: v.url)
+                return ok
+            } catch {
+                return err("Couldn't eject “\(v.name)”: \(error.localizedDescription) Another program may be using it; try again in a moment.")
+            }
+
         // MARK: shoot mode
         case "shoots":
             return ["shoots": Shoots.all(db), "active": Shoots.activeID] as [String: Any]

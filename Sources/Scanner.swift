@@ -309,7 +309,7 @@ final class Scanner {
         daSession = s
     }
 
-    private func letGo(_ path: String) {
+    func letGo(_ path: String) {
         lock.lock(); ejecting.insert(path); lock.unlock()
         // Wait (briefly) until a running scan of this drive has stopped reading it.
         for _ in 0..<30 {
