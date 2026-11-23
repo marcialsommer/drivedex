@@ -173,8 +173,8 @@ th[data-hk]{cursor:pointer}
 .picker{border:1px solid var(--line);border-radius:8px;margin:2px 0 8px;max-height:220px;overflow:auto;background:var(--panel)}
 .picker div{padding:5px 10px;cursor:pointer}.picker div:hover{background:var(--bg)}.picker .ph{display:flex;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);cursor:default;position:sticky;top:0;background:var(--panel)}
 .misslist{font-size:12.5px;max-height:260px;overflow:auto;margin-top:6px}.misslist div{padding:2px 0}
-.ej{margin-left:auto;border:0;background:transparent;color:var(--mute);padding:0 4px;font-size:13px;line-height:18px;border-radius:5px;flex:none}
-.ticks+.ej{margin-left:4px}.ej:hover{color:var(--ink);background:var(--bg)}
+.ej{border:0;background:transparent;color:var(--mute);padding:0 3px;margin:0 -4px 0 -6px;font-size:13px;line-height:18px;border-radius:5px;flex:none}
+.ej:hover{color:var(--ink);background:var(--bg)}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -314,7 +314,7 @@ async function loadDrives(){
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
-    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}${ejBtn(d)}</div>
+    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t">${ejBtn(d)}<span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
     ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}<div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
@@ -324,7 +324,7 @@ async function loadDrives(){
       const isSet=mem.length>1;
       const rows=mem.map((x,j)=>{const bd=drives.find(y=>y.id==x.id);if(!bd)return'';if(!x.path)inFamily.add(bd.id);
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
-          <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${!isSet&&b.source?`<span class="scope" title="Only this folder of ${esc(m.display)} is compared: ${esc(b.source)}">only ${esc(b.source.split('/').pop())}</span>`:''}${isSet?'':`<span class="ticks">${status}</span>`}${ejBtn(bd)}</div>
+          <div class="t">${ejBtn(bd)}<span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${capHTML(bd)}${!isSet&&b.source?`<span class="scope" title="Only this folder of ${esc(m.display)} is compared: ${esc(b.source)}">only ${esc(b.source.split('/').pop())}</span>`:''}${isSet?'':`<span class="ticks">${status}</span>`}</div>
           ${bd.total_bytes?`<div class="bar kbar"><i style="width:${Math.round(100*bd.used_bytes/bd.total_bytes)}%"></i></div>`:''}
           <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${bd.total_bytes?`${hb(bd.used_bytes)} of ${hb(bd.total_bytes)} used · `:''}${bd.status=='scanning'?'<span class="status scanning">scanning…</span>':bd.queued?'<span class="status scanning">⏳ waiting to scan</span>':'catalog from '+ago(bd.last_scan)}</div></div>`}).join('');
       // A backup split over several drives: one heading with the combined percentage, the drives indented below.
