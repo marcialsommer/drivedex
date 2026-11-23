@@ -67,7 +67,9 @@ Key facts:
 - Shoot mode (`Sources/Shoots.swift`, "Shoots" in the sidebar): a shoot = name + main {key,path} + backups [{key,path}]
   + cards [{key,label,vol}], stored as JSON in table `shoots`, synced as `shoots.json` (newest per uuid wins).
   While a shoot is active on this Mac (`Settings activeShoot`), `Scanner.scan` calls `Shoots.claimCard` first: new local
-  drives become cards (no "new drive" prompt, always re-read). `Shoots.status` compares card files (name+size) with
+  drives become cards only if the shoot has `autoAdd` and `Shoots.looksLikeCard` (camera folders); otherwise the normal
+  new-drive prompt offers "Add to <shoot>" (bridge `approveCard`). (v2.6.2: the owner was surprised that every SD
+  card was added silently while a test shoot was active.) Cards are always re-read. `Shoots.status` compares card files (name+size) with
   each destination folder: live walk if connected, else catalog. Cards are hidden from the sidebar (`d.card`).
   DriveDex never copies files; the owner may later want copying/offload built in.
   Destinations are picked with `drivePicker` (searchable, connected first) or bridge `chooseFolder` (NSOpenPanel; maps

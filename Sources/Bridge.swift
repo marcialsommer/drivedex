@@ -53,6 +53,13 @@ enum Bridge {
         case "pending":
             return Scanner.shared.pendingDrives()
 
+        case "approveCard":   // a new drive the user added to the active shoot as a memory card
+            guard !Shoots.activeID.isEmpty, Shoots.addCard(db, Shoots.activeID, key: str("key"), vol: str("name")) else {
+                return err("No shoot is active.")
+            }
+            Scanner.shared.approve(str("key"))
+            return ok
+
         case "approveDrive":
             Scanner.shared.approve(str("key"))
             return ok

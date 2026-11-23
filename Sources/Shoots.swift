@@ -74,9 +74,32 @@ enum Shoots {
         return keys
     }
 
-    /// Called by the scanner before a volume is scanned. If a shoot is active and this looks like one of its
-    /// memory cards (a new local drive, or a drive that already is a card), adds it to the shoot and returns
-    /// the shoot's name. Returns nil for normal drives.
+    /// Camera folders that mark a drive as a memory card (photo cameras, Sony, Canon, Panasonic, DJI, GoPro, Blackmagic…).
+    static let cardMarkers = ["DCIM", "PRIVATE", "CLIP", "M4ROOT", "XDROOT", "AVCHD", "CONTENTS", "MISC", "CANONMSC", "DJI", "Blackmagic"]
+
+    static func looksLikeCard(_ v: VolumeInfo) -> Bool {
+        let fm = FileManager.default
+        return cardMarkers.contains { fm.fileExists(atPath: v.url.appendingPathComponent($0).path) }
+    }
+
+    /// Adds a drive to a shoot as a memory card (no-op if it's already one).
+    static func addCard(_ db: DB, _ uuid: String, key: String, vol: String) -> Bool {
+        guard var s = get(db, uuid), s["deleted"] as? Bool != true else { return false }
+        var cards = s["cards"] as? [[String: Any]] ?? []
+        if !cards.contains(where: { $0["key"] as? String == key }) {
+            cards.append(["key": key, "label": "Card \(cards.count + 1)", "vol": vol,
+                          "added": Date().timeIntervalSince1970, "mac": SyncFolder.machine])
+        }
+        s["cards"] = cards
+        s["notCards"] = (s["notCards"] as? [String] ?? []).filter { $0 != key }
+        put(db, s)
+        return true
+    }
+
+    /// Called by the scanner before a volume is scanned. Returns the active shoot's name if this drive is one of
+    /// its memory cards. A new drive only becomes a card by itself when the shoot has "add cards automatically"
+    /// on and the drive looks like a camera card; otherwise DriveDex asks (the normal new-drive notice offers
+    /// "Add to <shoot>"). Returns nil for normal drives.
     static func claimCard(_ v: VolumeInfo, db: DB) -> String? {
         let active = activeID
         guard !active.isEmpty, v.kind == "drive", !v.isDiskImage, var s = get(db, active), s["deleted"] as? Bool != true,
@@ -88,6 +111,7 @@ enum Shoots {
         if known && cardKeys(db)[v.key] == nil { return nil }       // a normal drive the user already has
         let notCards = s["notCards"] as? [String] ?? []
         if notCards.contains(v.key) { return nil }                 // the user said "not a card"
+        guard s["autoAdd"] as? Bool == true, looksLikeCard(v) else { return nil }   // ask instead
         cards.append(["key": v.key, "label": "Card \(cards.count + 1)", "vol": v.name,
                       "added": Date().timeIntervalSince1970, "mac": SyncFolder.machine])
         s["cards"] = cards

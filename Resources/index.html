@@ -333,7 +333,7 @@ async function loadDrives(){
   sel.innerHTML='<option value="">All drives</option>'+(here?`<option value="here">In “${esc(here.label)}”</option>`:'')+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
   const upHTML=updateInfo&&updateInfo.available?`<div class="upd1" title="You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept."><b>DriveDex ${esc(updateInfo.version)} is available</b><button class="primary" id="doupdate">Install</button></div>`:'';
   const newHTML=upHTML+pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
-    <div class="row"><button class="primary" data-approve="${esc(n.key)}">Catalog it</button><button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
+    <div class="row">${activeShoot()?`<button class="primary" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}" title="It's a memory card for this shoot">Add to “${esc(activeShoot().name)}”</button><button data-approve="${esc(n.key)}" title="Catalog it as a normal drive">Catalog it</button>`:`<button class="primary" data-approve="${esc(n.key)}">Catalog it</button>`}<button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:'';
@@ -374,6 +374,7 @@ async function loadDrives(){
   $('#drives').classList.toggle('compact',compact);drawDensity();
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
   if($('#doupdate'))$('#doupdate').onclick=installUpdate;
+  document.querySelectorAll('[data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
   if(!setupChecked){setupChecked=true;api('getSettings').then(s=>{if(!s.onboarded&&state.mode=='home'&&!drives.some(d=>d.role))openSetup()}).catch(()=>{})}
@@ -423,7 +424,7 @@ function attentionItems(){
     }
   }
   for(const d of drives.filter(x=>x.status=='error'))out.push({lvl:2,text:`<b>${esc(d.display)}</b>: ${esc(d.status_detail)}`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
-  for(const n of pending)out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. Add it to your catalog?`,act:'Catalog it',fn:()=>api('approveDrive',{key:n.key}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)})});
+  for(const n of pending)if(activeShoot())out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. A memory card for <b>${esc(activeShoot().name)}</b>?`,act:'Add to shoot',fn:()=>addCard(n.key,n.name)});else out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. Add it to your catalog?`,act:'Catalog it',fn:()=>api('approveDrive',{key:n.key}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)})});
   if(updateInfo&&updateInfo.available)out.push({lvl:0,text:`DriveDex ${esc(updateInfo.version)} is available.`,act:'Install & Relaunch',fn:installUpdate});
   return out.sort((a,b)=>b.lvl-a.lvl);
 }
@@ -1060,7 +1061,8 @@ function editShoot(uuid){
     <label class="f">Backups: the copies of that folder</label><div id="sh_bks">${bks.map((b,i)=>drow('bk',b,i)).join('')}</div>
     <button id="sh_addbk" type="button">+ Add a backup</button>
     <div class="mute" style="font-size:12.5px;margin-top:8px">Click a drive to pick it from the list (type to find it; drives that aren't connected are listed too), or <b>Choose in Finder…</b> to click the exact folder, also on this Mac's internal drive. The folders don't need to exist yet; leave a folder empty to use the whole drive. The backup folders follow the main folder's name until you change them.</div>
-    <label class="set" style="margin-top:14px"><input type="checkbox" id="sh_proxy" ${!old||old.skipProxies!==false?'checked':''}>Ignore GoPro / DJI preview files (.LRV, .THM) on the cards <span class="mute">(they're often not copied)</span></label>
+    <label class="set" style="margin-top:14px"><input type="checkbox" id="sh_auto" ${old&&old.autoAdd?'checked':''}>Add memory cards automatically while this shoot is active <span class="mute">(only drives with camera folders such as DCIM or PRIVATE; otherwise DriveDex asks with one click)</span></label>
+    <label class="set"><input type="checkbox" id="sh_proxy" ${!old||old.skipProxies!==false?'checked':''}>Ignore GoPro / DJI preview files (.LRV, .THM) on the cards <span class="mute">(they're often not copied)</span></label>
     <div class="row" style="margin-top:14px"><button class="primary" id="sh_save">${old?'Save':'Start shoot'}</button><button id="sh_cancel">Cancel</button></div></div>`;
   const setRow=(r,spec)=>{r.dataset.key=spec.key||'';r.dataset.local=spec.local?'1':'';r.dataset.mac=spec.mac||'';
     r.querySelector('.dsel').innerHTML=destLabel(spec);r.querySelector('.pick').style.display=spec.local?'none':'';
@@ -1096,7 +1098,7 @@ function editShoot(uuid){
     if(main.local&&!main.path){toast('Choose the folder on this Mac');return}
     const backups=[...document.querySelectorAll('#sh_bks .drow')].map(get).filter(b=>b.key);
     if(backups.some(b=>b.key==main.key&&b.path==main.path)){toast('A backup can\'t be the same folder as the main one');return}
-    const shoot={...(old||{}),uuid:old?old.uuid:'',name,main,backups,skipProxies:$('#sh_proxy').checked};
+    const shoot={...(old||{}),uuid:old?old.uuid:'',name,main,backups,skipProxies:$('#sh_proxy').checked,autoAdd:$('#sh_auto').checked};
     try{const r=await api('shootSave',{shoot,activate:!old});
       toast(old?'Saved':`“${name}” started. Plug in your cards: each one is added here automatically.`);
       await loadShoots();loadDrives();openShoot(r.uuid)}catch(e){toast(e.message)}};
@@ -1129,6 +1131,9 @@ function drivePicker(anchor,onDrive,onFinder){
   inp.onkeydown=e=>{if(e.key=='Escape'){e.preventDefault();close()}if(e.key=='Enter'){e.preventDefault();const x=list.querySelector('[data-k]');if(x)x.click()}};
   draw();setTimeout(()=>inp.focus(),0);document.addEventListener('mousedown',out,true);
 }
+// A new drive the user confirmed as a memory card of the active shoot
+function addCard(key,name){const a=activeShoot();
+  api('approveCard',{key,name}).then(()=>{toast(`Added to “${a?a.name:'the shoot'}”. Reading the card…`);setTimeout(()=>{loadDrives();if(state.mode=='shoot')drawShoot(state.uuid)},800)}).catch(e=>toast(e.message))}
 async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
 // Small folder browser for a drive's catalog
 async function folderPicker(box,d,start,done){
@@ -1159,6 +1164,7 @@ async function drawShoot(uuid){
   if(shootBusy)return;shootBusy=true;
   let st;try{st=await api('shootStatus',{uuid})}catch(e){st={error:e.message}}finally{shootBusy=false}
   if(state.mode!='shoot'||state.uuid!=uuid)return;
+  const pl=await api('pending').catch(()=>null);if(Array.isArray(pl))pending=pl;
   if(st.error){$('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="empty">${esc(st.error)}</div>`;return}
   const s=st.shoot,cards=st.cards||[],dests=st.dests||[],active=shootsData.active==s.uuid&&!s.done;
   const pct=(have,n)=>n?Math.floor(1000*have/n)/10:0;
@@ -1187,14 +1193,14 @@ async function drawShoot(uuid){
       ${s.done?'<button id="sh_reopen">Reopen</button>':active?'<button id="sh_pause" title="Stop adding new drives to this shoot">Pause</button>':'<button class="primary" id="sh_act">Make active</button>'}
       <button id="sh_check">Check now</button><button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
     <div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div>
-    <div class="mute">${active?'Plug in a memory card and it is added here automatically. ':''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). For certainty, click <b>Deep check</b>: DriveDex reads every file on the card and each copy and compares their contents. Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
+    <div class="mute">${active?(s.autoAdd?'Plug in a memory card and it is added here automatically. ':'Plug in a memory card and click <b>Add to this shoot</b>. '):''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). For certainty, click <b>Deep check</b>: DriveDex reads every file on the card and each copy and compares their contents. Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
     <div class="dests">${dests.map((d,j)=>`<div><span class="mute">${j==0?'Main':'Backup '+j}</span><b>${esc(d.name)}</b>${esc(d.path||'whole drive')}<div class="path">${d.error?`<span class="warnc">${esc(d.error)}</span>`:d.live?'<span class="okc">● connected, checked live</span>':`not connected · catalog from ${d.last_scan?ago(d.last_scan):'never'}`}</div></div>`).join('')}</div></div>`;
   const table=cards.length?`<table class="shtab"><tr><th>Card</th><th class="r">Size</th>${dests.map((d,j)=>`<th class="r">${j==0?'Main':'Backup '+j}<div class="path">${esc(d.name)}</div></th>`).join('')}<th>Status</th><th></th></tr>
     ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
       <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>`:'<span class="mute">—</span>'}</td>
       ${c.files!=null&&c.files>0?dests.map((d,j)=>cell(c,j)).join(''):dests.map(()=>'<td class="r mute">—</td>').join('')}
       <td style="white-space:normal;min-width:150px">${stPill(c)}${deepNote(c)}${c.deep_live?`<div><button class="sm dbtn" data-deepstop="${esc(c.key)}">Stop deep check</button></div>`:c.online&&c.files>0&&!s.done?`<div><button class="sm dbtn" data-deep="${esc(c.key)}" title="Read every file on the card and each copy, and compare their contents. Takes about as long as copying the card.">${c.deep&&c.deep_valid?'Deep check again':'Deep check'}</button></div>`:''}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
-    :`<div class="card empty" style="padding:30px">${active?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;
+    :`<div class="card empty" style="padding:30px">${active?(s.autoAdd?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'Plug in a memory card, then click <b>Add to this shoot</b> when it appears above.'):'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;
   const others=realDrives().filter(d=>!Shoots_destKeys(s).includes(d.key));
   const add=s.done?'':`<div class="row" style="margin-top:10px"><span class="mute">A card that DriveDex already knew as a normal drive?</span><select class="sm" id="sh_addcard"><option value="">Add it as a card…</option>${others.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('')}</select></div>`;
   let miss='';
@@ -1209,7 +1215,10 @@ async function drawShoot(uuid){
       <div class="misslist">${x.sample.map(f=>`<div>📄 ${esc(f.name)} <span class="mute">· ${hb(f.size)} · ${esc(f.parent||'/')}</span></div>`).join('')}${x.missing>x.sample.length?`<div class="mute">and ${(x.missing-x.sample.length).toLocaleString()} more</div>`:''}</div></div>`;
     else shootMiss=null}
   const keepScroll=$('#view').scrollTop;
-  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+table+add+miss;
+  const pend=active&&pending.length?`<div class="card" style="border-color:var(--acc)">${pending.map(n=>`<div class="row" style="margin:3px 0"><span>New drive connected: <b>${esc(n.name)}</b>${n.total?` <span class="mute">· ${hb(n.total)}</span>`:''}</span><span style="flex:1"></span><button class="primary sm" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to this shoot</button><button class="sm" data-approve2="${esc(n.key)}" title="Catalog it as a normal drive">Normal drive</button></div>`).join('')}</div>`:'';
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+pend+table+add+miss;
+  document.querySelectorAll('#view [data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
+  document.querySelectorAll('#view [data-approve2]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve2}).then(()=>{toast('Cataloguing it as a normal drive…');setTimeout(loadDrives,800)}));
   $('#view').scrollTop=keepScroll;
   const re=()=>{loadShoots().then(()=>{loadDrives();drawShoot(uuid)})};
   if($('#sh_pause'))$('#sh_pause').onclick=()=>api('shootActivate',{uuid:''}).then(()=>{toast('Paused. New drives are treated normally again.');re()});
