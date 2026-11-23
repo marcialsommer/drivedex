@@ -88,6 +88,7 @@ final class DB {
         addColumn("backups", "grp", "TEXT DEFAULT ''")
         addColumn("backup_history", "grp", "TEXT")
         addColumn("backup_history", "label", "TEXT")
+        addColumn("drives", "sort_order", "INTEGER")   // v1.9: user-defined order in the drive list
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -644,7 +645,7 @@ final class DB {
 
     /// Editable, user-facing info about a drive, shared between Macs.
     func metaDict(_ id: Int) -> [String: Any]? {
-        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user FROM drives WHERE id=?", [id]),
+        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user, sort_order FROM drives WHERE id=?", [id]),
               let key = d["key"] as? String else { return nil }
         let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.backup_path,'')=''", [id])
             .compactMap { $0["key"] as? String }
@@ -662,7 +663,7 @@ final class DB {
                     guard let k = r["key"] as? String, let g = r["grp"] as? String else { return nil }
                     return (k, g)
                 }, uniquingKeysWith: { a, _ in a }),
-            "remind_days": d["remind_days"] as? Int ?? 0, "media_user": d["media_user"] as? String ?? "",
+            "remind_days": d["remind_days"] as? Int ?? 0, "media_user": d["media_user"] as? String ?? "", "sort_order": d["sort_order"] ?? NSNull(),
             "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
         ]
     }
@@ -769,6 +770,7 @@ final class DB {
         }
         if let rd = m["remind_days"] as? Int { run("UPDATE drives SET remind_days=? WHERE id=?", [rd, id]) }
         if let mu = m["media_user"] as? String { run("UPDATE drives SET media_user=? WHERE id=?", [mu, id]) }
+        if let so = m["sort_order"] as? Int { run("UPDATE drives SET sort_order=? WHERE id=?", [so, id]) }
         if let ex = m["excluded"] as? [String] {
             run("DELETE FROM excluded WHERE drive_id=?", [id])
             for p in ex { setExcluded(id, p, true) }

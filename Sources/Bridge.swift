@@ -124,6 +124,13 @@ enum Bridge {
             Scanner.shared.exportMeta(changed)
             return ok
 
+        case "setOrder":
+            let ids = (a["ids"] as? [Any] ?? []).compactMap { ($0 as? Int) ?? Int("\($0)") }
+            for (i, id) in ids.enumerated() { db.run("UPDATE drives SET sort_order=? WHERE id=?", [i, id]) }
+            db.touchMeta(ids)
+            Scanner.shared.exportMeta(ids)
+            return ok
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))

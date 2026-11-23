@@ -76,6 +76,10 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .ci.sel{background:var(--acc);color:#fff}.ci.sel .chev{color:#fff}.ci.selp{background:var(--line)}
 .col.info{width:290px;padding:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;word-break:break-word}
 .col.info .big{font-size:44px;line-height:1}
+[data-sec]{position:relative}.dragsrc{opacity:.4}
+.dropb::before,.dropa::after{content:"";position:absolute;left:4px;right:4px;height:3px;border-radius:2px;background:var(--acc);z-index:5}
+.dropb::before{top:-6px}.dropa::after{bottom:-6px}
+.fam[draggable],.restw{cursor:grab}
 .fam{border:1px solid var(--line);border-radius:12px;margin:6px 2px 12px;padding:3px;background:var(--bg)}
 .fam>.drv{background:var(--panel)}.fam>.drv.sel{background:var(--accbg)}
 .kids{margin:2px 2px 4px 16px;border-left:2px solid var(--line);padding-left:4px}
@@ -145,10 +149,31 @@ function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)ret
   return `<span class="ticks" title="${esc(bs.map(b=>bkName(b)+': '+(b.n==null?'checking':bkPct(b)+'% backed up')+(b.last_in_sync?', last in sync '+date(b.last_in_sync):'')).join('\n'))}">${bs.map(b=>`<span style="color:${bkColor(b)}">✓</span>`).join('')}</span>`}
 const GROUPS=[['main','Main files'],['backup','Backups'],['','Other']];
 const grpOf=d=>d.role=='main'?0:d.role=='backup'?1:2;
-let pending=[];
+let pending=[],dragging=null;
+function wireReorder(){
+  const items=[...document.querySelectorAll('#drives [data-sec]')];
+  const clear=()=>items.forEach(x=>x.classList.remove('dropb','dropa','dragsrc'));
+  items.forEach(el=>{
+    el.addEventListener('dragstart',e=>{dragging={sec:el.dataset.sec,id:+el.dataset.oid};el.classList.add('dragsrc');e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',el.dataset.oid)}catch(_){}});
+    el.addEventListener('dragend',()=>{dragging=null;clear()});
+    el.addEventListener('dragover',e=>{if(!dragging||dragging.sec!=el.dataset.sec)return;e.preventDefault();e.dataTransfer.dropEffect='move';
+      const r=el.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;items.forEach(x=>x.classList.remove('dropb','dropa'));el.classList.add(after?'dropa':'dropb')});
+    el.addEventListener('drop',e=>{if(!dragging||dragging.sec!=el.dataset.sec)return;e.preventDefault();
+      const after=el.classList.contains('dropa'),sec=el.dataset.sec;
+      const ids=items.filter(x=>x.dataset.sec==sec).map(x=>+x.dataset.oid).filter(id=>id!=dragging.id);
+      let at=ids.indexOf(+el.dataset.oid);if(+el.dataset.oid==dragging.id)return clear();if(after)at++;ids.splice(at,0,dragging.id);
+      // keep the two sections in separate ranges: families first, then other drives
+      const famIds=sec=='fam'?ids:items.filter(x=>x.dataset.sec=='fam').map(x=>+x.dataset.oid);
+      const restIds=sec=='rest'?ids:items.filter(x=>x.dataset.sec=='rest').map(x=>+x.dataset.oid);
+      dragging=null;clear();
+      api('setOrder',{ids:[...famIds,...restIds]}).then(loadDrives).catch(err=>toast(err.message))});
+  });
+}
 async function loadDrives(){
   const [dl,pl]=await Promise.all([api('drives'),api('pending').catch(()=>[])]);
-  drives=dl.sort((a,b)=>grpOf(a)-grpOf(b)||a.display.localeCompare(b.display,undefined,{numeric:true,sensitivity:'base'}));pending=pl;
+  const so=d=>d.sort_order==null?1e9:d.sort_order;
+  drives=dl.sort((a,b)=>so(a)-so(b)||grpOf(a)-grpOf(b)||a.display.localeCompare(b.display,undefined,{numeric:true,sensitivity:'base'}));pending=Array.isArray(pl)?pl:[];
+  if(dragging){loadDrives._t=setTimeout(loadDrives,1500);return}   // don't redraw the list in the middle of a drag
   const sel=$('#scope'),selv=sel.value;
   sel.innerHTML='<option value="">All drives</option>'+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
   const newHTML=pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
@@ -167,13 +192,14 @@ async function loadDrives(){
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
           <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
           <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${mem.length>1?'part of a set · ':''}catalog from ${ago(bd.last_scan)}</div></div>`}).join('')}).join('');
-    return `<div class="fam">${full(m)}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
+    return `<div class="fam" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
   $('#drives').innerHTML=newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
-    (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(full).join('')}`:'')
+    (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(d=>`<div class="restw" draggable="true" data-sec="rest" data-oid="${d.id}">${full(d)}</div>`).join('')}`:'')
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
   document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,el.dataset.path||'',null,el.dataset.path||''));
+  wireReorder();
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
   if(state.mode=='home')renderHome();
