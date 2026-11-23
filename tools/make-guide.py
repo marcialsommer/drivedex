@@ -55,12 +55,12 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.9'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.10'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
     c.setFillColor(INK); c.setFont('Helvetica-Bold',34); c.drawString(M,H-96*mm,'DriveDex')
-    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.9'); c.restoreState()
+    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.10'); c.restoreState()
 doc=BaseDocTemplate(OUT, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=M, bottomMargin=22*mm, title='DriveDex User Guide', author='DriveDex', subject='How to install and use DriveDex')
 doc.addPageTemplates([PageTemplate('cover',[Frame(M,22*mm,CW,H-128*mm-22*mm)],onPage=cover), PageTemplate('page',[Frame(M,22*mm,CW,H-M-22*mm)],onPage=footer)])
 

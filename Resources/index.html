@@ -279,7 +279,7 @@ async function loadDrives(){
     return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
   const nAtt=attentionItems().filter(x=>x.lvl>0).length;
-  const homeHTML=drives.length?`<div class="drv homeitem ${state.mode=='home'?'sel':''}" id="homeitem"><div class="t"><span class="kn">🏠 Overview</span>${nAtt?`<span class="badge">${nAtt}</span>`:'<span class="okc" style="margin-left:auto">✓</span>'}</div></div>`:'';
+  const homeHTML=drives.length?`<div class="drv homeitem ${state.mode=='home'?'sel':''}" id="homeitem"><div class="t"><span class="kn">Overview</span>${nAtt?`<span class="badge">${nAtt}</span>`:'<span class="okc" style="margin-left:auto">✓</span>'}</div></div>`:'';
   $('#drives').innerHTML=homeHTML+newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
     (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(d=>`<div class="restw" draggable="true" data-sec="rest" data-oid="${d.id}">${full(d)}</div>`).join('')}`:'')
