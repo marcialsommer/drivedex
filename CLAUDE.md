@@ -76,7 +76,9 @@ When a change affects what users see, update in the same commit/build and tell t
 
 - Everything the user sets up must sync between their Macs (roles, backups, sets, folder locations,
   exclusions, reminders, types, order, notes, history, ignored drives, strict mode).
-- Drive types are only HDD / SSD / NAS; roles only Main files / Backup (click again to clear).
+- Drive types are only HDD / SSD / NAS; roles only Main files / Backup / Not marked. Roles are a dropdown and
+  every role change goes through `changeRole()` in index.html, which asks before removing backup links
+  (the user once lost a setup by mis-clicking). Keep destructive changes behind a confirmation.
 - Feedback arrives as GitHub issues (Settings → Feedback); issues are public.
 - The owner shares the app with others: keep the README and guide current and friendly.
 

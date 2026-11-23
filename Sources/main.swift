@@ -292,7 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         let parts = message.components(separatedBy: "\n\n")
         alert.messageText = parts.first ?? message
         if parts.count > 1 { alert.informativeText = parts.dropFirst().joined(separator: "\n\n") }
-        alert.addButton(withTitle: message.hasPrefix("Forget") ? "Forget" : "OK")
+        alert.addButton(withTitle: message.hasPrefix("Forget") ? "Forget" : message.hasPrefix("Change") ? "Change" : "OK")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { completionHandler($0 == .alertFirstButtonReturn) }
     }
