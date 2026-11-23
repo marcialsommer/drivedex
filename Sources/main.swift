@@ -93,6 +93,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         webView.evaluateJavaScript("openSettings().then(()=>{const f=document.querySelector('#s_fb');if(f)f.scrollIntoView({block:'center'})})", completionHandler: nil)
     }
 
+    // Undo in a text field undoes typing; elsewhere it undoes the last backup-link change.
+    @objc func undoAction() {
+        webView.evaluateJavaScript("(()=>{const t=document.activeElement&&document.activeElement.tagName;if(t=='INPUT'||t=='TEXTAREA')document.execCommand('undo');else undoLast()})()", completionHandler: nil)
+    }
+
+    @objc func redoAction() {
+        webView.evaluateJavaScript("document.execCommand('redo')", completionHandler: nil)
+    }
+
+    @objc func goBack() { showWindow(); webView.evaluateJavaScript("goNav(-1)", completionHandler: nil) }
+    @objc func goForward() { showWindow(); webView.evaluateJavaScript("goNav(1)", completionHandler: nil) }
+    @objc func goOverview() { showWindow(); webView.evaluateJavaScript("goHome()", completionHandler: nil) }
+
     @objc func focusSearch() {
         showWindow()
         webView.evaluateJavaScript("document.querySelector('#q').focus()", completionHandler: nil)
@@ -221,8 +234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
         let editItem = NSMenuItem()
         let edit = NSMenu(title: "Edit")
-        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(withTitle: "Undo", action: #selector(undoAction), keyEquivalent: "z").target = self
+        edit.addItem(withTitle: "Redo", action: #selector(redoAction), keyEquivalent: "Z").target = self
         edit.addItem(.separator())
         edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
@@ -232,6 +245,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         edit.addItem(withTitle: "Find…", action: #selector(focusSearch), keyEquivalent: "f").target = self
         editItem.submenu = edit
         main.addItem(editItem)
+
+        let goItem = NSMenuItem()
+        let go = NSMenu(title: "Go")
+        go.addItem(withTitle: "Back", action: #selector(goBack), keyEquivalent: "[").target = self
+        go.addItem(withTitle: "Forward", action: #selector(goForward), keyEquivalent: "]").target = self
+        let ov = go.addItem(withTitle: "Overview", action: #selector(goOverview), keyEquivalent: "o")
+        ov.keyEquivalentModifierMask = [.command, .shift]; ov.target = self
+        goItem.submenu = go
+        main.addItem(goItem)
 
         let winItem = NSMenuItem()
         let win = NSMenu(title: "Window")

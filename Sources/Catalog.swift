@@ -442,6 +442,52 @@ final class DB {
         run("UPDATE drives SET role='backup' WHERE id=? AND COALESCE(role,'')=''", [copyID])
     }
 
+    /// Removes one backup link entirely (whole drive, folder location or partial backup).
+    func removeLink(mainID: Int, backupID: Int) {
+        run("DELETE FROM backups WHERE main_id=? AND backup_id=?", [mainID, backupID])
+    }
+
+    /// Everything about how these drives are linked (for Undo).
+    func linksSnapshot(_ ids: [Int]) -> [String: Any] {
+        let set = ids.map(String.init).joined(separator: ",")
+        guard !set.isEmpty else { return [:] }
+        let links = rows("""
+            SELECT main_id, backup_id, COALESCE(backup_path,'') AS path, COALESCE(grp,'') AS grp, COALESCE(source_path,'') AS src
+            FROM backups WHERE main_id IN (\(set)) OR backup_id IN (\(set))
+            """)
+        let roles = rows("SELECT id, COALESCE(role,'') AS role FROM drives WHERE id IN (\(set))")
+        return ["ids": ids, "links": links, "roles": roles]
+    }
+
+    /// Puts links back as they were in `snap`. Returns (main drives to recompute, all drives touched).
+    func linksRestore(_ snap: [String: Any]) -> (mains: [Int], all: [Int]) {
+        func int(_ v: Any?) -> Int? { (v as? Int) ?? (v as? NSNumber)?.intValue ?? (v as? String).flatMap(Int.init) }
+        let ids = (snap["ids"] as? [Any] ?? []).compactMap(int)
+        guard !ids.isEmpty else { return ([], []) }
+        let set = ids.map(String.init).joined(separator: ",")
+        let links = snap["links"] as? [[String: Any]] ?? []
+        var touched = Set(ids)
+        for r in rows("SELECT main_id, backup_id FROM backups WHERE main_id IN (\(set)) OR backup_id IN (\(set))") {
+            if let m = r["main_id"] as? Int { touched.insert(m) }; if let b = r["backup_id"] as? Int { touched.insert(b) }
+        }
+        run("DELETE FROM backups WHERE main_id IN (\(set)) OR backup_id IN (\(set))")
+        for l in links {
+            guard let m = int(l["main_id"]), let b = int(l["backup_id"]) else { continue }
+            touched.insert(m); touched.insert(b)
+            run("INSERT OR REPLACE INTO backups(main_id, backup_id, backup_path, grp, source_path) VALUES(?,?,?,?,?)",
+                [m, b, l["path"] as? String ?? "", l["grp"] as? String ?? "", l["src"] as? String ?? ""])
+        }
+        for r in snap["roles"] as? [[String: Any]] ?? [] {
+            guard let id = int(r["id"]) else { continue }
+            let role = r["role"] as? String ?? ""
+            run("UPDATE drives SET role=? WHERE id=?", [role, id])
+            if role != "main" { clearCoverage(id) }
+        }
+        let all = Array(touched)
+        let mains = rows("SELECT id FROM drives WHERE role='main' AND id IN (\(all.map(String.init).joined(separator: ",")))").compactMap { $0["id"] as? Int }
+        return (mains, all)
+    }
+
     /// Use a folder on `driveID` as the backup location of `mainID` (on == false removes it).
     func setFolderBackup(driveID: Int, path: String, mainID: Int, on: Bool) {
         if on {

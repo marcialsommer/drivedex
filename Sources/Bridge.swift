@@ -195,6 +195,24 @@ enum Bridge {
             Scanner.shared.exportMeta([main, copy])
             return ok
 
+        case "removeLink":
+            guard let main = int("main"), let bk = int("backup") else { return err("missing drive") }
+            db.removeLink(mainID: main, backupID: bk)
+            db.markChecking([main]); db.touchMeta([main, bk])
+            Scanner.shared.recomputeCoverage([main]); Scanner.shared.exportMeta([main, bk])
+            return ok
+
+        case "linksSnapshot":
+            let ids = (a["ids"] as? [Any] ?? []).compactMap { ($0 as? Int) ?? Int("\($0)") }
+            return db.linksSnapshot(ids)
+
+        case "linksRestore":
+            guard let snap = a["snap"] as? [String: Any] else { return err("Nothing to undo.") }
+            let r = db.linksRestore(snap)
+            db.markChecking(r.mains); db.touchMeta(r.all)
+            Scanner.shared.recomputeCoverage(r.mains); Scanner.shared.exportMeta(r.all)
+            return ok
+
         case "setBackupScope":
             guard let main = int("main"), let bk = int("backup"), main != bk else { return err("Choose another drive.") }
             db.setBackupScope(mainID: main, backupID: bk, path: str("path"))

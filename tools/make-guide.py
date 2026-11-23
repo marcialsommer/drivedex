@@ -55,12 +55,12 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.3.2'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.4'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
     c.setFillColor(INK); c.setFont('Helvetica-Bold',34); c.drawString(M,H-96*mm,'DriveDex')
-    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.3.2'); c.restoreState()
+    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.4'); c.restoreState()
 doc=BaseDocTemplate(OUT, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=M, bottomMargin=22*mm, title='DriveDex User Guide', author='DriveDex', subject='How to install and use DriveDex')
 doc.addPageTemplates([PageTemplate('cover',[Frame(M,22*mm,CW,H-128*mm-22*mm)],onPage=cover), PageTemplate('page',[Frame(M,22*mm,CW,H-M-22*mm)],onPage=footer)])
 
@@ -113,12 +113,14 @@ s+=[P('3  The drive list', h1),
 s+=[P('4  A drive\'s page and browsing', h1),
     shot('dhead','The top of a drive\'s page: name, type, status, backup status, location, and the three tabs.'),
     table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Main files / backup role, backup status, history and reminders (sections 6–9). On a backup drive this tab is called <b>Backup status</b>: what it backs up, how complete it is, and a link to the files it\'s missing.'),('<b>Info</b>','Size, last connected (and on which Mac), <b>scan history</b> (every scan with date, Mac, files, size and duration, including failed ones), type, location notes, Forget drive. Biggest folders and possible duplicates are in collapsed sections; click to open.')], 26*mm),
-    Spacer(1,6), P('Column view', h2),
-    shot('cols','Column view. Dots show each file\'s backup status; ⊘ marks an excluded folder.', box=(0,0,1640,350)),
+    Spacer(1,6), P('Three ways to look at files', h2),
+    P('Like the Finder, the buttons above the files switch between <b>Icons</b> (big icons, double-click a folder to open it), <b>List</b> (a sortable table with a Backups column) and <b>Columns</b>. DriveDex remembers your choice. The <b>&lsaquo; &rsaquo;</b> buttons at the top left go <b>back and forward</b> to where you were before, like in a web browser (also &#8984;[ and &#8984;], or &#8984;&larr; and &#8984;&rarr;).'),
+    P('Column view', h2),
+    shot('cols','Column view. Dots show the backup status of each file, and of everything inside each folder; ⊘ marks an excluded folder, ⇄ a folder linked to another drive.', box=(0,0,1640,350)),
     table([('<b>&darr; &uarr;</b>','Move up and down'),('<b>&rarr;</b> or <b>Return</b>','Open the selected folder'),('<b>&larr;</b>','Back to the parent folder'),('<b>Type a name</b>','Jump to the first item starting with those letters')], 38*mm),
     Spacer(1,6),
-    P('The <b>info panel</b> on the right shows the selected item, or the folder you\'re in: its <b>size</b>, for folders how many <b>files and folders</b> it contains (all levels deep), when it was modified, its backup status, and a <b>Show in Finder</b> button. The <b>path bar</b> along the bottom always shows where you are; click any part of it to jump back up.'),
-    P(' <b>List</b> view (above the files) gives a sortable table with a Backups column. Click a drive\'s location or name to rename it, and edit its location under <b>Info</b>.'),
+    P('The <b>info panel</b> on the right shows the selected item, or the folder you\'re in: its <b>size</b>, for folders how many <b>files and folders</b> it contains (all levels deep), when it was modified, its backup status, any <b>links</b> to other drives (with a <b>Remove</b> button), and a <b>Show in Finder</b> button. The <b>path bar</b> along the bottom always shows where you are; click any part of it to jump back up.'),
+    P('Click a drive\'s location or name to rename it, and edit its location under <b>Info</b>.'),
     PageBreak()]
 # 5
 s+=[P('5  Searching', h1),
@@ -143,11 +145,13 @@ s+=[P('6  Setting up your backups', h1),
     shot('set','A backup set: two drives that together hold one backup.'),
     P('A drive that holds only one folder', h2),
     P('Some drives only hold a copy of one important folder, for example a single project on a small SSD. Either on the <b>main</b> drive, right-click the folder &rarr; <b>This folder is backed up on…</b> and pick the drive with the copy; or on the <b>copy</b>, right-click the folder &rarr; <b>This folder is a copy of the one on…</b> and pick the main drive (DriveDex finds the folder with the same name there). DriveDex then compares <b>only that folder</b> with the drive, so it reads 100% when the folder is fully there. It is labelled <b>only &lt;folder&gt;</b> in the drive list and the Backups table; click <b>compare whole drive</b> to undo. Files in that folder count toward "2+ backups".'),
+    P('<b>Changed your mind?</b> Every change to backup links shows a message with an <b>Undo</b> button (or press &#8984;Z, or Edit &rarr; Undo). To remove a link later, right-click the folder &rarr; <b>Remove link: …</b>, or select it and click <b>Remove</b> in the info panel. Folders that are linked show <b>⇄</b>.'),
     PageBreak()]
 # 7
 s+=[P('7  Is everything backed up?', h1),
     P('Home: Needs attention', h2),
     P('Click <b>Overview</b> at the top of the drive list (its badge counts what needs attention), or the <b>DriveDex</b> title, to come back here from anywhere.'),
+    P('The table of all drives below it can be sorted: click <b>Drive</b>, <b>Backup</b>, <b>Where</b>, <b>Used</b>, <b>Files</b> or <b>Last connected</b> (click again to reverse).'),
     shot('home','The home screen lists everything that needs you, with a button to fix each. When all is well it says "Everything is backed up".'),
     P('Menu bar', h2),
     P('The DriveDex icon in the menu bar turns <font color="#d9822b"><b>orange</b></font> when something needs attention and <font color="#d33f3f"><b>red</b></font> when files have no backup at all. Its menu lists every main drive with its status; click one to open it.'),
@@ -191,7 +195,7 @@ s+=[P('12  Settings and shortcuts', h1),
            ('<b>Never scan these drives</b>','Names to skip. Drives you Ignore are added here.'),
            ('<b>Share between Macs</b>','Section 11.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
     P('Keyboard shortcuts', h2),
-    table([('<b>&#8984; ,</b>','Settings (press again, or click Settings again, to go back)'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view')], 38*mm),
+    table([('<b>&#8984; ,</b>','Settings (press again, or click Settings again, to go back)'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view'),('<b>&#8984; [</b> / <b>&#8984; ]</b>','Back / forward (also &#8984;&larr; / &#8984;&rarr;, and the Go menu)'),('<b>&#8679;&#8984; O</b>','Overview'),('<b>&#8984; Z</b>','Undo the last backup-link change')], 38*mm),
     PageBreak()]
 # 13
 s+=[P('13  Questions and troubleshooting', h1)]

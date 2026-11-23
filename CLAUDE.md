@@ -58,6 +58,13 @@ Key facts:
   and the menu-bar menu. Settings is a toggle (`toggleSettings()` returns to the previous view).
 - Column view has an info panel (`drawInfoPane`, backend `folderInfo`: recursive file/folder counts, size,
   backup state) and a bottom path bar; the top breadcrumb is hidden in column mode.
+- File views: Icons / List / Columns (`viewMode`, `drawIcons`, `drawList`, `drawColumns`). Folder backup dots come
+  from `folderCoverage` (cached in `fcov`); ⇄ marks folders with links (`folderLinks(d,path)`).
+- Back/Forward: `noteNav()` records places (mode, drive, path, tab) after each render; `goNav(±1)`; Go menu in main.swift.
+- Undo: link changes go through `undoable(ids, fn, msg)` → `linksSnapshot` before, `linksRestore` on Undo (toast
+  button, ⌘Z via Edit → Undo when no text field is focused). `removeLink` deletes one link. Use `undoable` for any
+  new action that changes roles or backup links.
+- Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).
 - Ad-hoc signed (no Apple Developer ID): first install needs "Open Anyway"; in-app updates don't.

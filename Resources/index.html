@@ -147,8 +147,18 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 #toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;display:none;max-width:min(640px,90vw);z-index:60;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);line-height:1.4}
 @media (max-width:720px){main{flex-direction:column}nav{width:auto;max-height:35vh;border-right:0;border-bottom:1px solid var(--line)}
  header{flex-wrap:wrap}.qwrap{order:3;flex-basis:100%}section{padding:12px 16px}.hide-sm{display:none}}
+.navbtns{display:flex;gap:2px}.navbtns button{padding:4px 10px;font-size:16px;line-height:1}.navbtns button:disabled{opacity:.35;cursor:default;border-color:var(--line)}
+.tact{margin-left:12px;padding:3px 12px;background:transparent;color:var(--bg);border:1px solid var(--bg);border-radius:6px;font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:4px;padding:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.tile{position:relative;text-align:center;padding:10px 6px 8px;border-radius:8px;cursor:default;user-select:none}
+.tile:hover{background:var(--bg)}.tile.sel{background:var(--accbg)}.tile.hl{background:var(--hl)}.tile.isex{opacity:.55}
+.tile .big{font-size:42px;line-height:1.15}.tile .tn{font-size:12px;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+.tile .ts{font-size:11px;color:var(--mute)}.tile .cd{position:absolute;top:8px;right:10px;margin:0}
+.lk{color:var(--acc);font-size:12px;margin-left:4px;flex:none}.ci.sel .lk{color:#fff}
+.ir .rm{padding:1px 7px;font-size:11px;margin-left:6px}
+th[data-hk]{cursor:pointer}
 </style></head><body>
-<header><h1 id="home" title="Overview">DriveDex</h1>
+<header><div class="navbtns"><button id="nback" title="Back (⌘[ or ⌘←)" aria-label="Back" disabled>‹</button><button id="nfwd" title="Forward (⌘] or ⌘→)" aria-label="Forward" disabled>›</button></div><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
 <select id="kind"><option value="all">Everything</option><option value="folders">Folders</option><option value="files">Files</option><option value="video">Videos</option><option value="photo">Photos</option><option value="audio">Audio</option><option value="doc">Documents</option><option value="project">Projects &amp; libraries</option><option value="archive">Archives &amp; disk images</option></select>
 <select id="scope"><option value="">All drives</option></select>
@@ -165,7 +175,8 @@ const ago=t=>{if(!t)return'never';const s=Date.now()/1000-t;if(s<90)return'just 
 const date=t=>t?new Date(t*1000).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'';
 const icon=e=>e.is_dir==1?'📁':e.is_dir==2?'📦':({jpg:'🖼',jpeg:'🖼',png:'🖼',heic:'🖼',tif:'🖼',tiff:'🖼',cr2:'🖼',cr3:'🖼',arw:'🖼',nef:'🖼',dng:'🖼',raf:'🖼',psd:'🖼',mov:'🎞',mp4:'🎞',mxf:'🎞',braw:'🎞',r3d:'🎞',avi:'🎞',mkv:'🎞',wav:'🎵',mp3:'🎵',aif:'🎵',aiff:'🎵',m4a:'🎵',pdf:'📕',zip:'🗜',dmg:'💿'}[(e.name.split('.').pop()||'').toLowerCase()]||'📄');
 // Messages stay at least 5 s (longer for long text), stay while hovered, click to close.
-const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';t._ms=Math.max(5000,m.length*70);
+const toast=(m,act)=>{const t=$('#toast');t.textContent=m;t.style.display='block';t._ms=Math.max(act?10000:5000,m.length*70);
+  if(act){const b=document.createElement('button');b.className='tact';b.textContent=act.label;b.onclick=ev=>{ev.stopPropagation();clearTimeout(t._h);t.style.display='none';act.fn()};t.append(b)}
   const hide=()=>{if(t.matches(':hover')){t._h=setTimeout(hide,800);return}t.style.display='none'};
   clearTimeout(t._h);t._h=setTimeout(hide,t._ms);t.onclick=()=>{clearTimeout(t._h);t.style.display='none'}};
 const api=(action,args)=>new Promise((res,rej)=>{const h=window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.api;
@@ -363,6 +374,15 @@ function attentionItems(){
   if(updateInfo&&updateInfo.available)out.push({lvl:0,text:`DriveDex ${esc(updateInfo.version)} is available.`,act:'Install & Relaunch',fn:installUpdate});
   return out.sort((a,b)=>b.lvl-a.lvl);
 }
+let hsort=ls('dd_hsort',{k:'',d:1});
+// Overview table order: '' = the sidebar order (families); otherwise by the clicked column.
+function homeSorted(){
+  const k=hsort.k,d=hsort.d;if(!k)return drives;
+  const bk=x=>x.role=='main'?(hasBackups(x)?(covReady(x)?covPct(x):-0.5):-1):x.role=='backup'?-2:-3;
+  const val={drive:x=>x.display.toLowerCase(),backup:bk,where:x=>(x.notes||'').toLowerCase()||'\uffff',used:x=>x.used_bytes||0,files:x=>x.file_count||0,seen:x=>x.online?Infinity:(x.last_seen||0)}[k];
+  if(!val)return drives;
+  return drives.slice().sort((a,b)=>{const va=val(a),vb=val(b);const c=typeof va=='string'?va.localeCompare(vb,undefined,{numeric:true}):(va>vb?1:va<vb?-1:0);
+    return c*d||a.display.localeCompare(b.display,undefined,{numeric:true})})}
 function renderHome(){
   if(!drives.length&&!pending.length){$('#view').innerHTML=`<div class="hero"><h2>Plug in a drive</h2><p>DriveDex catalogues every drive and NAS share you connect. It only records file and folder names, sizes and dates, never contents.</p><p><button class="primary" id="startsetup">Start the setup guide</button></p></div>`;$('#startsetup').onclick=openSetup;return}
   const items=attentionItems(),mains=drives.filter(d=>d.role=='main');
@@ -371,13 +391,81 @@ function renderHome(){
     :mains.length?`<div class="card allok"><span class="big">✓</span><div><h2>Everything is backed up</h2><div class="mute">${mains.length} main drive${mains.length==1?'':'s'}, all with complete backups. Nothing needs your attention.</div></div></div>`
     :`<div class="card"><h2>Set up your backups</h2><div class="mute">Mark the drives that hold your originals as <b>Main files</b> and link their backups, and DriveDex will tell you here whenever something isn't backed up.</div><div class="row" style="margin-top:8px"><button class="primary" id="startsetup">Start the setup guide</button></div></div>`;
   $('#view').innerHTML=att+`<div class="mute" style="margin:4px 2px 8px">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
-  <table><tr><th>Drive</th><th>Backup</th><th class="hide-sm">Where</th><th class="r">Used</th><th class="r hide-sm">Files</th><th class="r">Last connected</th></tr>
-  ${drives.map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc((d.notes||'').split('\n')[0]).slice(0,50)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${d.online?'now':ago(d.last_seen)}${!d.online&&d.last_seen_on?`<div class="path">${esc(d.last_seen_on)}</div>`:''}</td></tr>`).join('')}</table>`;
+  <table><tr>${[['drive','Drive',''],['backup','Backup',''],['where','Where','hide-sm'],['used','Used','r'],['files','Files','r hide-sm'],['seen','Last connected','r']].map(([k,l,c])=>`<th class="${c}" data-hk="${k}" title="Sort by ${l.toLowerCase()}">${l}${hsort.k==k?(hsort.d>0?' ▲':' ▼'):''}</th>`).join('')}</tr>
+  ${homeSorted().map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc((d.notes||'').split('\n')[0]).slice(0,50)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${d.online?'now':ago(d.last_seen)}${!d.online&&d.last_seen_on?`<div class="path">${esc(d.last_seen_on)}</div>`:''}</td></tr>`).join('')}</table>`;
   document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
+  document.querySelectorAll('th[data-hk]').forEach(h=>h.onclick=()=>{const k=h.dataset.hk;hsort=hsort.k==k?{k,d:-hsort.d}:{k,d:k=='used'||k=='files'||k=='seen'?-1:1};
+    try{localStorage.setItem('dd_hsort',JSON.stringify(hsort))}catch(e){}renderHome()});
+  noteNav();
   document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>items[+b.dataset.ai].fn());
   if($('#startsetup'))$('#startsetup').onclick=openSetup;
 }
-let viewMode=(()=>{try{return localStorage.getItem('dd_view')||'columns'}catch(e){return'columns'}})();
+// ---- Undo for backup links: take a snapshot of the drives' links before a change, restore it on Undo (or ⌘Z).
+let lastUndo=null;
+async function undoable(ids,run,msg){
+  const snap=await api('linksSnapshot',{ids:[...new Set(ids.filter(x=>x!=null))]}).catch(()=>null);
+  try{await run()}catch(e){toast(e.message);return false}
+  if(snap&&snap.ids){lastUndo=snap;toast(msg,{label:'Undo',fn:undoLast})}else toast(msg);
+  return true;
+}
+function undoLast(){
+  if(!lastUndo){toast('Nothing to undo.');return}
+  const snap=lastUndo;lastUndo=null;
+  api('linksRestore',{snap}).then(()=>{toast('Undone. Checking backups…');refreshAll()}).catch(e=>toast(e.message));
+}
+function refreshAll(){$('#dh')&&($('#dh').dataset.id='');lcache.clear();fcov.clear();finfo.clear();
+  loadDrives().then(()=>{if(state.mode=='drive'&&driveTab=='files'){viewMode=='columns'?navCols():render()}else if(state.mode=='home')renderHome()})}
+// Backup links that involve this folder (as the original of a partial backup, or as a copy / backup location).
+function folderLinks(d,path){
+  const out=[];if(!d||!path)return out;
+  for(const b of d.backup_status||[])if(b.source==path)
+    for(const m of (b.members&&b.members.length?b.members:[{id:b.id}]))out.push({main:d.id,backup:m.id,text:`backed up on ${dname(m.id)||'?'}`,b});
+  for(const f of d.folder_backups||[])if(f.path==path){
+    const m=drives.find(x=>x.id==f.main)||{};
+    const b=(m.backup_status||[]).find(b=>(b.members&&b.members.length?b.members:[{id:b.id,path:b.path}]).some(x=>x.id==d.id&&x.path==path));
+    out.push({main:f.main,backup:d.id,text:b&&b.source?`copy of “${b.source.split('/').pop()}” on ${dname(f.main)||'?'}`:`backup of ${dname(f.main)||'?'}`,b});
+  }
+  return out;
+}
+const linkPct=l=>l.b&&l.b.n!=null?` · ${!l.b.n||l.b.have>=l.b.n?'✓ ':''}${bkPct(l.b)}%`:'';
+function removeLink(l){
+  if(!confirm(`Remove this link?\n\n“${l.text}”\n\nDriveDex stops comparing these folders. Nothing on your drives changes, and you can undo it.`))return;
+  undoable([l.main,l.backup],()=>api('removeLink',{main:l.main,backup:l.backup}),'Link removed. Checking backups…').then(ok=>ok&&refreshAll());
+}
+// Folder backup dots, filled in after a column / list is drawn.
+const fcov=new Map();
+async function fcovOf(drive,path){const k=drive+'\u0000'+path;if(fcov.has(k))return fcov.get(k);
+  const r=await api('folderCoverage',{drive,path}).catch(()=>({}));fcov.set(k,r);return r}
+function fdot(f){if(!f)return'';if(f.ex&&!f.n)return'';if(!f.n)return'';
+  return f.none?`<span class="cd c0" title="${f.none.toLocaleString()} file${f.none==1?'':'s'} inside not backed up"></span>`
+    :f.one?`<span class="cd c1" title="All backed up, ${f.one.toLocaleString()} on only 1 backup"></span>`:'<span class="cd c2" title="Everything inside is on 2+ backups"></span>'}
+
+// ---- Back / Forward
+const navBack=[],navFwd=[];let navCur=null;
+function navSnap(){const s=state;
+  if(s.mode=='drive')return{mode:'drive',drive:s.drive,path:s.path||'',sel:s.sel||null,tab:driveTab};
+  if(s.mode=='search')return{mode:'search',q:s.q};
+  if(s.mode=='missing')return{mode:'missing',drive:s.drive,max:s.max,set:s.set,from:s.from};
+  if(s.mode=='home')return{mode:'home'};
+  return null}
+const navKey=x=>x?JSON.stringify([x.mode,x.drive,x.path,x.tab,x.max,x.set]):'';
+function noteNav(){
+  const s=navSnap();if(!s)return;
+  if(navCur&&navKey(s)==navKey(navCur)){navCur=s;return}          // same place (maybe another selection): just remember it
+  if(navCur&&!(navCur.mode=='search'&&s.mode=='search')){navBack.push(navCur);if(navBack.length>100)navBack.shift();navFwd.length=0}
+  navCur=s;drawNavBtns()}
+function drawNavBtns(){const b=$('#nback'),f=$('#nfwd');if(!b)return;b.disabled=!navBack.length&&state.mode!='settings';f.disabled=!navFwd.length}
+function goNav(dir){
+  if(dir<0&&state.mode=='settings'){leaveSettings();return}
+  const from=dir<0?navBack:navFwd,to=dir<0?navFwd:navBack;if(!from.length)return;
+  const now=navSnap()||navCur;if(now)to.push(now);
+  const s=from.pop();navCur=s;settingsReturn=null;$('#gear').classList.remove('on');hideCtx&&hideCtx();
+  if(s.mode=='drive'){driveTab=s.tab||'files';prevState=null;state={mode:'drive',drive:s.drive,path:s.path,sel:s.sel,hl:null,kidPath:''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
+  else if(s.mode=='search'){$('#q').value=s.q;$('#qx').style.display='block';doSearch()}
+  else if(s.mode=='missing')openMissing(s.drive,s.max,s.set,s.from);
+  else{$('#q').value='';$('#qx').style.display='none';state={mode:'home'};renderHome();loadDrives()}
+  drawNavBtns()}
+let viewMode=(()=>{try{const v=localStorage.getItem('dd_view');return ['icons','list','columns'].includes(v)?v:'columns'}catch(e){return'columns'}})();
 const lcache=new Map();
 const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'});
 async function listOf(drive,path){const k=drive+'\u0000'+path;if(lcache.has(k))return lcache.get(k);
@@ -390,7 +478,7 @@ function drawCrumbs(){
   document.querySelectorAll('#crumbs a').forEach(a=>a.onclick=()=>{const ps=state.path.split('/');state.path=a.dataset.p;state.hl=null;
     state.sel=a.dataset.p==state.path&&ps.length>(a.dataset.p?a.dataset.p.split('/').length:0)?null:null;viewMode=='columns'?navCols():render()});
 }
-function navCols(){drawCrumbs();drawExBar();drawColumns()}
+function navCols(){drawCrumbs();drawExBar();if(viewMode!='columns'){render();return}drawColumns()}
 async function drawColumns(){
   const me=state,parts=state.path?state.path.split('/'):[];
   const paths=[''].concat(parts.map((_,i)=>parts.slice(0,i+1).join('/')));
@@ -403,7 +491,7 @@ async function drawColumns(){
   const all=extra?paths.concat([joinP(state.path,selItem.name)]):paths;state.colPaths=all;
   const dot=e=>e.is_dir==1||e.copies==null?'':`<span class="cd ${e.copies<0?'':e.copies>=2?'c2':e.copies==1?'c1':'c0'}" title="${e.copies<0?'Excluded':e.copies+' backup'+(e.copies==1?'':'s')}"></span>`;
   const dd=cur(),cp=i=>i<paths.length?paths[i]:joinP(state.path,selItem?selItem.name:'');
-  const col=(rows,i,selName)=>`<div class="col">${rows.length?rows.map(e=>{const ex=exclOf(dd,joinP(cp(i),e.name));return `<div class="ci ${e.name==selName?(i==paths.length-1?'sel':'selp'):''} ${ex?'isex':''}" data-ci="${i}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><span class="ic">${icon(e)}</span><span class="nm">${esc(e.name)}</span>${ex?'<span class="exm" title="Excluded from the backup check">⊘</span>':''}${ex?'':dot(e)}${e.is_dir==1?'<span class="chev">›</span>':''}</div>`}).join(''):'<div class="mute" style="padding:8px">Empty folder</div>'}</div>`;
+  const col=(rows,i,selName)=>`<div class="col">${rows.length?rows.map(e=>{const ex=exclOf(dd,joinP(cp(i),e.name));return `<div class="ci ${e.name==selName?(i==paths.length-1?'sel':'selp'):''} ${ex?'isex':''}" data-ci="${i}" data-n="${esc(e.name)}" data-d="${e.is_dir}"><span class="ic">${icon(e)}</span><span class="nm">${esc(e.name)}</span>${ex?'<span class="exm" title="Excluded from the backup check">⊘</span>':''}${ex?'':dot(e)}${e.is_dir==1&&folderLinks(dd,joinP(cp(i),e.name)).length?`<span class="lk" title="Linked: ${esc(folderLinks(dd,joinP(cp(i),e.name)).map(l=>l.text).join(', '))}">⇄</span>`:''}${e.is_dir==1?'<span class="chev">›</span>':''}</div>`}).join(''):'<div class="mute" style="padding:8px">Empty folder</div>'}</div>`;
   let html=paths.map((p,i)=>col(lists[i],i,i<parts.length?parts[i]:state.sel)).join('');
   if(extra)html+=col(extra,paths.length,null);
   // Path bar along the bottom: drive › folder › … › selected item (each part clickable)
@@ -418,6 +506,9 @@ async function drawColumns(){
     el.ondblclick=()=>{if(el.dataset.d==1)colKey('ArrowRight')};
   });
   const c=$('#cols');c.scrollLeft=c.scrollWidth;
+  if(covReady(dd))all.forEach((p,i)=>fcovOf(state.drive,p).then(fc=>{if(state!==me)return;
+    box.querySelectorAll(`.ci[data-ci="${i}"][data-d="1"]`).forEach(el=>{if(el.querySelector('.cd'))return;const h=fdot(fc[el.dataset.n]);if(h)el.querySelector('.nm').insertAdjacentHTML('afterend',h)})}));
+  noteNav();
   const sel=box.querySelector('.ci.sel');if(sel)sel.scrollIntoView({block:'nearest'});
 }
 // Side panel: size, contents (files/folders inside, all levels), modified, backup status.
@@ -439,8 +530,10 @@ function drawInfoPane(item,path){
       ${isFolder?row('Contains',fi?`${(fi.files||0).toLocaleString()} file${fi.files==1?'':'s'} · ${(fi.folders||0).toLocaleString()} folder${fi.folders==1?'':'s'}`:'<span class="mute">counting…</span>'):''}
       ${item?row('Modified',date(item.mtime)):''}
       ${row('Backup',isFolder?backup(fi):fileBackup)}
+      ${isFolder&&path?folderLinks(d,path).map((l,j)=>`<div class="ir"><span>Linked</span><b>⇄ ${esc(l.text)}${linkPct(l)}<button class="rm" data-rmlink="${j}" title="Remove this link (can be undone)">Remove</button></b></div>`).join(''):''}
       <button id="inforeveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button>`;
     $('#inforeveal').onclick=()=>api('reveal',{id:state.drive,path}).catch(e=>toast(e.message));
+    el.querySelectorAll('[data-rmlink]').forEach(b=>b.onclick=()=>removeLink(folderLinks(d,path)[+b.dataset.rmlink]));
   };
   if(!isFolder){render(null);return}
   const key=state.drive+'\u0000'+path;
@@ -470,12 +563,12 @@ document.addEventListener('keydown',e=>{
 async function render(){
   if(state.mode!='drive')return;
   $('#view').innerHTML=`<div id="dh"></div><div id="filesbox" style="${driveTab=='files'?'':'display:none'}"><div class="crumbrow"><div class="crumbs" id="crumbs"></div>
-    <div class="segs">${[['columns','Columns'],['list','List']].map(([v,l])=>`<button class="seg ${viewMode==v?'on':''}" data-view="${v}">${l}</button>`).join('')}</div></div>
+    <div class="segs">${[['icons','⊞ Icons','as icons'],['list','☰ List','as a list'],['columns','▥ Columns','in columns']].map(([v,l,t])=>`<button class="seg ${viewMode==v?'on':''}" data-view="${v}" title="Show ${t}">${l}</button>`).join('')}</div></div>
     <div id="exbar"></div><div id="list" class="empty">Loading…</div></div>`;
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{viewMode=b.dataset.view;try{localStorage.setItem('dd_view',viewMode)}catch(e){}render()});
   lcache.clear();
   renderDriveHeader();
-  if(driveTab!='files')return;
+  if(driveTab!='files'){noteNav();return}
   $('#filesbox').dataset.loaded='1';
   drawExBar();
   drawCrumbs();
@@ -484,7 +577,20 @@ async function render(){
   const want=covReady(cur()),me=state;
   const [rows,cov]=await Promise.all([api('list',{drive:state.drive,path:state.path}),want?api('folderCoverage',{drive:state.drive,path:state.path}):Promise.resolve(null)]);
   if(state!==me)return;
-  state.rows=rows;state.cov=cov;drawList();
+  state.rows=rows;state.cov=cov;viewMode=='icons'?drawIcons():drawList();noteNav();
+}
+function drawIcons(){
+  const rows=state.rows||[],d=cur();if(!rows.length){$('#list').className='empty';$('#list').textContent='Empty folder';return}
+  $('#list').className='';
+  const dotFor=e=>{const ex=exclOf(d,joinP(state.path,e.name));if(ex)return'';
+    if(e.is_dir==1)return state.cov?fdot(state.cov[e.name]):'';
+    const k=e.copies;return k==null||k<0?'':`<span class="cd ${k>=2?'c2':k==1?'c1':'c0'}" title="${k==0?'Not backed up':k==1?'On 1 backup':'On '+k+' backups'}"></span>`};
+  $('#list').innerHTML=`<div class="tiles">${sorter(rows).map(e=>{const ex=exclOf(d,joinP(state.path,e.name)),lk=e.is_dir==1&&folderLinks(d,joinP(state.path,e.name)).length;
+    return `<div class="tile ${state.hl==e.name?'hl':''} ${state.sel==e.name?'sel':''} ${ex?'isex':''}" data-n="${esc(e.name)}" data-d="${e.is_dir}" title="${esc(e.name)}">${dotFor(e)}<div class="big">${icon(e)}</div><div class="tn">${esc(e.name)}${ex?' ⊘':''}${lk?'<span class="lk">⇄</span>':''}</div><div class="ts">${e.is_dir==1?e.items+' item'+(e.items==1?'':'s'):hb(e.size)}</div></div>`}).join('')}</div>`;
+  document.querySelectorAll('#list .tile').forEach(t=>{
+    t.onclick=()=>{state.sel=t.dataset.n;document.querySelectorAll('#list .tile.sel').forEach(x=>x.classList.remove('sel'));t.classList.add('sel');noteNav()};
+    t.ondblclick=()=>{if(t.dataset.d==1){state.path=joinP(state.path,t.dataset.n);state.sel=null;state.hl=null;render()}}});
+  const h=document.querySelector('.tile.hl');if(h)h.scrollIntoView({block:'center'});
 }
 const cur=()=>drives.find(d=>d.id==state.drive)||{};
 function renderDriveHeader(){
@@ -511,16 +617,16 @@ function renderDriveHeader(){
   document.querySelectorAll('#dh [data-type]').forEach(b=>b.onclick=()=>api('setType',{id:d.id,type:d.type==b.dataset.type&&!d.type_auto?'':b.dataset.type}).then(redo));
   if($('#roleSel'))$('#roleSel').onchange=()=>changeRole(d,$('#roleSel').value,redo,()=>{$('#roleSel').value=d.role||''});
   document.querySelectorAll('#dh [data-role]').forEach(b=>b.onclick=()=>changeRole(d,b.dataset.role,redo));
-  document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);api('setBackupOf',{id:d.id,mains:ids}).then(()=>{toast(ids.length?'Saved. Checking backups…':'Saved');redo()})});
+  document.querySelectorAll('#dh [data-main]').forEach(c=>c.onchange=()=>{const ids=[...document.querySelectorAll('#dh [data-main]:checked')].map(x=>+x.dataset.main);undoable([d.id,...ids,...(d.backup_of||[])],()=>api('setBackupOf',{id:d.id,mains:ids}),ids.length?'Saved. Checking backups…':'Saved').then(ok=>ok&&redo())});
   if($('#sugapply'))$('#sugapply').onclick=()=>api('setBackupOf',{id:d.id,mains:[...new Set([...(d.backup_of||[]),...guessMains(d).map(x=>x.id)])]}).then(()=>{toast('Saved. Checking backups…');redo()});
   document.querySelectorAll('#dh [data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''));
-  document.querySelectorAll('#dh [data-unscope]').forEach(a=>a.onclick=()=>api('setBackupScope',{main:d.id,backup:+a.dataset.unscope,path:''}).then(()=>{toast('Now comparing the whole drive. Checking…');redo()}));
+  document.querySelectorAll('#dh [data-unscope]').forEach(a=>a.onclick=()=>undoable([d.id,+a.dataset.unscope],()=>api('setBackupScope',{main:d.id,backup:+a.dataset.unscope,path:''}),'Now comparing the whole drive. Checking…').then(ok=>ok&&redo()));
   document.querySelectorAll('#dh [data-missfrom]').forEach(a=>a.onclick=e=>{e.preventDefault();openMissing(+a.dataset.missfrom,0,a.dataset.set,d.id)});
   document.querySelectorAll('#dh [data-missset]').forEach(a=>a.onclick=()=>openMissing(d.id,0,a.dataset.missset));
   document.querySelectorAll('#dh [data-split]').forEach(b=>b.onclick=()=>{const set=(d.backup_status||[]).find(x=>x.set==b.dataset.split);
-    api('setBackupSet',{main:d.id,ids:set.members.map(m=>m.id),on:false}).then(()=>{toast('Split. Checking backups…');redo()})});
+    undoable([d.id],()=>api('setBackupSet',{main:d.id,ids:set.members.map(m=>m.id),on:false}),'Split. Checking backups…').then(ok=>ok&&redo())});
   document.querySelectorAll('#dh [data-combine]').forEach(sel=>sel.onchange=()=>{if(!sel.value)return;const other=(d.backup_status||[]).find(x=>x.set==sel.value);
-    api('setBackupSet',{main:d.id,ids:[+sel.dataset.combine,...other.members.map(m=>m.id)],on:true}).then(()=>{toast('Combined into one backup set. Checking…');redo()})});
+    undoable([d.id],()=>api('setBackupSet',{main:d.id,ids:[+sel.dataset.combine,...other.members.map(m=>m.id)],on:true}),'Combined into one backup set. Checking…').then(ok=>ok&&redo())});
   if($('#remind'))$('#remind').onchange=()=>api('setReminder',{id:d.id,days:+$('#remind').value}).then(()=>{toast('Reminder saved');redo()});
   if($('#hist'))loadHistory(d);
   document.querySelectorAll('#dh [data-goto]').forEach(a=>a.onclick=()=>{if(a.closest('#sp_big,#sp_dup'))return;driveTab='files';state.path=a.dataset.goto;state.hl=null;state.sel=null;render()});
@@ -534,6 +640,7 @@ function switchTab(t){
   if(fb)fb.style.display=t=='files'?'':'none';
   $('#dh').dataset.id='';renderDriveHeader();
   if(t=='files'&&fb&&!fb.dataset.loaded)render();
+  noteNav();
 }
 async function loadHistory(d){
   const h=await api('history',{drive:d.id}).catch(()=>[]);const el=$('#hist');if(!el)return;
@@ -552,7 +659,7 @@ function hideCtx(){$('#ctx').style.display='none'}
 document.addEventListener('contextmenu',e=>{
   if(e.target.closest('input,textarea'))return;   // keep copy/paste menu in text fields
   e.preventDefault();
-  const fe=e.target.closest('.ci[data-d="1"],#list tr[data-n][data-d="1"]');
+  const fe=e.target.closest('.ci[data-d="1"],#list tr[data-n][data-d="1"],#list .tile[data-d="1"]');
   if(fe&&state.mode=='drive'){
     const d=cur(),base=fe.classList.contains('ci')?(state.colPaths||[''])[+fe.dataset.ci]:state.path,path=joinP(base,fe.dataset.n);
     const x=exclOf(d,path),own=(d.excluded||[]).includes(path);
@@ -567,8 +674,7 @@ document.addEventListener('contextmenu',e=>{
           ...cands.map(x=>({label:x.display,fn:()=>{
             if(x.role=='main'&&d.role!='main'&&confirm(`Is “${fe.dataset.n}” on ${d.display} a copy of a folder on ${x.display}?\n\n${x.display} is one of your main drives, so usually it holds the original. OK = yes, this is a copy. Cancel = no, ${x.display} holds the backup.`))
               return copyOf(d,path,x,e);
-            api('setBackupScope',{main:d.id,backup:x.id,path}).then(()=>{
-              toast(`“${x.display}” now counts as a backup of only “${fe.dataset.n}”. Checking…`);$('#dh')&&($('#dh').dataset.id='');loadDrives()}).catch(er=>toast(er.message))}}))]);
+            undoable([d.id,x.id],()=>api('setBackupScope',{main:d.id,backup:x.id,path}),`“${x.display}” now counts as a backup of only “${fe.dataset.n}”. Checking…`).then(ok=>ok&&refreshAll())}}))]);
         return 'keep'}},
       {label:'This folder is a copy of the one on…  (this is the backup)',fn:()=>{
         const cands=drives.filter(x=>x.id!=d.id);
@@ -576,6 +682,9 @@ document.addEventListener('contextmenu',e=>{
           ...cands.map(x=>({label:x.display,fn:()=>copyOf(d,path,x,e)}))]);
         return 'keep'}},
       {label:'Use as backup location…',fn:()=>{state.path=path;state.sel=null;state.hl=null;viewMode=='columns'?navCols():render();toast('Choose the drive it backs up in the bar above the files')}}];
+    const links=folderLinks(d,path);
+    if(links.length)items.push('-',...links.map(l=>({label:`Remove link: ${l.text}`,fn:()=>removeLink(l),cls:'red'})));
+    if(lastUndo)items.push('-',{label:'Undo last backup change',fn:undoLast});
     showCtx(e,items);return}
   const el=e.target.closest('.drv,.drvrow');if(!el){hideCtx();return}
   const d=drives.find(x=>x.id==el.dataset.id);if(!d)return;
@@ -593,9 +702,8 @@ async function copyOf(d,path,main,e){
   const name=path.split('/').pop();
   const r=await api('search',{q:name,kind:'folders',drive:main.id}).catch(()=>({results:[]}));
   const hits=(r.results||[]).filter(x=>x.name.toLowerCase()==name.toLowerCase()).map(x=>joinP(x.parent,x.name));
-  const link=mp=>api('setCopyOf',{copy:d.id,copyPath:path,main:main.id,mainPath:mp}).then(()=>{
-    toast(`“${name}” on ${d.display} now counts as a copy of “${mp}” on ${main.display}. Only that folder is compared. Checking…`);
-    $('#dh')&&($('#dh').dataset.id='');loadDrives()}).catch(er=>toast(er.message));
+  const link=mp=>undoable([d.id,main.id],()=>api('setCopyOf',{copy:d.id,copyPath:path,main:main.id,mainPath:mp}),
+    `“${name}” on ${d.display} now counts as a copy of “${mp}” on ${main.display}. Only that folder is compared. Checking…`).then(ok=>ok&&refreshAll());
   if(!hits.length){toast(`There's no folder called “${name}” on ${main.display}. Rescan it, or set it up from ${main.display}'s side.`);return}
   if(hits.length==1)return link(hits[0]);
   showCtx(e,[{label:`Several folders called “${name}” on ${main.display}. Which one?`,fn:()=>{},cls:'dis'},'-',...hits.slice(0,20).map(h=>({label:h,fn:()=>link(h)}))]);
@@ -643,7 +751,7 @@ function changeRole(d,role,after,onCancel){
   if(cur=='backup'&&role!='backup'&&(d.backup_of||[]).length)lost.push(`its link as the backup of ${(d.backup_of||[]).map(dname).filter(Boolean).join(', ')}`);
   const label=role=='main'?'Main files':role=='backup'?'Backup':'not marked';
   if(lost.length&&!confirm(`Change “${d.display}” to ${label}?\n\nThis removes ${lost.join(' and ')}. You would have to set ${bs.length>1||lost.length>1?'them':'it'} up again.`)){onCancel&&onCancel();return}
-  api('setRole',{id:d.id,role}).then(()=>{toast(lost.length?'Changed. Backup links removed.':'Saved');after&&after()}).catch(e=>toast(e.message));
+  undoable([d.id],()=>api('setRole',{id:d.id,role}),lost.length?'Changed. Backup links removed.':'Saved').then(ok=>{if(ok&&after)after()});
 }
 // Where does this drive serve as a backup (whole drive, folder, or part of a set)?
 function backupRoles(d){
@@ -741,7 +849,7 @@ function covHTML(d){
   <div class="row" style="margin-top:6px">${c0?`<button data-miss="0">Show files not backed up</button>`:'<span class="okc">✓ Every file has at least one backup</span>'}${c1?`<button data-miss="1">Show files with fewer than 2 backups</button>`:''}</div>`+bl;
 }
 async function openMissing(id,max,set,from){
-  state={mode:'missing',drive:id,max,set,from};$('#q').value='';
+  state={mode:'missing',drive:id,max,set,from};$('#q').value='';noteNav();
   const d=cur();$('#view').innerHTML='<div class="empty">Loading…</div>';
   const r=set?await api('missingFromSet',{drive:id,set}):await api('missing',{drive:id,max});
   const sb=set&&(d.backup_status||[]).find(x=>x.set==set);
@@ -764,7 +872,7 @@ function drawExBar(){
   const others=drives.filter(x=>x.id!=d.id&&!here.some(f=>f.main==x.id));
   const fb=`<div class="exbar">This folder is a backup of: ${here.map(f=>`<span class="xchip"><a data-open="${f.main}">${esc(dname(f.main)||'?')}</a><button data-unfb="${f.main}" title="Not a backup any more">×</button></span>`).join('')||'<span>nothing</span>'}
     ${others.length?`<select class="sm" id="addfb"><option value="">Add a drive…</option>${others.map(x=>`<option value="${x.id}">${esc(x.display)}</option>`).join('')}</select>`:''}</div>`;
-  const setFB=(main,on)=>api('setFolderBackup',{id:d.id,path:state.path,main,on}).then(()=>{toast(on?`Saved. Checking ${dname(main)}'s backups…`:'Removed');loadDrives();drawExBarSoon()}).catch(e=>toast(e.message));
+  const setFB=(main,on)=>undoable([d.id,main],()=>api('setFolderBackup',{id:d.id,path:state.path,main,on}),on?`Saved. Checking ${dname(main)}'s backups…`:'Removed').then(ok=>{if(ok){loadDrives();drawExBarSoon()}});
   const wire=()=>{if($('#addfb'))$('#addfb').onchange=()=>{const v=+$('#addfb').value;if(v)setFB(v,true)};
     el.querySelectorAll('[data-unfb]').forEach(b=>b.onclick=()=>setFB(+b.dataset.unfb,false));
     el.querySelectorAll('[data-open]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.open,''))};
@@ -810,7 +918,7 @@ async function doSearch(){
   const args=sc=='here'&&here?{q,kind:$('#kind').value,drive:here.drive,path:here.path}:{q,kind:$('#kind').value,drive:sc?+sc:null};
   const r=await api('search',args);
   if($('#q').value.trim()!=q)return;
-  state.res=r.results;drawSearch(r);
+  state.res=r.results;drawSearch(r);noteNav();
 }
 let prevState=null,openGroups=new Set();
 function drawSearch(r){
@@ -868,7 +976,7 @@ function leaveSettings(){
   else{state={mode:'home'};renderHome()}
   loadDrives();
 }
-function toggleSettings(){state.mode=='settings'?leaveSettings():openSettings()}
+function toggleSettings(){state.mode=='settings'?leaveSettings():openSettings();setTimeout(drawNavBtns,50)}
 async function openSettings(){
   if(state.mode!='settings')settingsReturn=state;$('#gear').classList.add('on');
   state={mode:'settings'};$('#q').value='';document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));
@@ -918,5 +1026,12 @@ async function openSettings(){
 }
 $('#gear').onclick=toggleSettings;
 $('#home').onclick=goHome;
+$('#nback').onclick=()=>goNav(-1);$('#nfwd').onclick=()=>goNav(1);
+document.addEventListener('keydown',e=>{
+  const t=document.activeElement.tagName,typing=t=='INPUT'||t=='TEXTAREA'||t=='SELECT';
+  if(e.metaKey&&!e.altKey&&(e.key=='['||(!typing&&e.key=='ArrowLeft'))){e.preventDefault();goNav(-1)}
+  else if(e.metaKey&&!e.altKey&&(e.key==']'||(!typing&&e.key=='ArrowRight'))){e.preventDefault();goNav(1)}
+  else if(e.metaKey&&!e.shiftKey&&(e.key=='z'||e.key=='Z')&&!typing){e.preventDefault();undoLast()}});
+document.addEventListener('mouseup',e=>{if(e.button==3){e.preventDefault();goNav(-1)}else if(e.button==4){e.preventDefault();goNav(1)}});
 loadDrives();
 </script></body></html>
