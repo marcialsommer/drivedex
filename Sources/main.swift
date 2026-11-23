@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     @objc func openSettings() {
         showWindow()
-        webView.evaluateJavaScript("openSettings()", completionHandler: nil)
+        webView.evaluateJavaScript("toggleSettings()", completionHandler: nil)
     }
 
     @objc func checkForUpdates() {
@@ -158,6 +158,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let health = menuDB.health()
+        // What is DriveDex doing right now?
+        for r in menuDB.rows("SELECT COALESCE(NULLIF(label,''), name) AS n, scan_files AS f FROM drives WHERE status='scanning'") {
+            let busy = NSMenuItem(title: "⟳  Scanning \(r["n"] as? String ?? "a drive")… \((r["f"] as? Int ?? 0).formatted()) files so far",
+                                  action: nil, keyEquivalent: "")
+            busy.isEnabled = false
+            menu.addItem(busy)
+        }
+        let waiting = Scanner.shared.queueState().queued.count
+        if waiting > 0 {
+            let w = NSMenuItem(title: "     \(waiting) more drive\(waiting == 1 ? "" : "s") waiting to scan", action: nil, keyEquivalent: "")
+            w.isEnabled = false
+            menu.addItem(w)
+        }
+        if menu.items.count > 0 { menu.addItem(.separator()) }
         let bad = health.filter { $0.level > 0 }.count
         let head = NSMenuItem(title: health.isEmpty ? "No main drives set up yet"
                               : bad == 0 ? "✓ Everything is backed up" : "\(bad) drive\(bad == 1 ? "" : "s") need\(bad == 1 ? "s" : "") attention",

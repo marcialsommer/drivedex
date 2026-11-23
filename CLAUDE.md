@@ -51,6 +51,8 @@ Key facts:
 - Backup percentages are **by data** (bytes: `cov_bytes`, `cov_one_bytes`, `cov_two_bytes`, per set `total_bytes` −
   `missing_bytes`), never 100% while a file is missing; file counts are shown alongside.
 - Every scan (local, failed, or imported from another Mac) is written to `scan_log`; shown on the Info tab.
+- Live scan progress: `drives.scan_started` / `scan_files` feed the activity bar (`drawActivity()` in index.html)
+  and the menu-bar menu. Settings is a toggle (`toggleSettings()` returns to the previous view).
 - Ad-hoc signed (no Apple Developer ID): first install needs "Open Anyway"; in-app updates don't.
 - Swift is compiled in Swift 5 mode by a newer compiler: main-actor rules are enforced for explicitly
   `@MainActor` types (use `MainActor.assumeIsolated` where needed).

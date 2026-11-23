@@ -16,7 +16,8 @@ header h1{font-size:16px;margin:0;white-space:nowrap}
 #qx:hover{background:var(--mute);color:var(--panel)}
 #q{flex:1;min-width:0;padding-right:34px!important;font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 select,button{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);cursor:pointer}
-button:hover{border-color:var(--acc)} button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button:hover{border-color:var(--acc)} #gear.on{background:var(--accbg);border-color:var(--acc);color:var(--acc)}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
 button.danger{color:var(--err)}
 main{flex:1;display:flex;min-height:0}
 nav{width:var(--navw,320px);position:relative;flex:none;overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:8px}
@@ -88,6 +89,11 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .drv.kid{padding:5px 8px;margin:1px 0}.drv.kid .t{font-weight:500;font-size:13px}.drv.kid .s{font-size:11.5px}
 .kn{min-width:0;overflow-wrap:anywhere}
 .drv .t{flex-wrap:wrap;row-gap:2px}
+.activity{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;padding:7px 16px;background:var(--accbg);border-bottom:1px solid var(--line);font-size:13px}
+.act{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.spin{width:12px;height:12px;border:2px solid var(--acc);border-right-color:transparent;border-radius:50%;animation:spin 0.9s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.actbar{display:inline-block;width:90px;height:5px;border-radius:3px;background:var(--line);overflow:hidden;margin-left:4px}.actbar i{display:block;height:100%;background:var(--acc)}
 #navgrip{flex:none;width:6px;margin-left:-3px;margin-right:-3px;cursor:col-resize;z-index:20;position:relative}
 #navgrip:hover,#navgrip.on{background:var(--acc);opacity:.35}
 .kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
@@ -132,6 +138,7 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 <select id="scope"><option value="">All drives</option></select>
 <button id="gear" title="Settings">⚙︎ Settings</button>
 </header>
+<div id="activity" class="activity" style="display:none"></div>
 <main><nav><div class="hd"><span>Drives</span><span style="flex:1"></span><button id="compact" title="Compact list">☰</button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
 <section id="view"></section></main><div id="toast"></div><div id="ctx"></div>
 <script>
@@ -184,6 +191,20 @@ function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)ret
 const GROUPS=[['main','Main files'],['backup','Backups'],['','Other']];
 const grpOf=d=>d.role=='main'?0:d.role=='backup'?1:2;
 let pending=[],dragging=null,updateInfo=null;
+// Slim bar under the header while something is happening (scans, backup checks); hidden otherwise.
+function drawActivity(){
+  const el=$('#activity');if(!el)return;
+  const now=Date.now()/1000,scan=drives.filter(d=>d.status=='scanning'),wait=drives.filter(d=>d.queued&&d.status!='scanning');
+  const check=drives.filter(d=>d.cov_state=='checking'&&hasBackups(d));
+  if(!scan.length&&!wait.length&&!check.length){el.style.display='none';el.innerHTML='';return}
+  const mins=t=>{const s=now-(t||now);return s<60?'just started':s<3600?Math.round(s/60)+' min':(s/3600).toFixed(1)+' h'};
+  const parts=scan.map(d=>{const f=d.scan_files||0,pc=d.file_count&&d.file_count>0?Math.min(99,Math.floor(100*f/d.file_count)):null;
+    return `<span class="act"><span class="spin"></span>Scanning <a class="lnk" data-act="${d.id}">${esc(d.display)}</a> · ${f.toLocaleString()} files${pc!=null?` · about ${pc}%`:''} · ${mins(d.scan_started)}${pc!=null?`<span class="actbar"><i style="width:${pc}%"></i></span>`:''}</span>`});
+  if(wait.length)parts.push(`<span class="act mute">Next: ${wait.map(d=>`<a class="lnk" data-act="${d.id}">${esc(d.display)}</a>`).join(', ')}</span>`);
+  if(check.length)parts.push(`<span class="act mute"><span class="spin"></span>Checking backups of ${check.map(d=>esc(d.display)).join(', ')}</span>`);
+  el.innerHTML=parts.join('');el.style.display='flex';
+  el.querySelectorAll('[data-act]').forEach(a=>a.onclick=()=>openDrive(+a.dataset.act,''));
+}
 const ls=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}};
 let compact=ls('dd_compact',false),folded=new Set(ls('dd_folded',[]));
 function savePrefs(){try{localStorage.setItem('dd_compact',JSON.stringify(compact));localStorage.setItem('dd_folded',JSON.stringify([...folded]))}catch(e){}}
@@ -252,6 +273,7 @@ async function loadDrives(){
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
   document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,el.dataset.path||'',null,el.dataset.path||''));
   wireReorder();
+  drawActivity();
   $('#drives').classList.toggle('compact',compact);
   document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
   if($('#doupdate'))$('#doupdate').onclick=installUpdate;
@@ -328,7 +350,7 @@ const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitiv
 async function listOf(drive,path){const k=drive+'\u0000'+path;if(lcache.has(k))return lcache.get(k);
   const r=(await api('list',{drive,path})).slice().sort(byName);lcache.set(k,r);return r}
 const joinP=(a,b)=>a?a+'/'+b:b;
-function openDrive(id,path,hl,kidPath){prevState=null;if(path||hl)driveTab='files';state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
+function openDrive(id,path,hl,kidPath){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');if(path||hl)driveTab='files';state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
 function drawCrumbs(){
   const parts=state.path?state.path.split('/'):[];
   $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
@@ -380,7 +402,7 @@ async function colKey(k){
   state.hl=null;navCols();
 }
 document.addEventListener('keydown',e=>{
-  if(e.metaKey&&e.key==','){e.preventDefault();openSettings();return}
+  if(e.metaKey&&e.key==','){e.preventDefault();toggleSettings();return}
   if(state.mode!='drive'||viewMode!='columns'||e.metaKey||e.ctrlKey||e.altKey)return;
   const t=document.activeElement.tagName;if(t=='INPUT'||t=='TEXTAREA'||t=='SELECT')return;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter'].includes(e.key)||(e.key.length==1&&e.key!=' '&&e.key!='/')){e.preventDefault();colKey(e.key)}
@@ -743,7 +765,18 @@ $('#kind').onchange=$('#scope').onchange=doSearch;
 $('#compact').onclick=()=>{compact=!compact;savePrefs();loadDrives()};
 $('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Rescanning connected drives, one after another…');setTimeout(loadDrives,1200)});
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
+let settingsReturn=null;
+function leaveSettings(){
+  const r=settingsReturn||{mode:'home'};settingsReturn=null;$('#gear').classList.remove('on');
+  if(r.mode=='drive'){state=r;render()}
+  else if(r.mode=='search'){state=r;$('#q').value=r.q||'';doSearch()}
+  else if(r.mode=='missing')openMissing(r.drive,r.max,r.set,r.from);
+  else{state={mode:'home'};renderHome()}
+  loadDrives();
+}
+function toggleSettings(){state.mode=='settings'?leaveSettings():openSettings()}
 async function openSettings(){
+  if(state.mode!='settings')settingsReturn=state;$('#gear').classList.add('on');
   state={mode:'settings'};$('#q').value='';document.querySelectorAll('.drv').forEach(e=>e.classList.remove('sel'));
   const s=await api('getSettings');
   const lnote=s.loginStatus=='requiresApproval'?' <a href="#" id="li">Approve in Login Items</a>':'';
@@ -789,6 +822,6 @@ async function openSettings(){
   if($('#s_syncnow'))$('#s_syncnow').onclick=()=>sync('syncNow','Syncing…');
   if($('#s_syncoff'))$('#s_syncoff').onclick=()=>sync('syncOff','Stopped sharing. Your catalog stays on this Mac.');
 }
-$('#gear').onclick=openSettings;
+$('#gear').onclick=toggleSettings;
 loadDrives();
 </script></body></html>

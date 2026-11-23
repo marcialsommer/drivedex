@@ -290,6 +290,7 @@ final class Scanner {
 
         let job = ScanJob(id: id, gen: gen, mount: v.url, includeHidden: Settings.includeHidden)
         db.setStatus(id, "scanning", "starting")
+        db.run("UPDATE drives SET scan_started=?, scan_files=0 WHERE id=?", [Date().timeIntervalSince1970, id])
         let t0 = Date()
         do {
             let (total, _) = try walk(job, "", v.url, depth: 0)
@@ -324,6 +325,7 @@ final class Scanner {
         if Date().timeIntervalSince(job.lastProgress) > 2 {
             job.lastProgress = Date()
             db.setStatus(job.id, "scanning", "\(job.files.formatted()) files, \(job.dirs.formatted()) folders so far")
+            db.run("UPDATE drives SET scan_files=? WHERE id=?", [job.files, job.id])
         }
     }
 

@@ -55,12 +55,12 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.7'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.1.8'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
     c.setFillColor(INK); c.setFont('Helvetica-Bold',34); c.drawString(M,H-96*mm,'DriveDex')
-    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.7'); c.restoreState()
+    c.setFont('Helvetica',14); c.setFillColor(MUTE); c.drawString(M,H-106*mm,'User guide  ·  Version 2.1.8'); c.restoreState()
 doc=BaseDocTemplate(OUT, pagesize=A4, leftMargin=M, rightMargin=M, topMargin=M, bottomMargin=22*mm, title='DriveDex User Guide', author='DriveDex', subject='How to install and use DriveDex')
 doc.addPageTemplates([PageTemplate('cover',[Frame(M,22*mm,CW,H-128*mm-22*mm)],onPage=cover), PageTemplate('page',[Frame(M,22*mm,CW,H-M-22*mm)],onPage=footer)])
 
@@ -95,6 +95,7 @@ s+=[P('2  Adding drives', h1),
     side('new', 58*mm, 'The first time DriveDex sees a drive, it <b>asks before cataloguing it</b>: a notification and a card at the top of the drive list.<br/><br/><b>Catalog it</b> adds the drive. <b>Ignore</b> means never ask again (for example camera cards). App installers (.dmg) are skipped automatically.'),
     P('After that, a known drive is updated automatically whenever you connect it (if its last scan is over an hour old). NAS shares that stay connected are rescanned every 12 hours.'),
     P('Drives are scanned <b>one at a time</b>, which is gentler on disks and usually faster overall than scanning several at once. A drive waiting its turn shows <b>Waiting to scan</b>, and <b>Rescan now</b> tells you whether the scan started or was queued.'),
+    P('While anything is happening, a slim blue <b>activity bar</b> appears under the search field: which drive is being scanned, how many files so far, an estimate of how far along it is (based on the last scan), what\'s next, and which backups are being checked. It disappears when DriveDex is idle. The menu-bar menu shows the same.'),
     P('Setup guide', h2),
     P('On a fresh install, a short guide walks you through it: sharing between Macs, adding drives, and marking main and backup drives. Open it any time from <b>Settings &rarr; Run the setup guide again</b>.'),
     shot('setup','The setup guide.', box=(0,0,1720,1050)),
@@ -185,7 +186,7 @@ s+=[P('12  Settings and shortcuts', h1),
            ('<b>Never scan these drives</b>','Names to skip. Drives you Ignore are added here.'),
            ('<b>Share between Macs</b>','Section 11.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
     P('Keyboard shortcuts', h2),
-    table([('<b>&#8984; ,</b>','Settings'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view')], 38*mm),
+    table([('<b>&#8984; ,</b>','Settings (press again, or click Settings again, to go back)'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view')], 38*mm),
     PageBreak()]
 # 13
 s+=[P('13  Questions and troubleshooting', h1)]

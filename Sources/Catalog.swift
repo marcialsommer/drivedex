@@ -114,6 +114,8 @@ final class DB {
         exec("CREATE INDEX IF NOT EXISTS entries_nkey_size ON entries(nkey, size)")
         addColumn("drives", "last_seen_on", "TEXT")   // v2.1: which Mac last had this drive connected
         for c in ["cov_bytes", "cov_one_bytes", "cov_two_bytes"] { addColumn("drives", c, "INTEGER") }   // v2.1.7: % by data
+        addColumn("drives", "scan_started", "REAL")     // v2.1.8: live progress of the running scan
+        addColumn("drives", "scan_files", "INTEGER")
         // v2.1.7: a log of every scan, for every drive
         exec("BEGIN IMMEDIATE")   // three connections open at launch; only one may create + fill the log
         let hadLog = row("SELECT name FROM sqlite_master WHERE type='table' AND name='scan_log'") != nil
