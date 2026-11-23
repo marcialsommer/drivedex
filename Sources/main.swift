@@ -5,8 +5,9 @@ import WebKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKScriptMessageHandlerWithReply,
-    WKUIDelegate, UNUserNotificationCenterDelegate {
+    WKUIDelegate, UNUserNotificationCenterDelegate, NSMenuDelegate {
     var window: NSWindow!
+    lazy var menuDB = DB()   // read-only use on the main thread for the menu bar
     var webView: WKWebView!
     var statusItem: NSStatusItem!
     let apiQueue = DispatchQueue(label: "drivedex.api", qos: .userInitiated)
@@ -113,14 +114,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
 
     func buildStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "externaldrive", accessibilityDescription: "DriveDex")
         let menu = NSMenu()
-        menu.addItem(withTitle: "Open DriveDex", action: #selector(showWindow), keyEquivalent: "")
-        menu.addItem(withTitle: "Rescan Connected Drives", action: #selector(rescanConnected), keyEquivalent: "")
+        menu.delegate = self            // rebuilt every time it opens (see menuNeedsUpdate)
+        statusItem.menu = menu
+        refreshStatusIcon()
+        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshStatusIcon() }
+        }
+    }
+
+    /// Menu bar icon reflects backup health: plain = fine, orange = needs attention, red = files without backup.
+    func refreshStatusIcon() {
+        let worst = menuDB.health().map { $0.level }.max() ?? 0
+        let name: String, color: NSColor?
+        switch worst {
+        case 2: name = "externaldrive.badge.xmark"; color = .systemRed
+        case 1: name = "externaldrive.badge.exclamationmark"; color = .systemOrange
+        default: name = "externaldrive"; color = nil
+        }
+        var img = NSImage(systemSymbolName: name, accessibilityDescription: "DriveDex")
+            ?? NSImage(systemSymbolName: "externaldrive", accessibilityDescription: "DriveDex")
+        if let c = color, let colored = img?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [c])) {
+            img = colored
+            img?.isTemplate = false
+        } else {
+            img?.isTemplate = true
+        }
+        statusItem.button?.image = img
+        statusItem.button?.toolTip = worst == 0 ? "DriveDex: everything backed up" : "DriveDex: some backups need attention"
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        let health = menuDB.health()
+        let bad = health.filter { $0.level > 0 }.count
+        let head = NSMenuItem(title: health.isEmpty ? "No main drives set up yet"
+                              : bad == 0 ? "✓ Everything is backed up" : "\(bad) drive\(bad == 1 ? "" : "s") need\(bad == 1 ? "s" : "") attention",
+                              action: nil, keyEquivalent: "")
+        head.isEnabled = false
+        menu.addItem(head)
+        if !health.isEmpty { menu.addItem(.separator()) }
+        for h in health {
+            let mark = h.level == 0 ? "✓" : h.level == 1 ? "⚠︎" : "✕"
+            let item = NSMenuItem(title: "\(mark)  \(h.name): \(h.text)", action: #selector(openDriveFromMenu(_:)), keyEquivalent: "")
+            item.tag = h.id
+            item.target = self
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        for (title, sel) in [("Open DriveDex", #selector(showWindow)), ("Rescan Connected Drives", #selector(rescanConnected)),
+                             ("Check for Updates…", #selector(checkForUpdates))] {
+            menu.addItem(withTitle: title, action: sel, keyEquivalent: "").target = self
+        }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit DriveDex", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
-        for item in menu.items where item.action != #selector(NSApplication.terminate(_:)) { item.target = self }
-        statusItem.menu = menu
+        refreshStatusIcon()
+    }
+
+    @objc func openDriveFromMenu(_ sender: NSMenuItem) {
+        showWindow()
+        webView.evaluateJavaScript("openDrive(\(sender.tag),'');driveTab='backups';render()", completionHandler: nil)
     }
 
     func buildMenu() {

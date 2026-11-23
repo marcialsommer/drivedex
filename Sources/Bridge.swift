@@ -25,7 +25,7 @@ enum Bridge {
             return db.listFolder(id, str("path"))
 
         case "search":
-            return db.search(q: str("q"), drive: int("drive"), kind: str("kind"))
+            return db.search(q: str("q"), drive: int("drive"), kind: str("kind"), path: str("path"))
 
         case "updateDrive":
             guard let id = int("id") else { return err("missing id") }
@@ -140,6 +140,10 @@ enum Bridge {
         case "installUpdate":
             do { try Updater.install(); return ok } catch { return err(error.localizedDescription) }
 
+        case "space":
+            guard let id = int("id") else { return [String: Any]() }
+            return db.spaceInfo(id)
+
         case "folderCoverage":
             guard let id = int("drive") else { return [String: Any]() }
             return db.folderCoverage(id, str("path"))
@@ -220,6 +224,14 @@ enum Bridge {
             if let v = a["skipDiskImages"] as? Bool { d.set(v, forKey: "skipDiskImages") }
             if let v = a["notify"] as? Bool { d.set(v, forKey: "notify") }
             if let v = a["askNew"] as? Bool { d.set(v, forKey: "askNew") }
+            if let v = a["onboarded"] as? Bool { d.set(v, forKey: "onboarded") }
+            if let v = a["strictCheck"] as? Bool, v != Settings.strictCheck {
+                d.set(v, forKey: "strictCheck")
+                let mains = db.rows("SELECT DISTINCT main_id FROM backups").compactMap { $0["main_id"] as? Int }
+                db.markChecking(mains)
+                Scanner.shared.recomputeCoverage(mains)
+                Scanner.shared.exportPrefs()
+            }
             if let v = a["ignoreVolumes"] as? [String] {
                 let clean = v.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                 if clean != Settings.ignoreVolumes {
@@ -268,6 +280,8 @@ enum Bridge {
             "skipDiskImages": Settings.skipDiskImages,
             "notify": Settings.notify,
             "askNew": Settings.askNew,
+            "strictCheck": Settings.strictCheck,
+            "onboarded": Settings.d.bool(forKey: "onboarded"),
             "ignoreVolumes": Settings.ignoreVolumes,
             "openAtLogin": status == "enabled",
             "loginStatus": status,

@@ -24,6 +24,7 @@ enum Settings {
             "skipDiskImages": true,
             "notify": true,
             "askNew": true,
+            "strictCheck": false,
         ])
     }
     static var rescanAfterHours: Double { d.double(forKey: "rescanAfterHours") }
@@ -33,6 +34,7 @@ enum Settings {
     static var skipDiskImages: Bool { d.bool(forKey: "skipDiskImages") }
     static var notify: Bool { d.bool(forKey: "notify") }
     static var askNew: Bool { d.bool(forKey: "askNew") }
+    static var strictCheck: Bool { d.bool(forKey: "strictCheck") }
 }
 
 struct Entry {
@@ -110,6 +112,7 @@ final class DB {
         // v1.9: normalized names for matching backups (filled properly on the next scan)
         if addColumn("entries", "nkey", "TEXT") { exec("UPDATE entries SET nkey = name WHERE nkey IS NULL") }
         exec("CREATE INDEX IF NOT EXISTS entries_nkey_size ON entries(nkey, size)")
+        addColumn("drives", "last_seen_on", "TEXT")   // v2.1: which Mac last had this drive connected
         exec("CREATE INDEX IF NOT EXISTS entries_name_size ON entries(name, size)")
         hasFTS = exec("CREATE VIRTUAL TABLE IF NOT EXISTS names USING fts5(name, tokenize='trigram')")
         if !hasFTS { exec("CREATE INDEX IF NOT EXISTS entries_name ON entries(name)") }
@@ -216,14 +219,14 @@ final class DB {
         if let r = row("SELECT id FROM drives WHERE key=?", [v.key]), let id = r["id"] as? Int {
             run("""
                 UPDATE drives SET name=?, mount_path=?, kind=?, source=?, fs=?, total_bytes=?, free_bytes=?,
-                used_bytes=?, last_seen=?, media=CASE WHEN ?='' THEN media ELSE ? END WHERE id=?
-                """, [v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, v.media, v.media, id])
+                used_bytes=?, last_seen=?, last_seen_on=?, media=CASE WHEN ?='' THEN media ELSE ? END WHERE id=?
+                """, [v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, SyncFolder.machine, v.media, v.media, id])
             return id
         }
         run("""
-            INSERT INTO drives(key,name,mount_path,kind,source,fs,total_bytes,free_bytes,used_bytes,first_seen,last_seen,media)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-            """, [v.key, v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, now, v.media])
+            INSERT INTO drives(key,name,mount_path,kind,source,fs,total_bytes,free_bytes,used_bytes,first_seen,last_seen,media,last_seen_on)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """, [v.key, v.name, v.url.path, v.kind, v.source, v.fs, v.total, v.free, used, now, now, v.media, SyncFolder.machine])
         return lastID
     }
 
@@ -304,7 +307,16 @@ final class DB {
             """, [id, gen, path])
     }
 
-    func search(q: String, drive: Int?, kind: String, limit: Int = 500) -> [String: Any] {
+    static let kindExtensions: [String: [String]] = [
+        "video": ["mov", "mp4", "m4v", "mxf", "braw", "r3d", "avi", "mkv", "mts", "m2ts", "crm", "ari", "insv", "lrv"],
+        "photo": ["jpg", "jpeg", "png", "heic", "heif", "tif", "tiff", "dng", "cr2", "cr3", "arw", "nef", "raf", "orf", "rw2", "psd", "psb", "gif", "webp"],
+        "audio": ["wav", "mp3", "aif", "aiff", "m4a", "flac", "aac", "caf"],
+        "doc": ["pdf", "doc", "docx", "pages", "txt", "rtf", "xls", "xlsx", "numbers", "key", "ppt", "pptx", "md"],
+        "archive": ["zip", "rar", "7z", "tar", "gz", "dmg", "iso"],
+        "project": ["fcpbundle", "prproj", "drp", "aep", "lrcat", "cocatalog", "logicx", "band", "photoslibrary", "imovielibrary", "psd"],
+    ]
+
+    func search(q: String, drive: Int?, kind: String, path: String = "", limit: Int = 500) -> [String: Any] {
         let query = q.trimmingCharacters(in: .whitespacesAndNewlines)
         let terms = query.split(whereSeparator: { $0.isWhitespace }).map(String.init)
         if terms.isEmpty { return ["results": [Any](), "per_drive": [Any]()] }
@@ -326,9 +338,17 @@ final class DB {
         }
         if let drive = drive { wh.append("e.drive_id = ?"); args.append(drive) }
         if kind == "folders" { wh.append("e.is_dir = 1") } else if kind == "files" { wh.append("e.is_dir <> 1") }
+        else if let exts = Self.kindExtensions[kind] {
+            wh.append("e.is_dir <> 1 AND (" + exts.map { _ in "e.name LIKE ?" }.joined(separator: " OR ") + ")")
+            args += exts.map { "%." + $0 }
+        }
+        if drive != nil && !path.isEmpty {
+            wh.append("(e.parent = ? OR (e.parent >= ? AND e.parent < ?))")
+            args += [path, path + "/", path + "0"]
+        }
         let base = "FROM \(from) JOIN drives d ON d.id = e.drive_id AND d.gen = e.gen WHERE " + wh.joined(separator: " AND ")
         let results = rows("""
-            SELECT e.id, e.drive_id, e.parent, e.name, e.is_dir, e.size, e.mtime, e.items,
+            SELECT e.id, e.drive_id, e.parent, e.name, e.is_dir, e.size, e.mtime, e.items, e.nkey,
                    COALESCE(NULLIF(d.label,''), d.name) AS drive \(base)
             ORDER BY (lower(e.name) = lower(?)) DESC, e.is_dir = 1 DESC, e.name COLLATE NOCASE LIMIT ?
             """, args + [query, limit])
@@ -388,6 +408,11 @@ final class DB {
         } else {
             run("DELETE FROM backups WHERE main_id=? AND backup_id=? AND backup_path=?", [mainID, driveID, path])
         }
+    }
+
+    /// How a backup file is matched to the original: same name and size (and, in strict mode, same modification time).
+    var matchSQL: String {
+        "b.nkey = entries.nkey AND b.size = entries.size" + (Settings.strictCheck ? " AND ABS(b.mtime - entries.mtime) < 2.5" : "")
     }
 
     /// Identifies a backup set: locations sharing a `grp` belong together; otherwise each location is its own set.
@@ -524,7 +549,7 @@ final class DB {
         run("""
             UPDATE entries SET copies = (
                 SELECT COUNT(DISTINCT \(setOf)) FROM entries b
-                WHERE b.nkey = entries.nkey AND b.size = entries.size AND b.is_dir <> 1 AND (\(cond)))
+                WHERE \(matchSQL) AND b.is_dir <> 1 AND (\(cond)))
             WHERE drive_id = ? AND gen = ? AND is_dir <> 1
             """, [mainID, gen])
         for p in excludedPaths(mainID) {
@@ -557,8 +582,7 @@ final class DB {
             let scope = members.map { scopeSQL($0) }.joined(separator: " OR ")
             let r = row("""
                 SELECT COUNT(*) AS n, SUM(f) AS have, SUM(CASE WHEN f THEN 0 ELSE size END) AS mb FROM (
-                    SELECT entries.size AS size, EXISTS(SELECT 1 FROM entries b WHERE b.nkey = entries.nkey
-                        AND b.size = entries.size AND b.is_dir <> 1 AND (\(scope))) AS f
+                    SELECT entries.size AS size, EXISTS(SELECT 1 FROM entries b WHERE \(matchSQL) AND b.is_dir <> 1 AND (\(scope))) AS f
                     FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0)
                 """, [mainID, gen]) ?? [:]
             let n = r["n"] as? Int ?? 0, have = r["have"] as? Int ?? 0, mb = r["mb"] as? Int ?? 0
@@ -634,7 +658,7 @@ final class DB {
         let scope = members.map { scopeSQL($0) }.joined(separator: " OR ")
         let base = """
             FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1 AND copies >= 0 AND NOT EXISTS(
-                SELECT 1 FROM entries b WHERE b.nkey = entries.nkey AND b.size = entries.size AND b.is_dir <> 1 AND (\(scope)))
+                SELECT 1 FROM entries b WHERE \(matchSQL) AND b.is_dir <> 1 AND (\(scope)))
             """
         let args: [Any?] = [mainID, gen]
         let total = row("SELECT COUNT(*) AS n, SUM(size) AS bytes \(base)", args) ?? [:]
@@ -705,7 +729,7 @@ final class DB {
         exec("BEGIN")
         run("INSERT INTO x.entries SELECT parent, name, is_dir, size, mtime, items, nkey FROM entries WHERE drive_id=? AND gen=?", [id, gen])
         for k in ["key", "name", "kind", "source", "fs", "total_bytes", "free_bytes", "used_bytes", "file_count",
-                  "dir_count", "catalog_bytes", "last_scan", "scan_seconds", "first_seen", "media"] {
+                  "dir_count", "catalog_bytes", "last_scan", "scan_seconds", "first_seen", "media", "last_seen", "last_seen_on"] {
             run("INSERT INTO x.info(k, v) VALUES(?, ?)", [k, d[k]])
         }
         run("INSERT INTO x.info(k, v) VALUES('machine', ?)", [machine])
@@ -747,9 +771,11 @@ final class DB {
         run("""
             UPDATE drives SET last_scan=?, total_bytes=COALESCE(?, total_bytes), free_bytes=COALESCE(?, free_bytes),
             used_bytes=COALESCE(?, used_bytes), name=COALESCE(?, name),
-            media=CASE WHEN COALESCE(?, '')='' THEN media ELSE ? END WHERE id=?
+            media=CASE WHEN COALESCE(?, '')='' THEN media ELSE ? END,
+            last_seen_on=CASE WHEN COALESCE(?, 0) > COALESCE(last_seen, 0) THEN ? ELSE last_seen_on END,
+            last_seen=MAX(COALESCE(last_seen, 0), COALESCE(?, 0)) WHERE id=?
             """, [remoteScan, info["total_bytes"], info["free_bytes"], info["used_bytes"], info["name"],
-                  info["media"], info["media"], id])
+                  info["media"], info["media"], info["last_seen"], info["last_seen_on"], info["last_seen"], id])
         return id
     }
 
@@ -839,5 +865,56 @@ final class DB {
             added += 1
         }
         return added
+    }
+
+    // MARK: - space overview
+
+    func spaceInfo(_ id: Int) -> [String: Any] {
+        guard let d = row("SELECT gen FROM drives WHERE id=?", [id]), let gen = d["gen"] as? Int else { return [:] }
+        let biggest = rows("""
+            SELECT parent, name, size, items FROM entries WHERE drive_id=? AND gen=? AND is_dir=1
+              AND (length(parent) - length(replace(parent, '/', ''))) <= 1
+            ORDER BY size DESC LIMIT 15
+            """, [id, gen])
+        // Big files that also exist on drives that are not this drive's backups (or originals): likely duplicates.
+        var related = rows("SELECT backup_id AS x FROM backups WHERE main_id=? UNION SELECT main_id FROM backups WHERE backup_id=?", [id, id])
+            .compactMap { $0["x"] as? Int }
+        related.append(id)
+        let notIn = related.map(String.init).joined(separator: ",")
+        let dups = rows("""
+            SELECT e.parent, e.name, e.size, GROUP_CONCAT(DISTINCT COALESCE(NULLIF(od.label,''), od.name)) AS others
+            FROM entries e
+            JOIN entries o ON o.nkey = e.nkey AND o.size = e.size AND o.is_dir <> 1 AND o.drive_id NOT IN (\(notIn))
+            JOIN drives od ON od.id = o.drive_id AND od.gen = o.gen
+            WHERE e.drive_id=? AND e.gen=? AND e.is_dir <> 1 AND e.size >= 52428800
+            GROUP BY e.id ORDER BY e.size DESC LIMIT 40
+            """, [id, gen])
+        return ["biggest": biggest, "duplicates": dups]
+    }
+
+    // MARK: - health (menu bar)
+
+    /// One line per main drive: level 0 = fine, 1 = needs attention, 2 = files without any backup.
+    func health() -> [(id: Int, name: String, level: Int, text: String)] {
+        let now = Date().timeIntervalSince1970
+        var out: [(id: Int, name: String, level: Int, text: String)] = []
+        for m in rows("""
+            SELECT id, COALESCE(NULLIF(label,''), name) AS name, cov_none, cov_state, remind_days FROM drives
+            WHERE role='main' ORDER BY COALESCE(sort_order, 1000000), name COLLATE NOCASE
+            """) {
+            let id = m["id"] as? Int ?? 0, name = m["name"] as? String ?? "?"
+            let sets = backupStatus(id)
+            if sets.isEmpty { out.append((id, name, 1, "no backup assigned")); continue }
+            if m["cov_state"] as? String == "checking" { out.append((id, name, 0, "checking backups…")); continue }
+            let none = m["cov_none"] as? Int ?? 0
+            let behind = sets.filter { let n = $0["n"] as? Int ?? 0; return n > 0 && ($0["have"] as? Int ?? 0) < n }
+            let rd = m["remind_days"] as? Int ?? 0
+            let due = rd > 0 ? sets.filter { now - ($0["backup_scan"] as? Double ?? 0) > Double(rd) * 86400 } : []
+            if none > 0 { out.append((id, name, 2, "\(none.formatted()) files not backed up")) }
+            else if !behind.isEmpty { out.append((id, name, 1, behind.count == 1 ? "a backup is incomplete" : "\(behind.count) backups incomplete")) }
+            else if !due.isEmpty { out.append((id, name, 1, "backup update due")) }
+            else { out.append((id, name, 0, sets.count > 1 ? "backed up \(sets.count)×" : "backed up")) }
+        }
+        return out
     }
 }

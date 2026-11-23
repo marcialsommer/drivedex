@@ -50,7 +50,7 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .set input[type=checkbox]{margin-right:8px;transform:scale(1.15)} h2{font-size:18px;margin:0 0 6px} h3{font-size:14px;margin:18px 0 4px;color:var(--mute);font-weight:600}
 .hero{text-align:center;padding:50px 20px}.hero h2{font-size:22px}.hero p{color:var(--mute);max-width:520px;margin:8px auto}
 .segs{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-left:8px}
-.seg{border:0;border-radius:0;padding:5px 12px;background:var(--panel)}.seg+.seg{border-left:1px solid var(--line)}.seg.on{background:var(--acc);color:#fff}
+.seg{border:0;border-radius:0;padding:5px 12px;background:var(--panel);white-space:nowrap}.seg+.seg{border-left:1px solid var(--line)}.seg.on{background:var(--acc);color:#fff}
 .rolebox{border-top:1px solid var(--line);margin:12px 0 10px;padding-top:10px}
 .chk{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:99px;cursor:pointer}
 .sug{margin-top:8px;padding:8px 10px;background:var(--accbg);border-radius:8px}
@@ -87,6 +87,24 @@ textarea{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;
 .kn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .kidnone{padding:4px 10px 8px 34px;font-size:12px;color:var(--warn)}
 .exm{color:var(--mute);margin-left:4px;font-size:12px}.isex .nm,.isex td.n{opacity:.55}
+.dcard{padding:12px 16px 0}.dtop{display:flex;align-items:center;gap:8px}.dtop .lbl{width:auto;flex:0 1 auto;min-width:120px;field-sizing:content}
+.dsum{color:var(--mute);font-size:13px;margin:2px 6px 8px}
+.tabs{display:flex;gap:2px;border-top:1px solid var(--line);margin:0 -16px;padding:0 10px}
+.tab{border:0;border-radius:0;background:transparent;padding:9px 14px;color:var(--mute);border-bottom:2px solid transparent}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc);font-weight:600}.tab:hover{border-color:transparent;color:var(--ink)}.tab.on:hover{border-bottom-color:var(--acc)}
+.tabbody{border-top:1px solid var(--line);margin:0 -16px;padding:14px 16px 16px}
+.attn{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.attn:last-child{border-bottom:0}
+.attn .at{flex:1}.ai{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#fff;flex:none}
+.attn.l2 .ai{background:var(--err)}.attn.l1 .ai{background:var(--warn)}.attn.l0 .ai{background:var(--acc)}
+.allok{display:flex;gap:14px;align-items:center}.allok .big{font-size:34px;color:var(--ok)}.allok h2{margin:0 0 2px}
+.s.note{color:var(--ink);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold{position:absolute;left:3px;top:11px;border:0;background:transparent;color:var(--mute);font-size:10px;padding:2px 3px;white-space:nowrap;z-index:2}
+.fam>.drv{padding-left:20px}
+.fam.folded .kids{display:none}.fam{position:relative}
+.compact .s,.compact .bar,.compact .kidnone{display:none}.compact .drv{padding:5px 10px}.compact .fold{top:6px}
+.compact .fam{margin:4px 2px 6px}
+.setup{display:flex;gap:14px}.setup .sn{width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.setup.done .sn{background:var(--ok)}.setup h2{margin-top:3px}
 .ticks{margin-left:auto;font-weight:700;font-size:13px;letter-spacing:-1px;white-space:nowrap}
 .bktab{width:100%;border-collapse:collapse;margin-top:10px;border:0;background:transparent}
 .bktab td,.bktab th{padding:6px 8px 6px 0;border-bottom:1px solid var(--line);white-space:normal;font-size:13px}
@@ -102,11 +120,11 @@ body{-webkit-user-select:none;cursor:default} input,textarea,td.n,.path{-webkit-
 </style></head><body>
 <header><h1>DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
-<select id="kind"><option value="all">Files &amp; folders</option><option value="folders">Folders only</option><option value="files">Files only</option></select>
+<select id="kind"><option value="all">Everything</option><option value="folders">Folders</option><option value="files">Files</option><option value="video">Videos</option><option value="photo">Photos</option><option value="audio">Audio</option><option value="doc">Documents</option><option value="project">Projects &amp; libraries</option><option value="archive">Archives &amp; disk images</option></select>
 <select id="scope"><option value="">All drives</option></select>
 <button id="gear" title="Settings">⚙︎ Settings</button>
 </header>
-<main><nav><div class="hd"><span>Drives</span><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav>
+<main><nav><div class="hd"><span>Drives</span><span style="flex:1"></span><button id="compact" title="Compact list">☰</button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav>
 <section id="view"></section></main><div id="toast"></div><div id="ctx"></div>
 <script>
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -150,6 +168,9 @@ function ticks(d){const bs=d.backup_status||[];if(d.role!='main'||!bs.length)ret
 const GROUPS=[['main','Main files'],['backup','Backups'],['','Other']];
 const grpOf=d=>d.role=='main'?0:d.role=='backup'?1:2;
 let pending=[],dragging=null,updateInfo=null;
+const ls=(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}};
+let compact=ls('dd_compact',false),folded=new Set(ls('dd_folded',[]));
+function savePrefs(){try{localStorage.setItem('dd_compact',JSON.stringify(compact));localStorage.setItem('dd_folded',JSON.stringify([...folded]))}catch(e){}}
 async function installUpdate(){
   const b=$('#doupdate')||$('#s_update');if(b){b.disabled=true;b.textContent='Installing…'}
   toast('Downloading the update…');
@@ -186,7 +207,7 @@ async function loadDrives(){
   drives=dl.sort((a,b)=>so(a)-so(b)||grpOf(a)-grpOf(b)||a.display.localeCompare(b.display,undefined,{numeric:true,sensitivity:'base'}));pending=Array.isArray(pl)?pl:[];
   if(dragging){loadDrives._t=setTimeout(loadDrives,1500);return}   // don't redraw the list in the middle of a drag
   const sel=$('#scope'),selv=sel.value;
-  sel.innerHTML='<option value="">All drives</option>'+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
+  sel.innerHTML='<option value="">All drives</option>'+(here?`<option value="here">In “${esc(here.label)}”</option>`:'')+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;
   const upHTML=updateInfo&&updateInfo.available?`<div class="newdrv"><b>Update available: DriveDex ${esc(updateInfo.version)}</b><span class="mute" style="font-size:12px">You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept.</span>
     <div class="row"><button class="primary" id="doupdate">Install &amp; Relaunch</button></div></div>`:'';
   const newHTML=upHTML+pending.map(n=>`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
@@ -195,7 +216,7 @@ async function loadDrives(){
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:`${(d.file_count||0).toLocaleString()} file${d.file_count==1?'':'s'} · scanned ${ago(d.last_scan)}`;
     return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}"><div class="t"><span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${ticks(d)}</div>
-    <div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
+    ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}<div class="s">${d.total_bytes?hb(d.used_bytes)+' of '+hb(d.total_bytes)+' used':''}</div>${d.total_bytes?`<div class="bar"><i style="width:${pct}%"></i></div>`:''}<div class="s">${st}</div>${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
   const fams=mains.map(m=>{inFamily.add(m.id);
@@ -205,7 +226,8 @@ async function loadDrives(){
         return `<div class="drv kid ${state.drive==bd.id&&(state.kidPath||'')==(x.path||'')?'sel':''}" data-id="${bd.id}" data-path="${esc(x.path||'')}" title="${esc(bkName(b))}">
           <div class="t"><span class="dot ${bd.online?'on':''}"></span><span class="kn">${esc(bd.display)}</span>${tagHTML(bd)}${j==0?`<span class="ticks">${status}</span>`:''}</div>
           <div class="s">${x.path?`📁 ${esc(x.path)}<br>`:''}${mem.length>1?'part of a set · ':''}catalog from ${ago(bd.last_scan)}</div></div>`}).join('')}).join('');
-    return `<div class="fam" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
+    const nk=(m.backup_status||[]).length;
+    return `<div class="fam ${folded.has(m.id)?'folded':''}" draggable="true" data-sec="fam" data-oid="${m.id}" title="Drag to reorder">${full(m)}${nk?`<button class="fold" data-fold="${m.id}" title="${folded.has(m.id)?'Show '+nk+' backup'+(nk==1?'':'s'):'Hide backups'}">${folded.has(m.id)?'▸':'▾'}</button>`:''}${kids?`<div class="kids">${kids}</div>`:'<div class="kidnone">No backup assigned yet</div>'}</div>`}).join('');
   const rest=drives.filter(d=>!inFamily.has(d.id));
   $('#drives').innerHTML=newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
@@ -213,20 +235,75 @@ async function loadDrives(){
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));
   document.querySelectorAll('.drv').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,el.dataset.path||'',null,el.dataset.path||''));
   wireReorder();
+  $('#drives').classList.toggle('compact',compact);
+  document.querySelectorAll('[data-fold]').forEach(b=>b.onclick=e=>{e.stopPropagation();const id=+b.dataset.fold;folded.has(id)?folded.delete(id):folded.add(id);savePrefs();loadDrives()});
   if($('#doupdate'))$('#doupdate').onclick=installUpdate;
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
+  if(!setupChecked){setupChecked=true;api('getSettings').then(s=>{if(!s.onboarded&&state.mode=='home'&&!drives.some(d=>d.role))openSetup()}).catch(()=>{})}
   if(state.mode=='home')renderHome();
   if(state.mode=='drive'){renderDriveHeader();const d=cur(),k=d.id+':'+covReady(d)+':'+d.cov_files+':'+d.cov_none+':'+(d.backed_up_by||[]).join(',');if(prevCov[d.id]&&prevCov[d.id]!=k)render();prevCov[d.id]=k}
   clearTimeout(loadDrives._t);loadDrives._t=setTimeout(loadDrives,drives.some(d=>d.status=='scanning'||d.cov_state=='checking')?2500:15000);
 }
+async function openSetup(){
+  state={mode:'setup'};$('#q').value='';
+  const s=await api('getSettings');
+  const step=(n,title,done,body)=>`<div class="card setup ${done?'done':''}"><div class="sn">${done?'✓':n}</div><div style="flex:1"><h2>${title}</h2>${body}</div></div>`;
+  const rows=drives.map(d=>{const role=d.role||'';
+    const mains=drives.filter(x=>x.id!=d.id&&x.role!='backup');
+    return `<tr><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:6px"></span>${esc(d.display)}${tagHTML(d)}</td>
+      <td><div class="segs">${[['main','Main files'],['backup','Backup'],['','Other']].map(([v,l])=>`<button class="seg ${role==v?'on':''}" data-srole="${v}" data-id="${d.id}">${l}</button>`).join('')}</div></td>
+      <td>${role=='backup'?`<select class="sm" data-sbk="${d.id}"><option value="">backs up…</option>${mains.map(m=>`<option value="${m.id}" ${(d.backup_of||[]).includes(m.id)?'selected':''}>${esc(m.display)}</option>`).join('')}</select>${(d.backup_of||[]).length>1?' <span class="mute">+ more</span>':''}`:role=='main'?`<span class="mute">${(d.backed_up_by||[]).length?covShort(d):'no backup yet'}</span>`:''}</td></tr>`}).join('');
+  $('#view').innerHTML=`<div class="card"><h2>Welcome to DriveDex</h2><div class="mute">Three quick steps. You can change everything later, and run this guide again from Settings.</div></div>
+  ${step(1,'Do you use DriveDex on more than one Mac?',!!s.syncFolder,s.syncFolder?`<div>✓ Sharing through <b>${s.syncIsICloud?'iCloud Drive':esc(s.syncFolder)}</b>. Choose the same on your other Macs.</div>`:
+     `<div class="mute" style="margin-bottom:8px">Sharing gives every Mac the same catalog: drives catalogued at the office show up at home too.</div><div class="row"><button class="primary" id="g_icloud" ${s.iCloudAvailable?'':'disabled'}>Share with iCloud Drive</button><button id="g_folder">Use another folder…</button><button id="g_skip">Just this Mac</button></div>`)}
+  ${step(2,'Add your drives',drives.length>0&&!pending.length,`<div class="mute" style="margin-bottom:8px">Connect your drives and NAS shares one after another. Each new drive appears here; click <b>Catalog it</b>.</div>
+     ${pending.map(n=>`<div class="row" style="margin-bottom:6px"><b>${esc(n.name)}</b><button class="primary" data-gapprove="${esc(n.key)}">Catalog it</button><button data-gignore="${esc(n.key)}">Ignore</button></div>`).join('')}
+     <div>${drives.length} drive${drives.length==1?'':'s'} catalogued${drives.some(d=>d.status=='scanning')?' · scanning…':''}.</div>`)}
+  ${step(3,'Which drives hold your originals, and which are backups?',drives.some(d=>d.role=='main'&&(d.backed_up_by||[]).length),drives.length?`<div class="mute" style="margin-bottom:8px">Mark each drive. For a backup, choose the drive it backs up. Folders as backup locations and backups split over several drives are set up on a drive's page.</div><table class="bktab">${rows}</table>`:'<div class="mute">Add a drive first.</div>')}
+  <div class="row" style="justify-content:flex-end"><button class="primary" id="g_done">Done</button></div>`;
+  const again=()=>{loadDrives().then(()=>{if(state.mode=='setup')openSetup()})};
+  if($('#g_icloud'))$('#g_icloud').onclick=()=>api('syncICloud').then(again).catch(e=>toast(e.message));
+  if($('#g_folder'))$('#g_folder').onclick=()=>api('syncChoose').then(again);
+  if($('#g_skip'))$('#g_skip').onclick=()=>{toast('OK. You can turn on sharing later in Settings.');$('#g_skip').closest('.setup').classList.add('done')};
+  document.querySelectorAll('[data-gapprove]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.gapprove}).then(()=>setTimeout(again,800)));
+  document.querySelectorAll('[data-gignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.gignore}).then(again));
+  document.querySelectorAll('[data-srole]').forEach(b=>b.onclick=()=>api('setRole',{id:+b.dataset.id,role:b.dataset.srole}).then(again));
+  document.querySelectorAll('[data-sbk]').forEach(sel=>sel.onchange=()=>{const d=drives.find(x=>x.id==sel.dataset.sbk);const v=+sel.value;
+    api('setBackupOf',{id:d.id,mains:v?[...new Set([...(d.backup_of||[]).filter(x=>x!=v),v])]:[]}).then(again)});
+  $('#g_done').onclick=()=>api('setSettings',{onboarded:true}).then(()=>{state={mode:'home'};loadDrives()});
+}
+let setupChecked=false;
+function attentionItems(){
+  const now=Date.now()/1000,out=[];   // {lvl:2 red,1 amber,0 info, text, act, fn}
+  for(const d of drives.filter(x=>x.role=='main')){
+    const bs=d.backup_status||[];
+    if(!bs.length){out.push({lvl:1,text:`<b>${esc(d.display)}</b> has no backup assigned.`,act:'Set up',fn:()=>{driveTab='backups';openDrive(d.id,'')}});continue}
+    if(!covReady(d))continue;
+    if(d.cov_none)out.push({lvl:2,text:`<b>${esc(d.display)}</b>: ${d.cov_none.toLocaleString()} file${d.cov_none==1?'':'s'} (${hb(d.cov_none_bytes)}) ${d.cov_none==1?'is':'are'} not on any backup.`,act:'Show files',fn:()=>openMissing(d.id,0)});
+    for(const b of bs){const miss=(b.n||0)-(b.have||0);
+      if(b.n!=null&&miss>0&&!d.cov_none)out.push({lvl:1,text:`<b>${esc(d.display)}</b>: ${esc(bkName(b))} is missing ${miss.toLocaleString()} file${miss==1?'':'s'} (${hb(b.missing_bytes)}).`,act:'Show files',fn:()=>openMissing(d.id,0,b.set)});
+      if(d.remind_days&&now-(b.backup_scan||0)>d.remind_days*86400)out.push({lvl:1,text:`<b>${esc(d.display)}</b>: ${esc(bkName(b))} hasn't been updated for ${Math.floor((now-(b.backup_scan||0))/86400)} days. Time to connect or swap it.`,act:'Open',fn:()=>{driveTab='backups';openDrive(d.id,'')}});
+    }
+  }
+  for(const d of drives.filter(x=>x.status=='error'))out.push({lvl:2,text:`<b>${esc(d.display)}</b>: ${esc(d.status_detail)}`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
+  for(const n of pending)out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. Add it to your catalog?`,act:'Catalog it',fn:()=>api('approveDrive',{key:n.key}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)})});
+  if(updateInfo&&updateInfo.available)out.push({lvl:0,text:`DriveDex ${esc(updateInfo.version)} is available.`,act:'Install & Relaunch',fn:installUpdate});
+  return out.sort((a,b)=>b.lvl-a.lvl);
+}
 function renderHome(){
-  if(!drives.length){$('#view').innerHTML=`<div class="hero"><h2>Plug in a drive</h2><p>DriveDex catalogues every drive and NAS share as soon as it's connected. It only records file and folder names, sizes and dates, never contents.</p><p>Drives that are already connected get scanned within a few seconds. You can also click <b>Rescan connected</b>.</p></div>`;return}
+  if(!drives.length&&!pending.length){$('#view').innerHTML=`<div class="hero"><h2>Plug in a drive</h2><p>DriveDex catalogues every drive and NAS share you connect. It only records file and folder names, sizes and dates, never contents.</p><p><button class="primary" id="startsetup">Start the setup guide</button></p></div>`;$('#startsetup').onclick=openSetup;return}
+  const items=attentionItems(),mains=drives.filter(d=>d.role=='main');
   const tot=drives.reduce((a,d)=>a+(d.file_count||0),0);
-  $('#view').innerHTML=`<div class="card"><h2 style="margin:0 0 4px">All drives</h2><div class="mute">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div></div>
-  <table><tr><th>Drive</th><th>Backup</th><th class="hide-sm">Notes</th><th class="r">Used</th><th class="r hide-sm">Files</th><th class="r">Last scan</th></tr>
-  ${drives.map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc(d.notes).slice(0,60)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${ago(d.last_scan)}</td></tr>`).join('')}</table>`;
+  const att=items.length?`<div class="card"><h2>Needs attention</h2>${items.map((x,i)=>`<div class="attn l${x.lvl}"><span class="ai">${x.lvl==2?'✕':x.lvl==1?'!':'i'}</span><span class="at">${x.text}</span><button data-ai="${i}">${x.act}</button></div>`).join('')}</div>`
+    :mains.length?`<div class="card allok"><span class="big">✓</span><div><h2>Everything is backed up</h2><div class="mute">${mains.length} main drive${mains.length==1?'':'s'}, all with complete backups. Nothing needs your attention.</div></div></div>`
+    :`<div class="card"><h2>Set up your backups</h2><div class="mute">Mark the drives that hold your originals as <b>Main files</b> and link their backups, and DriveDex will tell you here whenever something isn't backed up.</div><div class="row" style="margin-top:8px"><button class="primary" id="startsetup">Start the setup guide</button></div></div>`;
+  $('#view').innerHTML=att+`<div class="mute" style="margin:4px 2px 8px">${drives.length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
+  <table><tr><th>Drive</th><th>Backup</th><th class="hide-sm">Where</th><th class="r">Used</th><th class="r hide-sm">Files</th><th class="r">Last connected</th></tr>
+  ${drives.map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc((d.notes||'').split('\n')[0]).slice(0,50)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${d.online?'now':ago(d.last_seen)}${!d.online&&d.last_seen_on?`<div class="path">${esc(d.last_seen_on)}</div>`:''}</td></tr>`).join('')}</table>`;
   document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
+  document.querySelectorAll('[data-ai]').forEach(b=>b.onclick=()=>items[+b.dataset.ai].fn());
+  if($('#startsetup'))$('#startsetup').onclick=openSetup;
 }
 let viewMode=(()=>{try{return localStorage.getItem('dd_view')||'columns'}catch(e){return'columns'}})();
 const lcache=new Map();
@@ -234,7 +311,7 @@ const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitiv
 async function listOf(drive,path){const k=drive+'\u0000'+path;if(lcache.has(k))return lcache.get(k);
   const r=(await api('list',{drive,path})).slice().sort(byName);lcache.set(k,r);return r}
 const joinP=(a,b)=>a?a+'/'+b:b;
-function openDrive(id,path,hl,kidPath){state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
+function openDrive(id,path,hl,kidPath){prevState=null;state={mode:'drive',drive:id,path,hl,sel:hl||null,kidPath:kidPath||''};$('#q').value='';$('#qx').style.display='none';render();loadDrives()}
 function drawCrumbs(){
   const parts=state.path?state.path.split('/'):[];
   $('#crumbs').innerHTML=`<a data-p="">${esc(cur().display)}</a>`+parts.map((p,i)=>` / <a data-p="${esc(parts.slice(0,i+1).join('/'))}">${esc(p)}</a>`).join('');
@@ -293,13 +370,15 @@ document.addEventListener('keydown',e=>{
 });
 async function render(){
   if(state.mode!='drive')return;
-  $('#view').innerHTML=`<div id="dh"></div><div class="crumbrow"><div class="crumbs" id="crumbs"></div>
+  $('#view').innerHTML=`<div id="dh"></div><div id="filesbox" style="${driveTab=='files'?'':'display:none'}"><div class="crumbrow"><div class="crumbs" id="crumbs"></div>
     <div class="segs">${[['columns','Columns'],['list','List']].map(([v,l])=>`<button class="seg ${viewMode==v?'on':''}" data-view="${v}">${l}</button>`).join('')}</div></div>
-    <div id="exbar"></div><div id="list" class="empty">Loading…</div>`;
+    <div id="exbar"></div><div id="list" class="empty">Loading…</div></div>`;
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{viewMode=b.dataset.view;try{localStorage.setItem('dd_view',viewMode)}catch(e){}render()});
   lcache.clear();
-  drawExBar();
   renderDriveHeader();
+  if(driveTab!='files')return;
+  $('#filesbox').dataset.loaded='1';
+  drawExBar();
   drawCrumbs();
   if(viewMode=='columns'){if(state.hl){state.sel=state.hl}await drawColumns();return}
   const want=covReady(cur()),me=state;
@@ -312,15 +391,17 @@ function renderDriveHeader(){
   const d=cur(),el=$('#dh');if(!el||!d.id)return;
   if(el.dataset.id==d.id&&document.activeElement&&el.contains(document.activeElement)){ $('#dstat').innerHTML=dstat(d);return }
   el.dataset.id=d.id;
-  el.innerHTML=`<div class="card"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">
-  <div class="mute" style="margin:2px 6px 8px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')} · <span id="dstat">${dstat(d)}</span></div>
-  <div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>First seen<b>${date(d.first_seen)}</b></div></div>
-  ${roleHTML(d)}
-  <textarea id="notes" rows="2" placeholder="Notes — where this drive lives, what it's for…">${esc(d.notes)}</textarea>
-  <div class="row" style="margin-top:8px"><button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>
-  <button id="reveal" ${d.online?'':'disabled'}>Show in Finder</button>${d.status=='error'&&/blocked/i.test(d.status_detail||'')?'<button id="priv">Open Privacy Settings</button>':''}<span style="flex:1"></span><button class="danger" id="forget">Forget drive</button></div></div>`;
-  const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes').value}).then(()=>{toast('Saved');loadDrives()});
-  $('#lbl').onchange=save;$('#notes').onchange=save;
+  const roleTxt=d.role=='main'?'Main files':d.role=='backup'?'Backup'+((d.backup_of||[]).length?' of '+esc((d.backup_of||[]).map(dname).filter(Boolean).join(', ')):''):'';
+  const tabs=[['files','Files'],['backups',d.role=='backup'?'Backup settings':'Backups'],['info','Info']];
+  el.innerHTML=`<div class="card dcard"><div class="dtop"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">${tagHTML(d)}
+    <span style="flex:1"></span><button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button><button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button></div>
+  <div class="dsum"><span id="dstat">${dstat(d)}</span>${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
+  <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
+  ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:''}</div>`;
+  document.querySelectorAll('#dh [data-tab]').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
+  if(driveTab=='info')loadSpace(d);
+  const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes')?$('#notes').value:d.notes}).then(()=>{toast('Saved');loadDrives()});
+  $('#lbl').onchange=save;if($('#notes'))$('#notes').onchange=save;
   $('#rescan').onclick=()=>api('rescan',{id:d.id}).then(()=>{toast('Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
   if($('#priv'))$('#priv').onclick=()=>api('openPrivacy');
   const redo=()=>{$('#dh').dataset.id='';loadDrives()};
@@ -336,11 +417,17 @@ function renderDriveHeader(){
     api('setBackupSet',{main:d.id,ids:[+sel.dataset.combine,...other.members.map(m=>m.id)],on:true}).then(()=>{toast('Combined into one backup set. Checking…');redo()})});
   if($('#remind'))$('#remind').onchange=()=>api('setReminder',{id:d.id,days:+$('#remind').value}).then(()=>{toast('Reminder saved');redo()});
   if($('#hist'))loadHistory(d);
-  document.querySelectorAll('#dh [data-goto]').forEach(a=>a.onclick=()=>{state.path=a.dataset.goto;state.hl=null;render()});
+  document.querySelectorAll('#dh [data-goto]').forEach(a=>a.onclick=()=>{if(a.closest('#sp_big,#sp_dup'))return;driveTab='files';state.path=a.dataset.goto;state.hl=null;state.sel=null;render()});
   document.querySelectorAll('#dh [data-unex]').forEach(b=>b.onclick=()=>api('setExcluded',{id:d.id,path:b.dataset.unex,on:false}).then(()=>{toast('Included in the backup check again');redo();drawExBarSoon()}));
   document.querySelectorAll('#dh [data-miss]').forEach(b=>b.onclick=()=>openMissing(d.id,+b.dataset.miss));
   $('#reveal').onclick=()=>api('reveal',{id:d.id,path:state.path}).catch(e=>toast(e.message));
-  $('#forget').onclick=()=>forgetDrive(d);
+  if($('#forget'))$('#forget').onclick=()=>forgetDrive(d);
+}
+function switchTab(t){
+  driveTab=t;const fb=$('#filesbox');
+  if(fb)fb.style.display=t=='files'?'':'none';
+  $('#dh').dataset.id='';renderDriveHeader();
+  if(t=='files'&&fb&&!fb.dataset.loaded)render();
 }
 async function loadHistory(d){
   const h=await api('history',{drive:d.id}).catch(()=>[]);const el=$('#hist');if(!el)return;
@@ -410,8 +497,31 @@ function roleHTML(d){
   else if(looksLikeBackup(d)) body=`<div class="sug">“${esc(d.display)}” sounds like a backup drive. <button data-role="backup">Mark as backup</button></div>`;
   const tseg=TYPES.map(([v,l])=>`<button class="seg ${d.type==v?'on':''}" data-type="${v}">${l}</button>`).join('');
   const tnote=d.type?(d.type_auto?'<span class="mute" style="font-size:12px">detected automatically</span>':''):'<span class="mute" style="font-size:12px">not detected. Pick one</span>';
-  return `<div class="rolebox"><div class="row"><span class="mute">Type</span><div class="segs">${tseg}</div>${tnote}</div>
-    <div class="row" style="margin-top:8px"><span class="mute">This drive holds</span><div class="segs">${seg}</div></div>${body}</div>`;
+  return `<div class="rolebox" style="border:0;margin-top:0;padding-top:0"><div class="row"><span class="mute">This drive holds</span><div class="segs">${seg}</div></div>${body}</div>`;
+}
+function typeRow(d){
+  const tseg=TYPES.map(([v,l])=>`<button class="seg ${d.type==v?'on':''}" data-type="${v}">${l}</button>`).join('');
+  const tnote=d.type?(d.type_auto?'<span class="mute" style="font-size:12px">detected automatically</span>':''):'<span class="mute" style="font-size:12px">not detected. Pick one</span>';
+  return `<div class="row"><span class="mute">Type</span><div class="segs">${tseg}</div>${tnote}</div>`;
+}
+let driveTab='files';
+const lastSeen=d=>d.online?'connected now':d.last_seen?`last connected ${ago(d.last_seen)}${d.last_seen_on?' on '+esc(d.last_seen_on):''}`:'';
+function infoHTML(d){
+  return `<div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>Last connected<b>${d.online?'now':d.last_seen?ago(d.last_seen):'—'}</b>${d.last_seen_on&&!d.online?`<span class="mute">on ${esc(d.last_seen_on)}</span>`:''}</div></div>
+  <div style="margin:4px 0 10px">${typeRow(d)}</div>
+  <div class="mute" style="font-size:12px;margin-bottom:4px">📍 Where does this drive live? (shown in the drive list and in search results)</div>
+  <textarea id="notes" rows="2" placeholder="e.g. Office, top drawer · client archive 2019–2023">${esc(d.notes)}</textarea>
+  <div class="mute" style="margin:6px 0 0;font-size:12px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')}</div>
+  <h3>Biggest folders</h3><div id="sp_big" class="mute">Loading…</div>
+  <h3>Large files that are also on other drives</h3><div class="mute" style="font-size:12px;margin-bottom:4px">Files of 50 MB or more that exist on another drive which isn't one of this drive's backups. Possible duplicates to clean up.</div><div id="sp_dup" class="mute">Loading…</div>
+  <div class="row" style="margin-top:14px">${d.status=='error'&&/blocked/i.test(d.status_detail||'')?'<button id="priv">Open Privacy Settings</button>':''}<span style="flex:1"></span><button class="danger" id="forget">Forget drive</button></div>`;
+}
+async function loadSpace(d){
+  const r=await api('space',{id:d.id}).catch(()=>null);const b=$('#sp_big'),u=$('#sp_dup');if(!b||!r)return;
+  const mx=Math.max(1,...(r.biggest||[]).map(x=>x.size));
+  b.className='';b.innerHTML=(r.biggest||[]).length?`<table class="bktab">${r.biggest.map(x=>`<tr class="click" data-goto="${esc(joinP(x.parent,x.name))}"><td>📁 ${esc(joinP(x.parent,x.name))}</td><td style="width:40%"><span class="minibar" style="width:100%"><i style="width:${Math.round(100*x.size/mx)}%;background:var(--acc)"></i></span></td><td class="r">${hb(x.size)}</td></tr>`).join('')}</table>`:'<span class="mute">Nothing catalogued yet.</span>';
+  u.className='';u.innerHTML=(r.duplicates||[]).length?`<table class="bktab">${r.duplicates.map(x=>`<tr class="click" data-goto="${esc(x.parent)}" data-hl="${esc(x.name)}"><td>${esc(x.name)}<div class="path">${esc(x.parent||'/')}</div></td><td class="mute">also on ${esc(x.others)}</td><td class="r">${hb(x.size)}</td></tr>`).join('')}</table>`:'<span class="mute">None found.</span>';
+  document.querySelectorAll('#sp_big [data-goto],#sp_dup [data-goto]').forEach(t=>t.onclick=()=>{driveTab='files';state.path=t.dataset.goto;state.sel=t.dataset.hl||null;state.hl=t.dataset.hl||null;render()});
 }
 function covHTML(d){
   const bk=(d.backed_up_by||[]).map(id=>drives.find(x=>x.id==id)).filter(Boolean);
@@ -499,14 +609,41 @@ function drawList(){
   const h=document.querySelector('tr.hl');if(h)h.scrollIntoView({block:'center'});
 }
 let st;
+let here=null;   // the folder you were in when you started searching (offered as "In <folder>")
 async function doSearch(){
-  const q=$('#q').value.trim();if(!q){if(state.mode=='search'){state={mode:'home'};renderHome()}return}
+  const q=$('#q').value.trim();if(!q){if(state.mode=='search'){state=prevState||{mode:'home'};prevState=null;state.mode=='drive'?render():renderHome()}return}
+  if(state.mode=='drive'){prevState=state;const d=cur();here={drive:state.drive,path:state.path,label:state.path?state.path.split('/').pop():d.display};
+    const sel=$('#scope');if(!sel.querySelector('option[value=here]'))sel.insertAdjacentHTML('afterbegin','');loadDrives()}
+  else if(state.mode!='search'){prevState=null}
   state={mode:'search',q};
-  const r=await api('search',{q,kind:$('#kind').value,drive:$('#scope').value?+$('#scope').value:null});
+  const sc=$('#scope').value;
+  const args=sc=='here'&&here?{q,kind:$('#kind').value,drive:here.drive,path:here.path}:{q,kind:$('#kind').value,drive:sc?+sc:null};
+  const r=await api('search',args);
   if($('#q').value.trim()!=q)return;
   state.res=r.results;drawSearch(r);
 }
+let prevState=null,openGroups=new Set();
 function drawSearch(r){
+  // Combine identical files (same name and size) found on several drives into one row.
+  const groups=[],byKey=new Map();
+  for(const e of state.res){const k=(e.is_dir==1?'d':'f')+'|'+(e.nkey||e.name)+'|'+e.size;
+    if(!byKey.has(k)){const g={...e,items:[],key:k};byKey.set(k,g);groups.push(g)}byKey.get(k).items.push(e)}
+  const res=state.res,total=r.per_drive.reduce((a,x)=>a+x.n,0);
+  const where=e=>{const d=drives.find(x=>x.id==e.drive_id)||{};return `<span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:4px"></span>${esc(e.drive)}${!d.online&&d.notes?`<div class="path">📍 ${esc(d.notes.split('\n')[0].slice(0,40))}</div>`:''}`};
+  const row=g=>{const multi=g.items.length>1,open=openGroups.has(g.key);
+    return `<tr class="click" data-g="${esc(g.key)}"><td class="n"><span class="ic">${icon(g)}</span>${esc(g.name)}<div class="path">${multi?`${g.items.length} copies`:esc(g.parent||'/')}</div></td>
+      <td>${multi?`<span class="mute">${open?'▾':'▸'}</span> on ${g.items.length} drives: ${esc([...new Set(g.items.map(x=>x.drive))].join(', '))}`:where(g)}</td><td class="r">${hb(g.size)}</td><td class="r hide-sm">${date(g.mtime)}</td></tr>`
+      +(multi&&open?g.items.map(e=>`<tr class="click sub" data-id="${e.id}"><td class="n" style="padding-left:34px"><div class="path">${esc(e.parent||'/')}</div></td><td>${where(e)}</td><td></td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join(''):'')};
+  $('#view').innerHTML=`<div class="card"><b>${total.toLocaleString()} match${total==1?'':'es'}</b>${groups.length<res.length?` <span class="mute">· ${groups.length.toLocaleString()} different items</span>`:''}${total>res.length?` <span class="mute">(showing first ${res.length})</span>`:''}<div style="margin-top:8px">${r.per_drive.map(p=>`<span class="chip" data-d="${p.drive_id}">${esc(p.drive)} · ${p.n.toLocaleString()}</span>`).join('')||'<span class="mute">Nothing found on any catalogued drive.</span>'}</div></div>
+  ${groups.length?`<table>${th('name','Name')}<th>Drive</th>${th('size','Size','r')}${th('mtime','Modified','r hide-sm')}${sorter(groups).map(row).join('')}</table>`:''}`;
+  bindSort(()=>drawSearch(r));
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{$('#scope').value=c.dataset.d;doSearch()});
+  const go=e=>{if(e.is_dir==1)openDrive(e.drive_id,e.parent?e.parent+'/'+e.name:e.name);else openDrive(e.drive_id,e.parent,e.name)};
+  document.querySelectorAll('tr[data-g]').forEach(tr=>tr.onclick=()=>{const g=byKey.get(tr.dataset.g);
+    if(g.items.length>1){openGroups.has(g.key)?openGroups.delete(g.key):openGroups.add(g.key);drawSearch(r)}else go(g.items[0])});
+  document.querySelectorAll('tr.sub[data-id]').forEach(tr=>tr.onclick=()=>go(res.find(x=>x.id==tr.dataset.id)));
+}
+function drawSearchOld(r){
   const res=state.res,total=r.per_drive.reduce((a,x)=>a+x.n,0);
   $('#view').innerHTML=`<div class="card"><b>${total.toLocaleString()} match${total==1?'':'es'}</b>${total>res.length?` <span class="mute">(showing first ${res.length})</span>`:''}<div style="margin-top:8px">${r.per_drive.map(p=>`<span class="chip" data-d="${p.drive_id}">${esc(p.drive)} · ${p.n.toLocaleString()}</span>`).join('')||'<span class="mute">Nothing found on any catalogued drive.</span>'}</div></div>
   ${res.length?`<table>${th('name','Name')}<th>Drive</th>${th('size','Size','r')}${th('mtime','Modified','r hide-sm')}${sorter(res).map(e=>`<tr class="click" data-id="${e.id}"><td class="n"><span class="ic">${icon(e)}</span>${esc(e.name)}<div class="path">${esc(e.parent||'/')}</div></td><td>${esc(e.drive)} <span class="dot ${(drives.find(d=>d.id==e.drive_id)||{}).online?'on':''}" style="display:inline-block"></span></td><td class="r">${hb(e.size)}</td><td class="r hide-sm">${date(e.mtime)}</td></tr>`).join('')}</table>`:''}`;
@@ -520,6 +657,7 @@ const clearSearch=()=>{$('#q').value='';$('#qx').style.display='none';doSearch()
 $('#qx').onclick=clearSearch;
 $('#q').addEventListener('keydown',e=>{if(e.key=='Escape'&&$('#q').value){e.preventDefault();clearSearch()}});
 $('#kind').onchange=$('#scope').onchange=doSearch;
+$('#compact').onclick=()=>{compact=!compact;savePrefs();loadDrives()};
 $('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Checking connected drives…');setTimeout(loadDrives,1500)});
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
 async function openSettings(){
@@ -536,6 +674,7 @@ async function openSettings(){
   <label class="set">Rescan network shares (NAS) that stay connected every <input type="number" min="1" step="1" id="s_periodic" value="${s.periodicRescanHours}"> hours</label>
   <label class="set"><input type="checkbox" id="s_hidden" ${s.includeHidden?'checked':''}>Include hidden files</label>
   <label class="set"><input type="checkbox" id="s_dmg" ${s.skipDiskImages?'checked':''}>Ignore disk images (.dmg installers)</label>
+  <label class="set"><input type="checkbox" id="s_strict" ${s.strictCheck?'checked':''}>Strict backup check: a backup copy must also have the same modification date <span class="mute">(catches edited files that kept their size; may flag copies made by tools that don't preserve dates)</span></label>
   <div class="set">Never scan these drives (one name per line)<textarea id="s_ignore" rows="3" placeholder="e.g. Time Machine">${esc(s.ignoreVolumes.join('\n'))}</textarea></div>
   <h3>Share between Macs</h3>
   <div class="set">${s.syncFolder?`<span class="okc">✓ Sharing</span> through <b>${s.syncIsICloud?'iCloud Drive':esc(s.syncFolder)}</b>${s.lastSync?` · last checked ${ago(s.lastSync)}`:''}.${s.syncError?` <span class="errc">⚠ ${esc(s.syncError)}</span>`:''}
@@ -544,9 +683,10 @@ async function openSettings(){
   <div class="row">${s.syncIsICloud?'':`<button id="s_icloud" class="primary" ${s.iCloudAvailable?'':'disabled title="Turn on iCloud Drive in System Settings first"'}>Share with iCloud Drive</button>`}
     <button id="s_choose">${s.syncFolder&&!s.syncIsICloud?'Choose another folder…':'Use another folder…'}</button>
     ${s.syncFolder?'<button id="s_syncnow">Sync now</button><button id="s_syncoff" class="danger">Stop sharing</button>':''}</div>
+  <h3>Setup guide</h3><div class="row"><button id="s_setup">Run the setup guide again</button></div>
   <h3>Updates</h3><div class="row" id="uprow"><span class="mute">Checking…</span></div>
   <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} on ${esc(s.machine)}<br>Working copy on this Mac (fast searching, works offline): ${esc(s.catalogPath)}${s.syncFolder?`<br>Shared copy, exchanged with your other Macs: ${esc(s.syncFolder)}`:''}</div></div>`;
-  const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,askNew:$('#s_ask').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
+  const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,askNew:$('#s_ask').checked,strictCheck:$('#s_strict').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
     periodicRescanHours:parseFloat($('#s_periodic').value)||12,includeHidden:$('#s_hidden').checked,skipDiskImages:$('#s_dmg').checked,
     ignoreVolumes:$('#s_ignore').value.split('\n')}).then(r=>{toast(r.loginStatus=='requiresApproval'?'Approve DriveDex in System Settings → Login Items':'Saved')});
   document.querySelectorAll('#view input,#view textarea').forEach(i=>i.onchange=save);
@@ -556,6 +696,7 @@ async function openSettings(){
       +` <button id="s_check">Check now</button>${u.error?` <span class="errc">${esc(u.error)}</span>`:''}<div class="mute" style="font-size:12px;width:100%">DriveDex looks for updates automatically a few times a day. Updates installed from here don't need "Open Anyway".</div>`;
     if($('#s_update'))$('#s_update').onclick=installUpdate;
     $('#s_check').onclick=()=>{$('#s_check').textContent='Checking…';checkUpdates(true)}});
+  $('#s_setup').onclick=openSetup;
   const sync=(a,msg)=>api(a).then(()=>{if(msg)toast(msg);openSettings()}).catch(e=>toast(e.message));
   if($('#s_icloud'))$('#s_icloud').onclick=()=>sync('syncICloud','Sharing through iCloud Drive');
   $('#s_choose').onclick=()=>sync('syncChoose');
