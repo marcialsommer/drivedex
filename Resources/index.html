@@ -203,6 +203,7 @@ th[data-hk]{cursor:pointer}
 .attn.isdone{opacity:.6}.donebtn{padding:3px 9px;color:var(--ok)}
 button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.danger:disabled{color:var(--mute)}
 #cardlog{margin-top:14px}#cardlog summary{cursor:pointer}
+.sumrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px}.sumrow .bigsum{margin:0}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -1269,9 +1270,11 @@ async function drawShoot(uuid){
   const nSafe=st.safe||0;
   const head=`<div class="card"><div class="row"><h2 style="margin:0">${esc(s.name)}</h2>${s.done?'<span class="pill wait">Done</span>':active?'<span class="pill err">● Active on this Mac</span>':'<span class="pill wait">Paused</span>'}<span style="flex:1"></span>
       ${s.done?'<button id="sh_reopen">Reopen</button>':active?'<button id="sh_pause" title="Stop adding new drives to this shoot">Pause</button>':'<button class="primary" id="sh_act">Make active</button>'}
-      <button id="sh_check">Check now</button><button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
-    <div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div>
-    <div class="mute">${active?(s.autoAdd?'Plug in a memory card and it is added here automatically. ':'Plug in a memory card and click <b>Add to this shoot</b>. '):''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). For certainty, click <b>Deep check</b>: DriveDex reads every file on the card and each copy and compares their contents. Checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}, updates by itself.</div>
+      <button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
+    <div class="sumrow"><div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div><span style="flex:1"></span>
+      <span class="mute" style="font-size:12.5px">checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})} · updates by itself</span>
+      <button class="primary" id="sh_check" title="Check all cards against the main drive and backups right now">↻ Check now</button></div>
+    <div class="mute">${active?(s.autoAdd?'Plug in a memory card and it is added here automatically. ':'Plug in a memory card and click <b>Add to this shoot</b>. '):''}A card is <b>safe to format</b> when every file on it is in the main folder and in every backup folder (same name and size; subfolders don't matter). For certainty, click <b>Deep check</b>: DriveDex reads every file on the card and each copy and compares their contents.</div>
     <div class="dests">${dests.map((d,j)=>`<div><span class="mute">${j==0?'Main':'Backup '+j}</span><b>${esc(d.name)}</b>${esc(d.path||'whole drive')}<div class="path">${d.error?`<span class="warnc">${esc(d.error)}</span>`:d.live?'<span class="okc">● connected, checked live</span>':`not connected · catalog from ${d.last_scan?ago(d.last_scan):'never'}`}</div></div>`).join('')}</div></div>`;
   const table=cards.length?`<table class="shtab"><tr><th>Card</th><th class="r">Size</th>${dests.map((d,j)=>`<th class="r">${j==0?'Main':'Backup '+j}<div class="path">${esc(d.name)}</div></th>`).join('')}<th>Status</th><th></th></tr>
     ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${(c.history||[]).length?` · round ${(c.history||[]).length+1}`:''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
