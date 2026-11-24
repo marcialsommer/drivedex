@@ -205,6 +205,7 @@ button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.d
 #cardlog{margin-top:14px}#cardlog summary{cursor:pointer}
 .sumrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px}.sumrow .bigsum{margin:0}
 #drives{flex:1;min-height:0;overflow:auto;margin:0 -8px -8px;padding:0 8px 8px}#navfixed{flex:none}.sidetabs,#drvhd{flex:none}
+.hdot{display:inline-block;margin-right:6px;vertical-align:1px}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search all drives…" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -213,7 +214,7 @@ button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.d
 <button id="gear" title="Settings">⚙︎ Settings</button>
 </header>
 <div id="activity" class="activity" style="display:none"></div>
-<main><nav><div class="sidetabs"><button class="stab" data-side="drives">Drives</button><button class="stab" data-side="shoots">Shoots</button></div><div class="hd" id="drvhd"><span id="hdtitle">Drives</span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="navfixed"></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
+<main><nav><div class="sidetabs"><button class="stab" data-side="drives">Drives</button><button class="stab" data-side="shoots">Shoots</button></div><div class="hd" id="drvhd"><span id="hdtitle"></span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">↻ Rescan</button></div><div id="navfixed"></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
 <section id="view"></section></main><div id="toast"></div><div id="ctx"></div>
 <script>
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -355,8 +356,8 @@ async function loadDrives(){
   const full=d=>{
     const pct=d.total_bytes?Math.round(100*d.used_bytes/d.total_bytes):0;
     const st=d.status=='scanning'?`<span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?'<span class="status scanning">⏳ Waiting to scan…</span>':d.status=='error'?`<span class="status error">⚠ ${esc(d.status_detail)}</span>`:'';
-    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}" title="${esc(d.display)}: ${(d.file_count||0).toLocaleString()} files · scanned ${esc(ago(d.last_scan))}"><div class="t">${ejBtn(d)}<span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
-    ${d.notes?`<div class="s note" title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0])}</div>`:''}${barHTML(d)}${st?`<div class="s">${st}</div>`:''}${covShort(d)&&d.role!='backup'?`<div class="s">${covShort(d)}</div>`:''}</div>`};
+    return `<div class="drv ${state.drive==d.id&&!state.kidPath?'sel':''}" data-id="${d.id}" title="${esc(d.display)}${d.notes?' · '+esc(d.notes.split('\n')[0]):''} · ${(d.file_count||0).toLocaleString()} files · scanned ${esc(ago(d.last_scan))}"><div class="t">${ejBtn(d)}<span class="dot ${d.online?'on':''}" title="${d.online?'Connected':'Not connected'}"></span><span class="kn">${esc(d.display)}</span>${tagHTML(d)}${capHTML(d)}${ticks(d)}</div>
+${barHTML(d)}${st?`<div class="s">${st}</div>`:''}${covShort(d)&&d.role!='backup'&&!/okc/.test(covShort(d))?`<div class="s">${covShort(d)}</div>`:''}</div>`};
   // Families: each main drive with its backups underneath; everything else below.
   const mains=drives.filter(d=>d.role=='main'),inFamily=new Set();
   const fams=mains.map(m=>{inFamily.add(m.id);
@@ -492,7 +493,7 @@ function renderHome(){
     :nDone?`<div class="card allok"><span class="big">✓</span><div style="flex:1"><h2>Nothing else needs attention</h2><div class="mute">${nDone} item${nDone==1?'':'s'} marked as done.</div></div>${doneToggle}</div>`
     :mains.length?`<div class="card allok"><span class="big">✓</span><div><h2>Everything is backed up</h2><div class="mute">${mains.length} main drive${mains.length==1?'':'s'}, all with complete backups. Nothing needs your attention.</div></div></div>`
     :`<div class="card"><h2>Set up your backups</h2><div class="mute">Mark the drives that hold your originals as <b>Main files</b> and link their backups, and DriveDex will tell you here whenever something isn't backed up.</div><div class="row" style="margin-top:8px"><button class="primary" id="startsetup">Start the setup guide</button></div></div>`;
-  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+att+`<div class="mute" style="margin:4px 2px 8px">${realDrives().length} drives · ${tot.toLocaleString()} files catalogued. Right-click a drive for more options.</div>
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+att+`<div class="mute" style="margin:4px 2px 8px">${realDrives().length} drives · ${tot.toLocaleString()} files catalogued</div>
   <table><tr>${[['drive','Drive',''],['backup','Backup',''],['where','Where','hide-sm'],['used','Used','r'],['files','Files','r hide-sm'],['seen','Last connected','r']].map(([k,l,c])=>`<th class="${c}" data-hk="${k}" title="Sort by ${l.toLowerCase()}">${l}${hsort.k==k?(hsort.d>0?' ▲':' ▼'):''}</th>`).join('')}</tr>
   ${homeSorted().map(d=>`<tr class="click drvrow" data-id="${d.id}"><td class="n"><span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:8px"></span>${esc(d.display)}${tagHTML(d)}</td><td>${covShort(d)}</td><td class="hide-sm mute">${esc((d.notes||'').split('\n')[0]).slice(0,50)}</td><td class="r">${hb(d.used_bytes)}</td><td class="r hide-sm">${(d.file_count||0).toLocaleString()}</td><td class="r">${d.online?'now':ago(d.last_seen)}${!d.online&&d.last_seen_on?`<div class="path">${esc(d.last_seen_on)}</div>`:''}</td></tr>`).join('')}</table>`;
   document.querySelectorAll('tr[data-id]').forEach(el=>el.onclick=()=>openDrive(+el.dataset.id,''));
@@ -711,7 +712,7 @@ function renderDriveHeader(){
   const tabs=[['files','Files'],['backups','Backups'],['info','Info'],['settings','Settings']];
   el.innerHTML=`<div class="card dcard"><div class="dtop"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">${tagHTML(d)}
     <span style="flex:1"></span>${d.status=='scanning'||d.queued?`<button class="danger" id="stopscan">${d.status=='scanning'?'Stop scan':'Don\'t scan'}</button>`:`<button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>`}<button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button>${d.online&&d.kind!='internal'?`<button data-eject="${d.id}" title="Eject this drive">⏏ Eject</button>`:''}</div>
-  <div class="dsum"><span id="dstat">${dstat(d)}</span>${d.last_scan&&d.status!='scanning'?` · <a class="lnk" data-tab="info" title="Show scan history">scanned ${ago(d.last_scan)}</a>`:''}${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
+  <div class="dsum"><span id="dstat">${dstat(d)}</span>${d.last_scan&&d.status!='scanning'?` · <a class="lnk" data-tab="info" title="Show scan history">scanned ${ago(d.last_scan)}</a>`:''}${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
   <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
   ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:driveTab=='settings'?`<div class="tabbody">${settingsHTML(d)}</div>`:''}</div>`;
   document.querySelectorAll('#dh [data-tab]').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
@@ -916,7 +917,7 @@ function infoHTML(d){
 // Settings tab: everything you can change about the drive
 function settingsHTML(d){
   return `<div style="margin:4px 0 10px">${typeRow(d)}</div>
-  <div class="mute" style="font-size:12px;margin-bottom:4px">📍 Where does this drive live? (shown in the drive list and in search results)</div>
+  <div style="font-size:13px;margin-bottom:4px">Where does it live? <span class="mute">· shown on its page and in search results</span></div>
   <textarea id="notes" rows="2" placeholder="e.g. Office, top drawer · client archive 2019–2023">${esc(d.notes)}</textarea>
   <div class="sech">Scanning</div>
   <div class="row" style="font-size:13px"><span>Rescan this drive</span><select class="sm" id="schedSel">${[['','Default (DriveDex settings)'],['connect','Every time it’s connected'],['hourly','Every hour'],['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['changes','When files change on it'],['manual','Only when I click Rescan']].map(([v,l])=>`<option value="${v}" ${(d.scan_schedule||'')==v?'selected':''}>${l}</option>`).join('')}</select></div>
@@ -1022,7 +1023,7 @@ function covCell(e){const c=state.cov;if(!c)return'';
     return '<td class="r okc"><span class="cd c2"></span>All twice</td>'}
   const k=e.copies;if(k==null)return '<td class="r mute">—</td>';if(k<0)return '<td class="r mute">⊘ Excluded</td>';
   return `<td class="r"><span class="cd ${k>=2?'c2':k==1?'c1':'c0'}"></span>${k==0?'None':k==1?'1 backup':k+' backups'}</td>`}
-const dstat=d=>(d.online?'🟢 Connected':'⚪ Not connected')+(d.status=='scanning'?` · <span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?' · <span class="status scanning">⏳ Waiting to scan (one drive at a time)</span>':d.status=='error'?` · <span class="status error">⚠ ${esc(d.status_detail)}</span>`:d.status_detail?` · ${esc(d.status_detail)}`:'');
+const dstat=d=>(d.online?'<span class="dot on hdot"></span>Connected':'<span class="dot hdot"></span>Not connected')+(d.status=='scanning'?` · <span class="status scanning">Scanning… ${esc(d.status_detail)}</span>`:d.queued?' · <span class="status scanning">⏳ Waiting to scan (one drive at a time)</span>':d.status=='error'?` · <span class="status error">⚠ ${esc(d.status_detail)}</span>`:d.status_detail?` · ${esc(d.status_detail)}`:'');
 function sorter(rows){const k=sort.k,dr=sort.d;return rows.slice().sort((a,b)=>{if(k=='name'){if((a.is_dir==1)!=(b.is_dir==1))return a.is_dir==1?-1:1;return dr*a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})}return dr*((a[k]||0)-(b[k]||0))})}
 function th(k,label,cls=''){return `<th class="${cls}" data-k="${k}">${label}${sort.k==k?(sort.d>0?' ▲':' ▼'):''}</th>`}
 function bindSort(redraw){document.querySelectorAll('th[data-k]').forEach(t=>t.onclick=()=>{const k=t.dataset.k;sort.d=sort.k==k?-sort.d:(k=='name'?1:-1);sort.k=k;redraw()})}
@@ -1055,7 +1056,7 @@ function drawSearch(r){
   for(const e of state.res){const k=(e.is_dir==1?'d':'f')+'|'+(e.nkey||e.name)+'|'+e.size;
     if(!byKey.has(k)){const g={...e,items:[],key:k};byKey.set(k,g);groups.push(g)}byKey.get(k).items.push(e)}
   const res=state.res,total=r.per_drive.reduce((a,x)=>a+x.n,0);
-  const where=e=>{const d=drives.find(x=>x.id==e.drive_id)||{};return `<span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:4px"></span>${esc(e.drive)}${!d.online&&d.notes?`<div class="path">📍 ${esc(d.notes.split('\n')[0].slice(0,40))}</div>`:''}`};
+  const where=e=>{const d=drives.find(x=>x.id==e.drive_id)||{};return `<span class="dot ${d.online?'on':''}" style="display:inline-block;margin-right:4px"></span>${esc(e.drive)}${!d.online&&d.notes?`<div class="path">${esc(d.notes.split('\n')[0].slice(0,40))}</div>`:''}`};
   const row=g=>{const multi=g.items.length>1,open=openGroups.has(g.key);
     return `<tr class="click" data-g="${esc(g.key)}"><td class="n"><span class="ic">${icon(g)}</span>${esc(g.name)}<div class="path">${multi?`${g.items.length} copies`:esc(g.parent||'/')}</div></td>
       <td>${multi?`<span class="mute">${open?'▾':'▸'}</span> on ${g.items.length} drives: ${esc([...new Set(g.items.map(x=>x.drive))].join(', '))}`:where(g)}</td><td class="r">${hb(g.size)}</td><td class="r hide-sm">${date(g.mtime)}</td></tr>`
@@ -1438,36 +1439,35 @@ async function openSettings(){
   const s=await api('getSettings');
   const lnote=s.loginStatus=='requiresApproval'?' <a href="#" id="li">Approve in Login Items</a>':'';
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><h2>Settings</h2>
-  <h3>Background</h3>
-  <label class="set"><input type="checkbox" id="s_login" ${s.openAtLogin?'checked':''}>Open DriveDex at login <span class="mute">(recommended: it only catalogues drives while running, quietly in the menu bar)</span>${lnote}</label>
-  <label class="set"><input type="checkbox" id="s_menubar" ${s.showMenuBarIcon!==false?'checked':''}>Show DriveDex in the menu bar <span class="mute">(the drive icon that turns orange or red when backups need attention; when hidden, DriveDex still runs in the background: open it from Applications or Spotlight)</span></label>
-  <label class="set"><input type="checkbox" id="s_notify" ${s.notify?'checked':''}>Show a notification when a scan finishes</label>
-  <label class="set"><input type="checkbox" id="s_ask" ${s.askNew?'checked':''}>Ask before cataloguing a drive DriveDex hasn't seen before</label>
-  <h3>Scanning</h3>
-  <label class="set">When a drive is plugged in, rescan it if its last scan is older than <input type="number" min="0" step="0.5" id="s_rescan" value="${s.rescanAfterHours}"> hours</label>
-  <label class="set">Rescan network shares (NAS) that stay connected every <input type="number" min="1" step="1" id="s_periodic" value="${s.periodicRescanHours}"> hours</label>
+  <h3>General</h3>
+  <label class="set"><input type="checkbox" id="s_login" ${s.openAtLogin?'checked':''}>Open DriveDex at login <span class="mute">· recommended: drives are only catalogued while it runs</span>${lnote}</label>
+  <label class="set"><input type="checkbox" id="s_menubar" ${s.showMenuBarIcon!==false?'checked':''}>Show DriveDex in the menu bar <span class="mute">· when off, it still runs; open it from Applications</span></label>
+  <label class="set"><input type="checkbox" id="s_notify" ${s.notify?'checked':''}>Notify me when a scan finishes</label>
+  <h3>New drives & scanning</h3>
+  <label class="set"><input type="checkbox" id="s_ask" ${s.askNew?'checked':''}>Ask before cataloguing a new drive</label>
+  <label class="set">Rescan a drive when it's plugged in if its last scan is older than <input type="number" min="0" step="0.5" id="s_rescan" value="${s.rescanAfterHours}"> hours</label>
+  <label class="set">Rescan network shares (NAS) every <input type="number" min="1" step="1" id="s_periodic" value="${s.periodicRescanHours}"> hours <span class="mute">· each drive can have its own schedule: drive → Settings</span></label>
   <label class="set"><input type="checkbox" id="s_hidden" ${s.includeHidden?'checked':''}>Include hidden files</label>
-  <label class="set"><input type="checkbox" id="s_dmg" ${s.skipDiskImages?'checked':''}>Ignore disk images (.dmg installers)</label>
-  <label class="set"><input type="checkbox" id="s_strict" ${s.strictCheck?'checked':''}>Strict backup check: a backup copy must also have the same modification date <span class="mute">(catches edited files that kept their size; may flag copies made by tools that don't preserve dates)</span></label>
-  <div class="set">Never scan these drives (one name per line)<textarea id="s_ignore" rows="3" placeholder="e.g. Time Machine">${esc(s.ignoreVolumes.join('\n'))}</textarea></div>
-  <h3>Ask Claude about your drives</h3>
-  <div class="set"><span class="mute">Saves one readable file about all your drives: sizes and free space, backups and how complete they are, the folder structure with sizes, what takes up the space, and large files on more than one drive. Drop it into a chat with Claude to get advice on storage, naming, where things should live and your backup strategy. Made from the catalog: nothing is read from your drives, and nothing is sent anywhere by DriveDex.</span>
-    <div class="row" style="margin-top:8px"><button id="s_overview">Export overview for Claude…</button>
-      <label class="chk" title="How many folder levels per drive"><span>Folder levels</span><select class="sm" id="s_ovdepth"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select></label>
-      <label class="chk"><input type="checkbox" id="s_ovnames">Include file names of duplicates</label></div></div>
-  <h3>Memory cards</h3><div class="set" id="s_cards"></div>
+  <label class="set"><input type="checkbox" id="s_dmg" ${s.skipDiskImages?'checked':''}>Skip disk images (.dmg)</label>
+  <div class="set">Never scan these drives <span class="mute">· one name per line</span><textarea id="s_ignore" rows="2" placeholder="e.g. Time Machine">${esc(s.ignoreVolumes.join('\n'))}</textarea></div>
+  <h3>Backup check</h3>
+  <label class="set"><input type="checkbox" id="s_strict" ${s.strictCheck?'checked':''}>Strict: copies must also have the same modification date <span class="mute">· catches edited files that kept their size</span></label>
   <h3>Share between Macs</h3>
-  <div class="set">${s.syncFolder?`<span class="okc">✓ Sharing</span> through <b>${s.syncIsICloud?'iCloud Drive':esc(s.syncFolder)}</b>${s.lastSync?` · last checked ${ago(s.lastSync)}`:''}.${s.syncError?` <span class="errc">⚠ ${esc(s.syncError)}</span>`:''}
-     <div class="mute" style="margin-top:4px">Turn on the same setting on each Mac. Every Mac then sees all drives, plus names, notes and backup assignments made on any of them. New scans arrive within a few minutes.</div>`
-   :`<span class="mute">Off. Each Mac only knows the drives plugged into it.</span>`}</div>
+  <div class="set">${s.syncFolder?`<span class="okc">✓ Sharing</span> through <b>${s.syncIsICloud?'iCloud Drive':esc(s.syncFolder)}</b>${s.lastSync?` · checked ${ago(s.lastSync)}`:''}${s.syncError?` <span class="errc">⚠ ${esc(s.syncError)}</span>`:''} <span class="mute">· turn on the same on each Mac</span>`
+   :`<span class="mute">Off: each Mac only knows the drives plugged into it.</span>`}</div>
   <div class="row">${s.syncIsICloud?'':`<button id="s_icloud" class="primary" ${s.iCloudAvailable?'':'disabled title="Turn on iCloud Drive in System Settings first"'}>Share with iCloud Drive</button>`}
     <button id="s_choose">${s.syncFolder&&!s.syncIsICloud?'Choose another folder…':'Use another folder…'}</button>
     ${s.syncFolder?'<button id="s_syncnow">Sync now</button><button id="s_syncoff" class="danger">Stop sharing</button>':''}</div>
-  <h3>Feedback</h3><div class="row" id="s_fb"><button id="s_fb_bug">Report a problem</button><button id="s_fb_idea">Suggest an idea</button>
-    <span class="mute" style="font-size:12px;width:100%">Opens a short form on GitHub (sign in needed) with your DriveDex and macOS versions filled in. Please don't include private file names you don't want others to see: the feedback page is public.</span></div>
-  <h3>Help</h3><div class="row"><button id="s_guide">Open the user guide (PDF)</button><button id="s_setup">Run the setup guide again</button></div>
+  <h3>Memory cards</h3><div class="set" id="s_cards"></div>
+  <h3>Ask Claude about your drives</h3>
+  <div class="set"><span class="mute">A readable file about all your drives, backups and folders, to drop into a chat with Claude for advice. Made from the catalog; DriveDex sends nothing anywhere.</span>
+    <div class="row" style="margin-top:8px"><button id="s_overview">Export overview for Claude…</button>
+      <label class="chk" title="How many folder levels per drive"><span>Folder levels</span><select class="sm" id="s_ovdepth"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select></label>
+      <label class="chk"><input type="checkbox" id="s_ovnames">Include file names of duplicates</label></div></div>
+  <h3>Help & feedback</h3><div class="row" id="s_fb"><button id="s_guide">User guide (PDF)</button><button id="s_setup">Setup guide</button><button id="s_fb_bug">Report a problem</button><button id="s_fb_idea">Suggest an idea</button>
+    <span class="mute" style="font-size:12px;width:100%">Feedback opens a short public form on GitHub: leave out private file names.</span></div>
   <h3>Updates</h3><div class="row" id="uprow"><span class="mute">Checking…</span></div>
-  <h3>About</h3><div class="mute">DriveDex ${esc(s.version)} on ${esc(s.machine)}<br>Working copy on this Mac (fast searching, works offline): ${esc(s.catalogPath)}${s.syncFolder?`<br>Shared copy, exchanged with your other Macs: ${esc(s.syncFolder)}`:''}</div></div>`;
+  <div class="mute" style="font-size:12px;margin-top:16px">DriveDex ${esc(s.version)} on ${esc(s.machine)} · catalog: ${esc(s.catalogPath)}${s.syncFolder?` · shared copy: ${esc(s.syncFolder)}`:''}</div></div>`;
   const save=()=>api('setSettings',{openAtLogin:$('#s_login').checked,notify:$('#s_notify').checked,showMenuBarIcon:$('#s_menubar').checked,askNew:$('#s_ask').checked,strictCheck:$('#s_strict').checked,rescanAfterHours:parseFloat($('#s_rescan').value)||0,
     periodicRescanHours:parseFloat($('#s_periodic').value)||12,includeHidden:$('#s_hidden').checked,skipDiskImages:$('#s_dmg').checked,
     ignoreVolumes:$('#s_ignore').value.split('\n')}).then(r=>{toast(r.loginStatus=='requiresApproval'?'Approve DriveDex in System Settings → Login Items':'Saved')});
@@ -1475,11 +1475,11 @@ async function openSettings(){
   if($('#li'))$('#li').onclick=e=>{e.preventDefault();api('openLoginItems')};
   api('updateStatus').then(u=>{const el=$('#uprow');if(!el)return;
     el.innerHTML=(u.available?`<span class="okc">DriveDex ${esc(u.version)} is available.</span> <button class="primary" id="s_update">Install &amp; Relaunch</button>`:`<span class="mute">${u.checked?`Up to date (${esc(u.current)}). Last checked ${ago(u.checked)}.`:'Not checked yet.'}</span>`)
-      +` <button id="s_check">Check now</button>${u.error?` <span class="errc">${esc(u.error)}</span>`:''}<div class="mute" style="font-size:12px;width:100%">DriveDex looks for updates automatically a few times a day. Updates installed from here don't need "Open Anyway".</div>`;
+      +` <button id="s_check">Check now</button>${u.error?` <span class="errc">${esc(u.error)}</span>`:''}`;
     if($('#s_update'))$('#s_update').onclick=installUpdate;
     $('#s_check').onclick=()=>{$('#s_check').textContent='Checking…';checkUpdates(true)}});
   (()=>{const el=$('#s_cards'),hid=drives.filter(d=>d.is_card==1&&!d.card),n=hid.length,inS=drives.filter(d=>d.card).length;
-    el.innerHTML=`<span class="mute">Memory cards (recognised by the card reader, or by camera folders like DCIM) stay out of the drive list unless you add them: when you plug one in, choose <b>Add to the shoot</b> or <b>Add to my drives</b>.${inS?` ${inS} card${inS==1?' is':'s are'} part of a shoot.`:''}</span>
+    el.innerHTML=`<span class="mute">Memory cards stay out of the drive list unless you choose <b>Add to my drives</b>.${inS?` ${inS} card${inS==1?' is':'s are'} part of a shoot.`:''}</span>
       ${n?`<div style="margin-top:6px">${hid.map(d=>`<div class="row" style="margin:3px 0"><span>${esc(d.display)} <span class="mute">${d.total_bytes?'· '+capLabel(d.total_bytes):''}${d.last_seen?' · seen '+ago(d.last_seen):''}</span></span><button class="sm" data-notacard="${esc(d.key)}" data-name="${esc(d.display)}">Add to my drives</button></div>`).join('')}</div>`:''}
       ${n?`<div class="row" style="margin-top:6px"><button id="s_forgetcards">Forget ${n} memory card${n==1?' that isn\'t':'s that aren\'t'} in a shoot</button></div>`:''}`;
     el.querySelectorAll('[data-notacard]').forEach(b=>b.onclick=()=>notACard(b.dataset.notacard,b.dataset.name));

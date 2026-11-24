@@ -104,6 +104,8 @@ Key facts:
   connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
   "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
   separator from the Mac's locale, NSSavePanel starting in the main folder).
+- Decluttered (v2.13, owner wants low clutter): sidebar rows show no location line (in the tooltip) and main drives
+  show a status line only when not fully backed up; no emoji in the drive header; Settings grouped with short hints.
 - Drive page tabs (v2.12): Files · Backups (same name on backup drives) · Info (facts: sizes, scan history, space) ·
   Settings (type, location note, Scanning, Forget). Search hint follows the drive menu (`searchHint()`): "Search all drives…" / "Search <drive>…" / "Search in “folder”…".
 - Per-drive scan schedule (v2.11, Settings tab → Scanning; `drives.scan_schedule` '' / connect / hourly / daily / weekly /

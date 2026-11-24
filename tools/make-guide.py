@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.12.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.13'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -106,7 +106,7 @@ s+=[P('2  Adding drives', h1),
 # 3
 s+=[P('3  The drive list', h1),
     P('The left column has two tabs: <b>Drives</b> (the Overview and all your drives) and <b>Shoots</b> (section 11). Under Drives you see <b>families</b>: each main drive in its own box with its backups indented below. Other drives are listed under <b>Other drives</b>.'),
-    side('fam', 60*mm, '&bull; <font color="#2e9d58"><b>Green dot</b></font>: connected to this Mac now.<br/>&bull; <b>HDD / SSD / NAS</b> tag: the kind of drive.<br/>&bull; <b>Bar</b>: how full it is, e.g. <b>2.1 of 4 TB</b>.<br/>&bull; <b>&#9167;</b> (connected drives): eject.<br/>&bull; <b>Location</b>: where the drive lives (from its notes).<br/>&bull; <b>Checkmarks</b> (top right): one per backup; green complete, amber 90%+, red less.<br/>&bull; Each backup shows its own fullness bar, how complete it is and how old its catalog is. Folder backups show their folder.<br/>&bull; A backup split over several drives appears as <b>Backup set &middot; N drives</b>, with the combined percentage on that heading and the drives indented below.<br/>&bull; The small <b>&#9662;</b> arrow hides or shows a family\'s backups.'),
+    side('fam', 60*mm, '&bull; <font color="#2e9d58"><b>Green dot</b></font>: connected to this Mac now.<br/>&bull; <b>HDD / SSD / NAS</b> tag: the kind of drive.<br/>&bull; <b>Bar</b>: how full it is, e.g. <b>2.1 of 4 TB</b>.<br/>&bull; <b>&#9167;</b> (connected drives): eject.<br/>&bull; Hover over a drive to see where it lives, its file count and when it was scanned.<br/>&bull; A line under a main drive appears only when something needs attention (e.g. <b>97.9% backed up</b>).<br/>&bull; <b>Checkmarks</b> (top right): one per backup; green complete, amber 90%+, red less.<br/>&bull; Each backup shows its own fullness bar, how complete it is and how old its catalog is. Folder backups show their folder.<br/>&bull; A backup split over several drives appears as <b>Backup set &middot; N drives</b>, with the combined percentage on that heading and the drives indented below.<br/>&bull; The small <b>&#9662;</b> arrow hides or shows a family\'s backups.'),
     side('compact', 46*mm, '<b>Wider list:</b> drag the border between the drive list and the main area to make the list wider (double-click it to reset). Long names wrap instead of being cut off.<br/><br/><b>Compact list:</b> the button next to "Drives" switches between rows with details and one line per drive (with the capacity), which is handy with many drives. Its icon shows which mode you\'re in.<br/><br/><b>Reorder:</b> drag a family box, or a drive under Other drives, up or down. A blue line shows where it lands. The order syncs to your other Macs.', box=(0,0,546,900)),
     side('dmenu', 42*mm, '<b>Right-click any drive</b> to open it, rescan it, show it in Finder, set its type and role, or <b>Forget drive</b>. Forgetting removes the drive and its catalog from DriveDex (and your other Macs if you share). Nothing on the drive is touched.'),
     PageBreak()]
@@ -217,9 +217,9 @@ s+=[note('<b>DriveDex doesn\'t copy or back up anything.</b> Use a dedicated too
     PageBreak()]
 s+=[P('14  Settings and shortcuts', h1),
     table([('<b>Open DriveDex at login</b>','Keep on: DriveDex only catalogs drives while running.'),
-           ('<b>Show DriveDex in the menu bar</b>','Turn off to hide the menu-bar icon. DriveDex keeps running; open it from Applications or Spotlight.'),('<b>Notifications</b>','When scans finish or fail, and for reminders and updates.'),
-           ('<b>Ask before cataloguing new drives</b>','On: new drives wait for <b>Catalog it</b>.'),
-           ('<b>Rescan when plugged in / network shares</b>','How old a catalog may get before a rescan (1 hour / 12 hours).'),
+           ('<b>General</b>','Open at login, show DriveDex in the menu bar (when off, it still runs; open it from Applications), notifications.'),('<b>Notifications</b>','When scans finish or fail, and for reminders and updates.'),
+           ('<b>New drives &amp; scanning</b>','Ask before cataloguing a new drive; default rescan timing; hidden files; disk images; drives never to scan.'),
+           ('<b>Default rescan timing</b>','How old a catalog may get before a rescan (1 hour; network shares 12 hours). Each drive can have its own schedule on its Settings tab.'),
            ('<b>Strict backup check</b>','Also compare modification dates (section 7).'),
            ('<b>Never scan these drives</b>','Names to skip. Drives you Ignore are added here.'),
            ('<b>Share between Macs</b>','Section 12.'),('<b>Ask Claude about your drives</b>','<b>Export overview for Claude…</b> saves one readable file about all drives (space, backups, folder structure, what takes the space, duplicates). Drop it into a chat with Claude for advice on storage, naming and backups. Folder names only, unless you tick file names of duplicates.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
