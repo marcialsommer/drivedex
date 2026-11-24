@@ -37,6 +37,8 @@ enum Settings {
     static var askNew: Bool { d.bool(forKey: "askNew") }
     static var strictCheck: Bool { d.bool(forKey: "strictCheck") }
     static var showMenuBarIcon: Bool { d.bool(forKey: "showMenuBarIcon") }
+    /// Needs attention items the user marked as done (keys include the numbers, so changes show again). Synced.
+    static var doneAttention: [String] { d.stringArray(forKey: "doneAttention") ?? [] }
     /// Drives the user said are not memory cards (although they look like one).
     static var notCardKeys: [String] { d.stringArray(forKey: "notCardKeys") ?? [] }
 }

@@ -95,6 +95,9 @@ Key facts:
   no deep check needs `quick`), then `diskutil eraseDisk ExFAT|MS-DOS FAT32 <name> MBRFormat /dev/diskN` (FAT32 ≤32 GB),
   records `cards[i]["formatted"]`, optional eject. Names ≤ 11 chars. Empty cards trigger no notice. The owner
   formats DJI action-cam cards here (fixed names like "CHRIS SD1"), Sony/drone cards in camera.
+- Needs attention: items with a `key` (numbers included: none/miss/rem/err/nobk) can be marked done (`doneAtt`, bridge
+  `doneAttention`/`setDoneAttention`, synced in prefs.json); "Show done" toggle; keys no longer present are pruned.
+  Menu-bar icon is always plain and its menu has no backup warnings (owner's wish, v2.8.2).
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

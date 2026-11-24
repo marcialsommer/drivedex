@@ -148,30 +148,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
         }
     }
 
-    /// Menu bar icon reflects backup health: plain = fine, orange = needs attention, red = files without backup.
+    /// The menu-bar icon: always the plain drive symbol.
     func refreshStatusIcon() {
-        let worst = menuDB.health().map { $0.level }.max() ?? 0
-        let name: String, color: NSColor?
-        switch worst {
-        case 2: name = "externaldrive.badge.xmark"; color = .systemRed
-        case 1: name = "externaldrive.badge.exclamationmark"; color = .systemOrange
-        default: name = "externaldrive"; color = nil
-        }
-        var img = NSImage(systemSymbolName: name, accessibilityDescription: "DriveDex")
-            ?? NSImage(systemSymbolName: "externaldrive", accessibilityDescription: "DriveDex")
-        if let c = color, let colored = img?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [c])) {
-            img = colored
-            img?.isTemplate = false
-        } else {
-            img?.isTemplate = true
-        }
+        // Always the plain drive icon (backup warnings live on the Overview, not in the menu bar).
+        let img = NSImage(systemSymbolName: "externaldrive", accessibilityDescription: "DriveDex")
+        img?.isTemplate = true
         statusItem.button?.image = img
-        statusItem.button?.toolTip = worst == 0 ? "DriveDex: everything backed up" : "DriveDex: some backups need attention"
+        statusItem.button?.toolTip = "DriveDex"
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
-        let health = menuDB.health()
         // What is DriveDex doing right now?
         for r in menuDB.rows("SELECT COALESCE(NULLIF(label,''), name) AS n, scan_files AS f FROM drives WHERE status='scanning'") {
             let busy = NSMenuItem(title: "⟳  Scanning \(r["n"] as? String ?? "a drive")… \((r["f"] as? Int ?? 0).formatted()) files so far",
@@ -186,20 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKSc
             menu.addItem(w)
         }
         if menu.items.count > 0 { menu.addItem(.separator()) }
-        let bad = health.filter { $0.level > 0 }.count
-        let head = NSMenuItem(title: health.isEmpty ? "No main drives set up yet"
-                              : bad == 0 ? "✓ Everything is backed up" : "\(bad) drive\(bad == 1 ? "" : "s") need\(bad == 1 ? "s" : "") attention",
-                              action: nil, keyEquivalent: "")
-        head.isEnabled = false
-        menu.addItem(head)
-        if !health.isEmpty { menu.addItem(.separator()) }
-        for h in health {
-            let mark = h.level == 0 ? "✓" : h.level == 1 ? "⚠︎" : "✕"
-            let item = NSMenuItem(title: "\(mark)  \(h.name): \(h.text)", action: #selector(openDriveFromMenu(_:)), keyEquivalent: "")
-            item.tag = h.id
-            item.target = self
-            menu.addItem(item)
-        }
+        // (No backup warnings here: the owner prefers a quiet menu-bar icon. They're on the Overview.)
         menu.addItem(.separator())
         for (title, sel) in [("Open DriveDex", #selector(showWindow)), ("Rescan Connected Drives", #selector(rescanConnected)),
                              ("Check for Updates…", #selector(checkForUpdates))] {

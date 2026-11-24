@@ -53,6 +53,15 @@ enum Bridge {
         case "pending":
             return Scanner.shared.pendingDrives()
 
+        case "doneAttention":
+            return Settings.doneAttention
+
+        case "setDoneAttention":
+            let keys = (a["keys"] as? [Any] ?? []).compactMap { $0 as? String }
+            Settings.d.set(Array(keys.prefix(500)), forKey: "doneAttention")
+            Scanner.shared.exportPrefs()
+            return ok
+
         case "notACard":   // "It's not a memory card": catalog it as a normal drive from now on
             let k = str("key")
             var nc = Settings.notCardKeys

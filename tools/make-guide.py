@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.8.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.8.2'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -88,7 +88,7 @@ s+=[Spacer(1,4), Table([[RLImage(GK,width=gw,height=gw*gk.size[1]/gk.size[0]), P
     side('up', 58*mm, 'DriveDex checks for new versions a few times a day. When one is available you get a notification and this notice at the top of the drive list. Click <b>Install</b>: DriveDex downloads the update, replaces itself and restarts, keeping your catalog. You can also use <b>DriveDex menu &rarr; Check for Updates…</b> or <b>Settings &rarr; Updates</b>.<br/><br/>After an update macOS may ask once more for access to removable volumes; click <b>Allow</b>.'),
     P('This guide is always available in the app under <b>Help &rarr; DriveDex User Guide</b>, and on the download page as <b>DriveDex-Guide.pdf</b>.', small),
     P('Where DriveDex lives', h2),
-    P('DriveDex runs in the <b>menu bar</b> (drive icon, top right) and starts when you log in. Closing the window doesn\'t stop it. The icon also shows your backup health (see section 7).'),
+    P('DriveDex runs in the <b>menu bar</b> (drive icon, top right) and starts when you log in. Closing the window doesn\'t stop it.'),
     PageBreak()]
 # 2
 s+=[P('2  Adding drives', h1),
@@ -153,8 +153,9 @@ s+=[P('7  Is everything backed up?', h1),
     P('Click <b>Overview</b> at the top of the drive list (its badge counts what needs attention), or the <b>DriveDex</b> title, to come back here from anywhere.'),
     P('The table of all drives below it can be sorted: click <b>Drive</b>, <b>Backup</b>, <b>Where</b>, <b>Used</b>, <b>Files</b> or <b>Last connected</b> (click again to reverse).'),
     shot('home','The home screen lists everything that needs you, with a button to fix each. When all is well it says "Everything is backed up".'),
-    P('Menu bar', h2),
-    P('The DriveDex icon in the menu bar turns <font color="#d9822b"><b>orange</b></font> when something needs attention and <font color="#d33f3f"><b>red</b></font> when files have no backup at all. Its menu lists every main drive with its status; click one to open it.'),
+    P('Marking items as done', h2),
+    P('Something that\'s fine as it is (for example files you don\'t need backed up, or a drive that only backs up one folder)? Click <b>&#10003;</b> next to it: it\'s hidden, not fixed, and DriveDex\'s rules stay the same. <b>Show done</b> at the top lists those items again, each with <b>Undo</b>. If the situation changes (more files without a backup, a backup overdue again), the item comes back by itself. Done items sync to your other Macs.'),
+    P('The menu-bar icon stays plain; its menu shows which drive is being scanned.'),
     KeepTogether([P('A drive\'s Backups tab', h2),
     shot('backups','Overall bar, one row per backup (or set), reminder, excluded folders and history.', width=CW*0.8)]),
     P('<b>Percentages are by data</b> (how many GB/TB have a copy); the number of files is shown next to them. A backup only shows 100% when nothing at all is missing. The bar shows all data: <font color="#2e9d58"><b>green</b></font> on 2+ backups, <font color="#d9822b"><b>amber</b></font> on exactly 1, <font color="#d33f3f"><b>red</b></font> on none. Each backup row shows how complete it is, when it was last fully <b>in sync</b>, and how old its catalog is. Click the amber <b>&#9888; missing</b> link to see exactly which files that backup lacks.'),

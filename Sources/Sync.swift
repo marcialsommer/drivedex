@@ -108,7 +108,8 @@ extension Scanner {
         let mine = Settings.d.double(forKey: "prefsUpdated")
         if let data = try? Data(contentsOf: f), let p = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            (p["updated"] as? Double ?? 0) > mine { return }
-        let p: [String: Any] = ["ignoreVolumes": Settings.ignoreVolumes, "strictCheck": Settings.strictCheck, "updated": mine, "format": 1]
+        let p: [String: Any] = ["ignoreVolumes": Settings.ignoreVolumes, "strictCheck": Settings.strictCheck,
+                                "doneAttention": Settings.doneAttention, "updated": mine, "format": 1]
         if let data = try? JSONSerialization.data(withJSONObject: p, options: [.prettyPrinted]) {
             try? data.write(to: f, options: .atomic)
             rememberStamp(f)
@@ -233,6 +234,7 @@ extension Scanner {
             if let data = try? Data(contentsOf: f), let p = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let updated = p["updated"] as? Double, updated > Settings.d.double(forKey: "prefsUpdated") {
                 Settings.d.set(p["ignoreVolumes"] as? [String] ?? [], forKey: "ignoreVolumes")
+                if let da = p["doneAttention"] as? [String] { Settings.d.set(da, forKey: "doneAttention") }
                 if let strict = p["strictCheck"] as? Bool, strict != Settings.strictCheck {
                     Settings.d.set(strict, forKey: "strictCheck")
                     affected += db.rows("SELECT DISTINCT main_id FROM backups").compactMap { $0["main_id"] as? Int }
