@@ -1286,7 +1286,7 @@ async function drawShoot(uuid){
   const nSafe=st.safe||0;
   const head=`<div class="card"><div class="row"><h2 style="margin:0">${esc(s.name)}</h2>${s.done?'<span class="pill wait">Done</span>':active?'<span class="pill err">● Active on this Mac</span>':'<span class="pill wait">Paused</span>'}<span style="flex:1"></span>
       ${s.done?'<button id="sh_reopen">Reopen</button>':active?'<button id="sh_pause" title="Stop adding new drives to this shoot">Pause</button>':'<button class="primary" id="sh_act">Make active</button>'}
-      <button id="sh_edit">Edit</button><button id="sh_export" title="Save the card log as a spreadsheet file (opens in Numbers or Excel)">Export log…</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
+      <button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
     <div class="sumrow"><div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div><span style="flex:1"></span>
       <span class="mute" style="font-size:12.5px">checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})} · updates by itself</span>
       <button class="primary" id="sh_check" title="Check all cards against the main drive and backups right now">↻ Check now</button></div>
@@ -1332,9 +1332,10 @@ async function drawShoot(uuid){
   const res=h=>{const f=h.formatted,deepOK=(h.deep&&h.deep.state=='verified')||(f&&f.deep);
     return f?`<span class="okc">✓ ${deepOK?'verified':'safe'}</span> · formatted as ${esc(f.name)} <span class="mute">${dt(f.at)}</span>`
       :h.deep&&h.deep.state=='verified'?'<span class="okc">✓ verified</span> · formatted elsewhere':h.state=='formatted'?'formatted (in the camera or elsewhere)':esc(h.state||'')};
-  const logHTML=rounds.length?`<details class="card" id="cardlog" ${shootLogOpen?'open':''}><summary><b>Card log</b> <span class="mute">· ${rounds.length} earlier round${rounds.length==1?'':'s'}: what was on each card, and when it was formatted</span></summary>
-    <table class="shtab" style="margin-top:8px"><tr><th>Card</th><th>Name then</th><th>Round</th><th class="r">Files</th><th class="r">Size</th><th>Result</th></tr>
-    ${rounds.map(h=>`<tr><td><b>${esc(h.label||'')}</b></td><td class="mute">${esc(h.vol||'')}</td><td>${dt(h.start)} – ${dt(h.end)}</td><td class="r">${(h.files||0).toLocaleString()}</td><td class="r">${hb(h.bytes||0)}</td><td style="white-space:normal">${res(h)}</td></tr>`).join('')}</table></details>`:'';
+  const logHTML=cards.length?`<details class="card" id="cardlog" ${shootLogOpen?'open':''}><summary><b>Card log</b> <span class="mute">· ${rounds.length?`${rounds.length} earlier round${rounds.length==1?'':'s'}: what was on each card, and when it was formatted`:'no earlier rounds yet'}</span><button class="sm" id="sh_export" style="float:right;margin-top:-3px" title="Save the card log as a spreadsheet file (opens in Numbers or Excel): every card and round, including the current ones">Export log…</button></summary>
+    ${rounds.length?'':'<div class="mute" style="font-size:12.5px;margin-top:8px">When a card is formatted and used again, its earlier rounds appear here. The export always includes the current round of every card.</div>'}
+    ${rounds.length?`<table class="shtab" style="margin-top:8px"><tr><th>Card</th><th>Name then</th><th>Round</th><th class="r">Files</th><th class="r">Size</th><th>Result</th></tr>
+    ${rounds.map(h=>`<tr><td><b>${esc(h.label||'')}</b></td><td class="mute">${esc(h.vol||'')}</td><td>${dt(h.start)} – ${dt(h.end)}</td><td class="r">${(h.files||0).toLocaleString()}</td><td class="r">${hb(h.bytes||0)}</td><td style="white-space:normal">${res(h)}</td></tr>`).join('')}</table>`:''}</details>`:'';
   const keepFmt=$('#fmt_name')?{v:$('#fmt_name').value,focus:document.activeElement&&document.activeElement.id=='fmt_name',q:$('#fmt_quick')&&$('#fmt_quick').checked,e:$('#fmt_eject')&&$('#fmt_eject').checked}:null;
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+pend+table+fmt+add+logHTML+miss;
   if($('#cardlog'))$('#cardlog').ontoggle=()=>{shootLogOpen=$('#cardlog').open};
@@ -1367,7 +1368,7 @@ async function drawShoot(uuid){
     api('shootDone',{uuid,done:true}).then(()=>{toast('Marked as done. The result for each card is kept.');re()})};
   $('#sh_check').onclick=()=>{toast('Checking…');drawShoot(uuid)};
   $('#sh_edit').onclick=()=>editShoot(uuid);
-  $('#sh_export').onclick=()=>exportShootLog(uuid,st);
+  if($('#sh_export'))$('#sh_export').onclick=e=>{e.preventDefault();e.stopPropagation();exportShootLog(uuid,st)};
   $('#sh_del').onclick=()=>{if(!confirm(`Delete the shoot “${s.name}”?\n\nThis only removes the shoot from DriveDex. Nothing on the cards or drives is touched, and the cards' catalogs stay searchable.`))return;
     api('shootDelete',{uuid}).then(()=>{toast('Shoot deleted');loadShoots().then(()=>{loadDrives();openShoots()})})};
   document.querySelectorAll('[data-cl]').forEach(i=>i.onchange=()=>api('shootCard',{uuid,op:'label',key:i.dataset.cl,label:i.value.trim()||'Card'}).then(()=>loadShoots()));
