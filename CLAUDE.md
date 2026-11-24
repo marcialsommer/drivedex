@@ -102,7 +102,8 @@ Key facts:
   after erasing and calls `Shoots.startRound` (old round → `cards[i]["history"]`, row gets new key + `ready`). Cards
   formatted elsewhere continue a row by fixed name (`continuedRow`: non-generic name = row's `nextName`, old key not
   connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
-  "Formatted as … · ready", collapsible Card log.
+  "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
+  separator from the Mac's locale, NSSavePanel starting in the main folder).
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

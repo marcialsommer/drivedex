@@ -1210,6 +1210,22 @@ function wireShootsSide(){
   document.querySelectorAll('#drives [data-shoot]').forEach(el=>el.onclick=()=>openShoot(el.dataset.shoot));
   if($('#side_newshoot'))$('#side_newshoot').onclick=()=>editShoot(null);
   if($('#side_allshoots'))$('#side_allshoots').onclick=()=>openShoots(true)}
+// Card log as a spreadsheet: shoot info on top, then one line per card round (earlier rounds and the current one).
+function exportShootLog(uuid,st){
+  const s=st.shoot,cards=st.cards||[],dests=st.dests||[];
+  const dt=t=>t?new Date(t*1000).toLocaleString(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  const resultNow=c=>c.ready&&!c.files?'formatted, ready':c.deep_valid&&c.deep&&c.deep.state=='verified'?'verified (deep check)':c.deep_valid&&c.deep&&c.deep.state=='problems'?'deep check found problems':c.state=='safe'?'safe to format (name and size)':c.state=='copying'?'not safe yet':c.state||'';
+  const resultOld=h=>{const f=h.formatted,v=(h.deep&&h.deep.state=='verified')||(f&&f.deep);return f?(v?'verified':'safe')+', formatted':h.state=='formatted'?'formatted elsewhere':(h.state||'')};
+  const rows=[['DriveDex card log'],['Shoot',s.name],['Exported',dt(Date.now()/1000)],
+    ...dests.map((d,j)=>[j==0?'Main':'Backup '+j,d.name,d.path||'whole drive']),[],
+    ['Card','Card name then','Round','Came in','Finished','Files','Size','Result','Deep check','Formatted','Mac']];
+  const lines=[];
+  for(const c of cards){(c.history||[]).slice().sort((x,y)=>(x.start||0)-(y.start||0)).forEach((h,i)=>lines.push({t:h.start||0,r:[c.label||'',h.vol||'',i+1,dt(h.start),dt(h.end),h.files||0,hb(h.bytes||0),resultOld(h),h.deep?dt(h.deep.at)+' '+(h.deep.state||''):'',h.formatted?dt(h.formatted.at)+' as '+(h.formatted.name||''):'',h.mac||'']}));
+    lines.push({t:c.roundStart||c.added||0,r:[c.label||'',c.vol||'',(c.history||[]).length+1,dt(c.roundStart||c.added),'(current)',c.files||0,hb(c.bytes||0),resultNow(c),c.deep?dt(c.deep.at)+' '+(c.deep.state||''):'',c.ready?dt(c.ready.at)+' as '+c.ready.name:c.formatted?dt(c.formatted.at)+' as '+c.formatted.name:'',c.mac||'']})}
+  lines.forEach(l=>rows.push(l.r));   // grouped by card, rounds in order
+  const fname=`${s.name} – DriveDex card log ${new Date().toISOString().slice(0,10)}.csv`.replace(/[\/:]/g,'-');
+  api('exportLog',{uuid,rows,filename:fname}).then(r=>{if(r&&r.path)toast('Saved: '+r.path.split('/').slice(-2).join('/'))}).catch(e=>toast(e.message));
+}
 async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
 // Small folder browser for a drive's catalog
 async function folderPicker(box,d,start,done){
@@ -1270,7 +1286,7 @@ async function drawShoot(uuid){
   const nSafe=st.safe||0;
   const head=`<div class="card"><div class="row"><h2 style="margin:0">${esc(s.name)}</h2>${s.done?'<span class="pill wait">Done</span>':active?'<span class="pill err">● Active on this Mac</span>':'<span class="pill wait">Paused</span>'}<span style="flex:1"></span>
       ${s.done?'<button id="sh_reopen">Reopen</button>':active?'<button id="sh_pause" title="Stop adding new drives to this shoot">Pause</button>':'<button class="primary" id="sh_act">Make active</button>'}
-      <button id="sh_edit">Edit</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
+      <button id="sh_edit">Edit</button><button id="sh_export" title="Save the card log as a spreadsheet file (opens in Numbers or Excel)">Export log…</button>${s.done?'':'<button id="sh_done">Mark as done</button>'}<button class="danger" id="sh_del">Delete</button></div>
     <div class="sumrow"><div class="bigsum">${cards.length?`${nSafe} of ${cards.length} card${cards.length==1?'':'s'} safe to format`:'No cards yet'}</div><span style="flex:1"></span>
       <span class="mute" style="font-size:12.5px">checked ${new Date(st.checked*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})} · updates by itself</span>
       <button class="primary" id="sh_check" title="Check all cards against the main drive and backups right now">↻ Check now</button></div>
@@ -1351,6 +1367,7 @@ async function drawShoot(uuid){
     api('shootDone',{uuid,done:true}).then(()=>{toast('Marked as done. The result for each card is kept.');re()})};
   $('#sh_check').onclick=()=>{toast('Checking…');drawShoot(uuid)};
   $('#sh_edit').onclick=()=>editShoot(uuid);
+  $('#sh_export').onclick=()=>exportShootLog(uuid,st);
   $('#sh_del').onclick=()=>{if(!confirm(`Delete the shoot “${s.name}”?\n\nThis only removes the shoot from DriveDex. Nothing on the cards or drives is touched, and the cards' catalogs stay searchable.`))return;
     api('shootDelete',{uuid}).then(()=>{toast('Shoot deleted');loadShoots().then(()=>{loadDrives();openShoots()})})};
   document.querySelectorAll('[data-cl]').forEach(i=>i.onchange=()=>api('shootCard',{uuid,op:'label',key:i.dataset.cl,label:i.value.trim()||'Card'}).then(()=>loadShoots()));

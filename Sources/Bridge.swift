@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import Foundation
 import ServiceManagement
 
@@ -342,6 +343,40 @@ enum Bridge {
             case .success(let n): return ["name": n] as [String: Any]
             case .failure(let f): return err(f.message)
             }
+
+        case "exportLog":   // save a shoot's card log as a spreadsheet file (CSV) where the user chooses
+            let rows = (a["rows"] as? [[Any]] ?? []).map { $0.map { "\($0)" } }
+            let sep = Locale.current.decimalSeparator == "," ? ";" : ","     // what Excel expects on this Mac
+            func cell(_ v: String) -> String {
+                v.contains(sep) || v.contains("\"") || v.contains("\n") ? "\"" + v.replacingOccurrences(of: "\"", with: "\"\"") + "\"" : v
+            }
+            let csv = "\u{FEFF}" + rows.map { $0.map(cell).joined(separator: sep) }.joined(separator: "\r\n") + "\r\n"
+            // Start in the shoot's main folder (if it's reachable), so the log ends up with the footage.
+            var startDir: URL? = nil
+            if let s = Shoots.get(db, str("uuid")), let m = s["main"] as? [String: Any] {
+                if let r = Shoots.localRoot(m) { startDir = r }
+                else if let v = Scanner.onlineMap()[m["key"] as? String ?? ""] {
+                    let p = (m["path"] as? String ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+                    let r = p.isEmpty ? v.url : v.url.appendingPathComponent(p, isDirectory: true)
+                    startDir = FileManager.default.fileExists(atPath: r.path) ? r : v.url
+                }
+            }
+            let fileName = str("filename")
+            var target: URL? = nil
+            DispatchQueue.main.sync {
+                MainActor.assumeIsolated {
+                    let p = NSSavePanel()
+                    p.nameFieldStringValue = fileName
+                    p.allowedContentTypes = [.commaSeparatedText]
+                    p.canCreateDirectories = true
+                    if let d = startDir { p.directoryURL = d }
+                    NSApp.activate(ignoringOtherApps: true)
+                    if p.runModal() == .OK { target = p.url }
+                }
+            }
+            guard let url = target else { return ["cancelled": true] as [String: Any] }
+            do { try csv.data(using: .utf8)?.write(to: url, options: .atomic) } catch { return err("Couldn't save: \(error.localizedDescription)") }
+            return ["path": url.path] as [String: Any]
 
         case "deepStart":
             if let e = DeepCheck.shared.start(shoot: str("uuid"), card: str("key")) { return err(e) }
