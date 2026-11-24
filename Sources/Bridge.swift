@@ -344,6 +344,27 @@ enum Bridge {
             case .failure(let f): return err(f.message)
             }
 
+        case "resolveRename":   // after a Finder rename: use the drive's new name in DriveDex, or keep DriveDex's name
+            guard let id = int("id") else { return err("missing id") }
+            if a["use"] as? Bool == true { db.run("UPDATE drives SET label='', renamed_from='' WHERE id=?", [id]) }
+            else { db.run("UPDATE drives SET renamed_from='' WHERE id=?", [id]) }
+            db.touchMeta([id]); Scanner.shared.exportMeta([id])
+            return ok
+
+        case "renameVolume":   // rename the drive itself (Finder name), on the user's request
+            guard let id = int("id"), let key = db.driveKey(id), let v = Scanner.onlineMap()[key] else { return err("The drive isn't connected.") }
+            guard v.kind != "network" else { return err("Network shares are renamed on the NAS itself.") }
+            let name = str("name").trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty, name.rangeOfCharacter(from: CharacterSet(charactersIn: ":/")) == nil else { return err("That name can't be used for a drive.") }
+            let r = CardTools.diskutil(["rename", v.url.path, name])
+            guard r.ok else {
+                let last = r.output.split(separator: "\n").last.map(String.init) ?? ""
+                return err("macOS couldn't rename the drive" + (v.fs.lowercased().contains("fat") ? " (memory-card formats allow at most 11 characters)" : "") + ". " + last)
+            }
+            db.run("UPDATE drives SET name=?, label='', renamed_from='' WHERE id=?", [name, id])
+            db.touchMeta([id]); Scanner.shared.exportMeta([id])
+            return ok
+
         case "setSchedule":   // per drive: when to rescan, and when to remind
             guard let id = int("id") else { return err("missing id") }
             let allowed = ["", "connect", "hourly", "daily", "weekly", "monthly", "changes", "manual"]

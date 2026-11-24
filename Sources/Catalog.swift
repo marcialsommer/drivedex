@@ -124,6 +124,7 @@ final class DB {
         for c in ["cov_bytes", "cov_one_bytes", "cov_two_bytes"] { addColumn("drives", c, "INTEGER") }   // v2.1.7: % by data
         addColumn("drives", "scan_started", "REAL")     // v2.1.8: live progress of the running scan
         addColumn("drives", "scan_files", "INTEGER")
+        addColumn("drives", "renamed_from", "TEXT DEFAULT ''")      // v2.14: renamed in the Finder, DriveDex name differs
         addColumn("drives", "scan_schedule", "TEXT DEFAULT ''")      // v2.11: per-drive rescan schedule ('' = Settings)
         addColumn("drives", "remind_scan_days", "INTEGER DEFAULT 0")  // v2.11: remind if not catalogued for N days
         // v2.6.5: memory cards stay out of the drive list (is_card 1). -1 = a card the user added to their drives.
@@ -255,7 +256,12 @@ final class DB {
         let now = Date().timeIntervalSince1970
         var used: Int? = nil
         if let t = v.total, let f = v.free { used = t - f }
-        if let r = row("SELECT id FROM drives WHERE key=?", [v.key]), let id = r["id"] as? Int {
+        if let r = row("SELECT id, name, COALESCE(label,'') AS label FROM drives WHERE key=?", [v.key]), let id = r["id"] as? Int {
+            // Renamed in the Finder while it also has a name in DriveDex: ask which name to use (shown in the app).
+            let oldName = r["name"] as? String ?? "", label = r["label"] as? String ?? ""
+            if !oldName.isEmpty && oldName != v.name && !label.isEmpty && label != v.name {
+                run("UPDATE drives SET renamed_from=? WHERE id=?", [oldName, id])
+            }
             run("""
                 UPDATE drives SET name=?, mount_path=?, kind=?, source=?, fs=?, total_bytes=?, free_bytes=?,
                 used_bytes=?, last_seen=?, last_seen_on=?, media=CASE WHEN ?='' THEN media ELSE ? END WHERE id=?

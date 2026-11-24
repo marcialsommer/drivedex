@@ -349,7 +349,9 @@ async function loadDrives(){
   const sel=$('#scope'),selv=sel.value;
   sel.innerHTML='<option value="">All drives</option>'+(here?`<option value="here">In “${esc(here.label)}”</option>`:'')+drives.map(d=>`<option value="${d.id}">${esc(d.display)}</option>`).join('');sel.value=selv;searchHint();
   const upHTML=updateInfo&&updateInfo.available?`<div class="upd1" title="You have ${esc(updateInfo.current)}. Installs in a few seconds; your catalog is kept."><b>DriveDex ${esc(updateInfo.version)} is available</b><button class="primary" id="doupdate">Install</button></div>`:'';
-  const newHTML=upHTML+pending.map(n=>n.card?`<div class="newdrv"><b>Memory card: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.source?'via '+esc(n.source.split(' · ')[0])+' · ':''}${n.total?hb(n.used)+' of '+hb(n.total)+' used · ':''}memory cards stay out of your drive list unless you add them</span>
+  const renHTML=drives.filter(d=>d.renamed_from&&d.label).map(d=>`<div class="newdrv"><b>Renamed: ${esc(d.label)} → ${esc(d.name)}</b><span class="mute" style="font-size:12px">The drive was renamed (e.g. in the Finder). Use the new name in DriveDex too?</span>
+    <div class="row"><button class="primary" data-renuse="${d.id}">Use “${esc(d.name)}”</button><button data-renkeep="${d.id}">Keep “${esc(d.label)}”</button></div></div>`).join('');
+  const newHTML=upHTML+renHTML+pending.map(n=>n.card?`<div class="newdrv"><b>Memory card: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.source?'via '+esc(n.source.split(' · ')[0])+' · ':''}${n.total?hb(n.used)+' of '+hb(n.total)+' used · ':''}memory cards stay out of your drive list unless you add them</span>
     <div class="row">${activeShoot()?`<button class="primary" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to “${esc(activeShoot().name)}”</button>`:'<button class="primary" data-newshoot="1">Start a shoot…</button>'}<button data-notacard="${esc(n.key)}" data-name="${esc(n.name)}" title="Catalog it like any other drive and show it in the drive list (for cards used as storage or backup)">Add to my drives</button><button data-dismiss="${esc(n.key)}" title="Close this for now (it asks again next time you plug it in)">Not now</button></div></div>`
     :`<div class="newdrv"><b>New drive: ${esc(n.name)}</b><span class="mute" style="font-size:12px">${n.kind=='network'?'Network share':'Connected drive'}${n.total?' · '+hb(n.used)+' of '+hb(n.total)+' used':''}</span>
     <div class="row">${activeShoot()?`<button class="primary" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}" title="It's a memory card for this shoot">Add to “${esc(activeShoot().name)}”</button><button data-approve="${esc(n.key)}" title="Catalog it as a normal drive">Catalog it</button>`:`<button class="primary" data-approve="${esc(n.key)}">Catalog it</button>`}<button data-ignore="${esc(n.key)}" title="Never ask about this drive again">Ignore</button></div></div>`).join('');
@@ -388,6 +390,7 @@ ${barHTML(d)}${st?`<div class="s">${st}</div>`:''}${covShort(d)&&d.role!='backup
     document.querySelectorAll('[data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
     document.querySelectorAll('[data-newshoot]').forEach(b=>b.onclick=()=>editShoot(null));
     document.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>api('dismissDrive',{key:b.dataset.dismiss}).then(loadDrives));
+    wireRename();
     document.querySelectorAll('#drives [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard,a.dataset.name));
     document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
     document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
@@ -412,6 +415,7 @@ ${barHTML(d)}${st?`<div class="s">${st}</div>`:''}${covShort(d)&&d.role!='backup
   document.querySelectorAll('[data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
   document.querySelectorAll('[data-newshoot]').forEach(b=>b.onclick=()=>editShoot(null));
   document.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>api('dismissDrive',{key:b.dataset.dismiss}).then(loadDrives));
+  wireRename();
   document.querySelectorAll('#drives [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard,a.dataset.name));
   document.querySelectorAll('[data-approve]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)}));
   document.querySelectorAll('[data-ignore]').forEach(b=>b.onclick=()=>api('ignoreDrive',{key:b.dataset.ignore}).then(()=>{toast('Ignored. You can change this in Settings.');loadDrives()}));
@@ -463,6 +467,7 @@ function attentionItems(){
   }
   for(const d of drives.filter(x=>x.remind_scan_days>0&&x.last_scan&&now-x.last_scan>x.remind_scan_days*86400&&!x.card&&x.is_card!=1))
     out.push({key:`scanrem:${d.key}:${Math.round(d.last_scan)}`,lvl:1,text:`<b>${esc(d.display)}</b> hasn't been updated for ${Math.floor((now-d.last_scan)/86400)} days. Connect it so DriveDex can catalog it.`,act:'Open',fn:()=>{driveTab='settings';openDrive(d.id,'')}});
+  for(const d of drives.filter(x=>x.renamed_from&&x.label))out.push({lvl:0,text:`<b>${esc(d.label)}</b> was renamed to <b>${esc(d.name)}</b> on the drive. Use the new name in DriveDex too?`,act:`Use “${esc(d.name)}”`,fn:()=>resolveRename(d.id,true)});
   for(const d of drives.filter(x=>x.status=='error'))out.push({key:`err:${d.key}:${d.status_detail}`,lvl:2,text:`<b>${esc(d.display)}</b>: ${esc(d.status_detail)}`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
   for(const n of pending)if(n.card&&!activeShoot())out.push({lvl:0,text:`Memory card connected: <b>${esc(n.name)}</b>. Memory cards are checked in a shoot.`,act:'Start a shoot',fn:()=>editShoot(null)});else if(activeShoot())out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. A memory card for <b>${esc(activeShoot().name)}</b>?`,act:'Add to shoot',fn:()=>addCard(n.key,n.name)});else out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. Add it to your catalog?`,act:'Catalog it',fn:()=>api('approveDrive',{key:n.key}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)})});
   if(updateInfo&&updateInfo.available)out.push({lvl:0,text:`DriveDex ${esc(updateInfo.version)} is available.`,act:'Install & Relaunch',fn:installUpdate});
@@ -722,7 +727,11 @@ function renderDriveHeader(){
   if(driveTab=='info')document.querySelectorAll('#dh details.more').forEach(x=>x.addEventListener('toggle',()=>{if(x.open&&!spaceLoaded){spaceLoaded=true;loadSpace(d)}}));
   spaceLoaded=false;
   const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes')?$('#notes').value:d.notes}).then(()=>{toast('Saved');loadDrives()});
-  $('#lbl').onchange=save;if($('#notes'))$('#notes').onchange=save;
+  $('#lbl').onchange=()=>{const nv=$('#lbl').value.trim();if(!nv){$('#lbl').value=d.display;return}
+    if(d.online&&d.kind!='network'&&nv!=d.name&&confirm(`Also rename the drive itself to “${nv}”?\n\nThen the Finder, Carbon Copy Cloner and DriveDex all show the same name. Links and backups stay as they are.\n\nOK = rename the drive · Cancel = only in DriveDex`))
+      api('renameVolume',{id:d.id,name:nv}).then(()=>{toast(`Renamed the drive to “${nv}”`);$('#dh').dataset.id='';loadDrives()}).catch(e=>{toast(e.message);save()});
+    else save()};
+  if($('#notes'))$('#notes').onchange=save;
   if($('#stopscan'))$('#stopscan').onclick=()=>stopScan(d.id);
   if($('#rescan'))$('#rescan').onclick=()=>api('rescan',{id:d.id}).then(r=>{toast(r&&r.queued?'Queued: DriveDex scans one drive at a time. This one starts when the current scan is done.':'Scan started');setTimeout(loadDrives,800)}).catch(e=>toast(e.message));
   if($('#priv'))$('#priv').onclick=()=>api('openPrivacy');
@@ -1113,7 +1122,7 @@ async function openShoots(help){
   const list=shootsData.shoots||[];
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div><div class="card"><div class="row"><h2 style="margin:0">Shoots</h2><span style="flex:1"></span><button class="primary" id="newshoot">New shoot</button></div>
     <div class="mute" style="margin-top:6px">For film and photo productions with memory cards, whether it's one day or a ten-day project. Say where the footage goes (a folder on your main drive) and where the backups go. While the shoot is active, every memory card you plug in is added automatically, and DriveDex shows card by card whether everything is on the main drive and on every backup: <b>safe to format</b>. DriveDex never copies or changes anything. Copy with the Finder or your copy tool as usual.</div></div>
-    ${help?`<div class="card" id="shoothelp"><h2>How shoots work</h2>
+    ${help?`<div class="card" id="shoothelp"><div class="row"><h2 style="margin:0">How shoots work</h2><span style="flex:1"></span><button class="sm" id="shoothelp_close">Close</button></div>
       <ol class="steps">
         <li><b>New shoot:</b> give it a name, choose the folder on your main drive where the footage goes (for example the project folder), and the same folder on each backup drive. Subfolders such as days or cameras don't matter.</li>
         <li><b>Plug in a memory card</b> (card reader, SD slot, or a camera plugged in directly) and click <b>Add to the shoot</b>. Memory cards never go into your drive list unless you choose <b>Add to my drives</b>.</li>
@@ -1127,6 +1136,7 @@ async function openShoots(help){
     ${list.length?`<table><tr><th>Shoot</th><th class="r">Cards</th><th>Folder</th><th class="r">Started</th><th></th></tr>${list.map(x=>`<tr class="click" data-shoot="${esc(x.uuid)}"><td class="n"><b>${esc(x.name)}</b></td><td class="r">${(x.cards||[]).length}</td><td class="mute">${esc((dByKey((x.main||{}).key)||{}).display||'?')} › ${esc((x.main||{}).path||'')}</td><td class="r">${date(x.created)}</td><td>${x.done?'<span class="pill wait">Done</span>':x.uuid==shootsData.active?'<span class="pill err">● Active</span>':'<span class="pill wait">Paused</span>'}</td></tr>`).join('')}</table>`:''}`;
   $('#newshoot').onclick=()=>editShoot(null);
   if(help&&$('#shoothelp'))$('#shoothelp').scrollIntoView({block:'start'});
+  if($('#shoothelp_close'))$('#shoothelp_close').onclick=()=>{$('#shoothelp').remove();state.help=false};
   document.querySelectorAll('[data-shoot]').forEach(r=>r.onclick=()=>openShoot(r.dataset.shoot));
   noteNav();
 }
@@ -1235,7 +1245,7 @@ function shootsSide(){const list=(shootsData.shoots||[]).slice().sort((a,b)=>(b.
 function wireShootsSide(){
   document.querySelectorAll('#drives [data-shoot]').forEach(el=>el.onclick=()=>openShoot(el.dataset.shoot));
   if($('#side_newshoot'))$('#side_newshoot').onclick=()=>editShoot(null);
-  if($('#side_allshoots'))$('#side_allshoots').onclick=()=>openShoots(true)}
+  if($('#side_allshoots'))$('#side_allshoots').onclick=()=>{if(state.mode=='shoots'&&$('#shoothelp')){$('#shoothelp').remove();state.help=false}else openShoots(true)}}
 // Card log as a spreadsheet: shoot info on top, then one line per card round (earlier rounds and the current one).
 function exportShootLog(uuid,st){
   const s=st.shoot,cards=st.cards||[],dests=st.dests||[];
@@ -1252,6 +1262,9 @@ function exportShootLog(uuid,st){
   const fname=`${s.name} – DriveDex card log ${new Date().toISOString().slice(0,10)}.csv`.replace(/[\/:]/g,'-');
   api('exportLog',{uuid,rows,filename:fname}).then(r=>{if(r&&r.path)toast('Saved: '+r.path.split('/').slice(-2).join('/'))}).catch(e=>toast(e.message));
 }
+function resolveRename(id,use){api('resolveRename',{id,use}).then(()=>{toast(use?'Now using the drive’s new name':'Kept the DriveDex name');$('#dh')&&($('#dh').dataset.id='');loadDrives()})}
+function wireRename(){document.querySelectorAll('[data-renuse]').forEach(b=>b.onclick=()=>resolveRename(+b.dataset.renuse,true));
+  document.querySelectorAll('[data-renkeep]').forEach(b=>b.onclick=()=>resolveRename(+b.dataset.renkeep,false))}
 async function loadShoots(){const r=await api('shoots').catch(()=>null);if(r)shootsData=r;return shootsData}
 // Small folder browser for a drive's catalog
 async function folderPicker(box,d,start,done){

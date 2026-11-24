@@ -104,6 +104,10 @@ Key facts:
   connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
   "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
   separator from the Mac's locale, NSSavePanel starting in the main folder).
+- Renames (v2.14): drives are keyed by volume UUID, so a Finder rename keeps everything. `didRenameVolumeNotification`
+  → forced rescan; `upsertDrive` sets `renamed_from` when the volume name changes and a DriveDex `label` differs → notice
+  "Use new name / Keep" (bridge `resolveRename`). Renaming in DriveDex on a connected drive offers bridge `renameVolume`
+  (`diskutil rename`, then label cleared).
 - Decluttered (v2.13, owner wants low clutter): sidebar rows show no location line (in the tooltip) and main drives
   show a status line only when not fully backed up; no emoji in the drive header; Settings grouped with short hints.
 - Drive page tabs (v2.12): Files · Backups (same name on backup drives) · Info (facts: sizes, scan history, space) ·

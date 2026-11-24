@@ -211,6 +211,13 @@ final class Scanner {
                 self?.refreshWatchers()
             }
         }
+        // Renamed in the Finder: rescan right away (a running scan loses its path when the name changes).
+        nc.addObserver(forName: NSWorkspace.didRenameVolumeNotification, object: nil, queue: nil) { [weak self] n in
+            guard let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                if let v = Scanner.eligible(url) { self?.enqueue(v, force: true, reason: .manual) }
+            }
+        }
         nc.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: nil) { [weak self] n in
             guard let self = self, let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
             let path = url.standardizedFileURL.path
