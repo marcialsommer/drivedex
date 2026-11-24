@@ -20,7 +20,7 @@ button:hover{border-color:var(--acc)} #gear.on{background:var(--accbg);border-co
 button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
 button.danger{color:var(--err)}
 main{flex:1;display:flex;min-height:0}
-nav{width:var(--navw,320px);position:relative;flex:none;overflow:auto;border-right:1px solid var(--line);background:var(--panel);padding:8px}
+nav{width:var(--navw,320px);position:relative;flex:none;overflow:hidden;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--panel);padding:8px}
 nav .hd{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
 .drv{padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px}
 .drv:hover{background:var(--bg)} .drv.sel{background:var(--accbg)}
@@ -204,6 +204,7 @@ th[data-hk]{cursor:pointer}
 button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.danger:disabled{color:var(--mute)}
 #cardlog{margin-top:14px}#cardlog summary{cursor:pointer}
 .sumrow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px}.sumrow .bigsum{margin:0}
+#drives{flex:1;min-height:0;overflow:auto;margin:0 -8px -8px;padding:0 8px 8px}#navfixed{flex:none}.sidetabs,#drvhd{flex:none}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -212,7 +213,7 @@ button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.d
 <button id="gear" title="Settings">⚙︎ Settings</button>
 </header>
 <div id="activity" class="activity" style="display:none"></div>
-<main><nav><div class="sidetabs"><button class="stab" data-side="drives">Drives</button><button class="stab" data-side="shoots">Shoots</button></div><div class="hd" id="drvhd"><span id="hdtitle">Drives</span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
+<main><nav><div class="sidetabs"><button class="stab" data-side="drives">Drives</button><button class="stab" data-side="shoots">Shoots</button></div><div class="hd" id="drvhd"><span id="hdtitle">Drives</span><span style="flex:1"></span><button id="compact" title="Compact list"></button><button id="scanall" title="Rescan every connected drive now">Rescan connected</button></div><div id="navfixed"></div><div id="drives"></div></nav><div id="navgrip" title="Drag to resize · double-click to reset"></div>
 <section id="view"></section></main><div id="toast"></div><div id="ctx"></div>
 <script>
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -382,7 +383,7 @@ async function loadDrives(){
   document.querySelectorAll('.stab').forEach(b=>b.classList.toggle('on',(b.dataset.side=='shoots')==inShoots));
   $('.stab[data-side="shoots"]').innerHTML=`Shoots${act?' <span class="livedot" title="A shoot is active on this Mac"></span>':''}`;
   $('#drvhd').style.display=inShoots?'none':'';
-  if(inShoots){$('#drives').innerHTML=newHTML+shootsSide();wireShootsSide();
+  if(inShoots){$('#navfixed').innerHTML='';$('#drives').innerHTML=newHTML+shootsSide();wireShootsSide();
     document.querySelectorAll('[data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
     document.querySelectorAll('[data-newshoot]').forEach(b=>b.onclick=()=>editShoot(null));
     document.querySelectorAll('[data-dismiss]').forEach(b=>b.onclick=()=>api('dismissDrive',{key:b.dataset.dismiss}).then(loadDrives));
@@ -393,7 +394,8 @@ async function loadDrives(){
     drawActivity();
     clearTimeout(loadDrives._t);loadDrives._t=setTimeout(loadDrives,drives.some(d=>d.status=='scanning'||d.queued)?2500:15000);
     return}
-  $('#drives').innerHTML=homeHTML+newHTML+(drives.length?
+  $('#navfixed').innerHTML=homeHTML;   // stays put; only the drive list below scrolls
+  $('#drives').innerHTML=newHTML+(drives.length?
     (mains.length?`<div class="grp">Main drives &amp; backups</div>${fams}`:'')+
     (rest.length?`<div class="grp">${mains.length?'Other drives':'Drives'}</div>${rest.map(d=>`<div class="restw" draggable="true" data-sec="rest" data-oid="${d.id}">${full(d)}</div>`).join('')}`:'')
     :(pending.length?'':'<div class="empty">No drives yet.<br>Plug one in to add it.</div>'));

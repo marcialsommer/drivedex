@@ -4,13 +4,16 @@ import Foundation
 /// structure, what takes up space and duplicates across drives, made from the catalog (nothing is read from
 /// the drives). Folder names only by default; file names only for duplicates, and only if the user asks.
 extension DB {
-    private func gb(_ b: Int64) -> String { ByteCountFormatter.string(fromByteCount: b, countStyle: .file) }
+    private func gb(_ b: Int64) -> String {
+        let f = ByteCountFormatter(); f.countStyle = .file; f.allowsNonnumericFormatting = false   // "0 KB", not "Zero KB"
+        return f.string(fromByteCount: b)
+    }
     private func i64(_ v: Any?) -> Int64 { (v as? Int).map(Int64.init) ?? (v as? NSNumber)?.int64Value ?? Int64(v as? Double ?? 0) }
     private func when(_ t: Any?) -> String {
         guard let s = t as? Double, s > 0 else { return "never" }
         let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none
         let days = Int((Date().timeIntervalSince1970 - s) / 86400)
-        return f.string(from: Date(timeIntervalSince1970: s)) + (days > 0 ? " (\(days) days ago)" : " (today)")
+        return f.string(from: Date(timeIntervalSince1970: s)) + (days > 1 ? " (\(days) days ago)" : days == 1 ? " (yesterday)" : " (today)")
     }
     private func md(_ s: String) -> String { s.replacingOccurrences(of: "|", with: "/").replacingOccurrences(of: "\n", with: " ") }
 
@@ -79,7 +82,7 @@ extension DB {
                 }
                 let n = b["n"] as? Int, have = b["have"] as? Int ?? 0
                 let src = b["source"] as? String ?? ""
-                let state = n == nil ? "not checked yet" : (n! - have) <= 0 ? "complete" : "missing \((n! - have).formatted()) files (\(gb(i64(b["missing_bytes"]))))"
+                let state = n == nil ? "not checked yet" : (n! - have) <= 0 ? "complete" : "missing \((n! - have).formatted()) file\(n! - have == 1 ? "" : "s") (\(gb(i64(b["missing_bytes"]))))"
                 o.append("- Backup\(members.count > 1 ? " set across \(members.count) drives" : ""): \(members.joined(separator: " + "))" +
                          (src.isEmpty ? "" : ", holds only the folder “\(src)”") + " · \(state) · last in sync: \(when(b["last_in_sync"])) · its catalog: \(when(b["backup_scan"]))")
             }
@@ -126,7 +129,7 @@ extension DB {
                     shown += 1
                     let lib = (k["is_dir"] as? Int) == 2 ? " (library/bundle)" : ""
                     let child = path.isEmpty ? n : path + "/" + n
-                    o.append(String(repeating: "  ", count: level - 1) + "- \(md(n))\(lib) — \(gb(size))" + ((k["items"] as? Int).map { $0 > 0 ? " · \($0) items" : "" } ?? ""))
+                    o.append(String(repeating: "  ", count: level - 1) + "- \(md(n))\(lib) — \(gb(size))" + ((k["items"] as? Int).map { $0 > 0 ? " · \($0) item\($0 == 1 ? "" : "s")" : "" } ?? ""))
                     if level < depth && (k["is_dir"] as? Int) == 1 && size >= minBytes { walk(child, level + 1) }
                 }
                 if rest > 0 { o.append(String(repeating: "  ", count: level - 1) + "- … \(rest) smaller folder\(rest == 1 ? "" : "s") (\(gb(restBytes)))") }
