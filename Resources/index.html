@@ -920,21 +920,18 @@ function schedNote(d){const net=d.kind=='network';
 function speedList(d){try{return JSON.parse(d.speed_json||'[]')}catch(e){return[]}}
 const mbs=v=>v>=1000?(v/1000).toFixed(2)+' GB/s':Math.round(v)+' MB/s';
 function speedHTML(d){const L=speedList(d),last=L.find(x=>!x.error),err=L[0]&&L[0].error?L[0]:null;
-  const line=x=>`${x.read_mbs?'Read <b>'+mbs(x.read_mbs)+'</b>':''}${x.write_mbs?' · Write <b>'+mbs(x.write_mbs)+'</b>':''}${x.note?' · via '+esc(x.note):''} <span class="mute">· ${date(x.at)}${x.mac?' on '+esc(x.mac):''}</span>`;
-  const lastNote=(L.find(x=>x.note)||{}).note||'';
+  const line=x=>`${x.read_mbs?'Read <b>'+mbs(x.read_mbs)+'</b>':''}${x.write_mbs?' · Write <b>'+mbs(x.write_mbs)+'</b>':''} <span class="mute">· ${date(x.at)}${x.mac?' on '+esc(x.mac):''}</span>`;
   return `${last?`<div style="font-size:14px">${line(last)}</div>`:'<div class="mute">Not tested yet.</div>'}
     ${err?`<div class="warnc" style="font-size:12.5px;margin-top:2px">Last test: ${esc(err.error)}</div>`:''}
     ${L.filter(x=>!x.error).length>1?`<details class="more"><summary>Earlier tests</summary><div style="font-size:12.5px">${L.filter(x=>!x.error).slice(1).map(x=>`<div>${line(x)}</div>`).join('')}</div></details>`:''}
-    <div class="row" style="margin-top:8px"><label class="chk" title="Optional: how the drive is connected, saved with the result"><span>Connected via</span><input type="text" id="sp_note" list="sp_notes" value="${esc(lastNote)}" placeholder="e.g. direct USB-C" style="width:170px;border:0;background:transparent;font:inherit;color:var(--ink);outline:none"></label>
-      <datalist id="sp_notes">${['Direct USB-C','USB-A cable','Thunderbolt','USB hub','Dock',...new Set(L.map(x=>x.note).filter(Boolean))].map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
-      <span id="speedlive" class="mute" style="font-size:12.5px"></span>
+    <div class="row" style="margin-top:8px"><span id="speedlive" class="mute" style="font-size:12.5px"></span>
       <button class="sm" id="sp_read" ${d.online?'':'disabled title="Connect the drive first"'} title="Reads large files already on the drive for about 15 seconds. Nothing is written.">Test read speed</button>
       <button class="sm" id="sp_rw" ${d.online&&d.kind!='network'?'':'disabled title="Connect the drive first"'}>Test read & write…</button></div>
     <div class="mute" style="font-size:12px;margin-top:4px">The read test uses files already on the drive. The write test writes a temporary 2 GB file and deletes it again.</div>`}
 let speedTimer=null;
 function wireSpeed(d){
   const run=write=>{if(write&&!confirm(`Test write speed on “${d.display}”?\n\nDriveDex writes a temporary file of up to 2 GB to the drive for about 15 seconds and deletes it right after. It needs about 7 GB free space.`))return;
-    api('speedTest',{id:d.id,write,note:($('#sp_note')||{}).value||''}).then(()=>{$('#sp_read').disabled=$('#sp_rw').disabled=true;poll()}).catch(e=>toast(e.message))};
+    api('speedTest',{id:d.id,write}).then(()=>{$('#sp_read').disabled=$('#sp_rw').disabled=true;poll()}).catch(e=>toast(e.message))};
   const poll=()=>{clearInterval(speedTimer);speedTimer=setInterval(async()=>{const st=await api('speedState').catch(()=>null);const el=$('#speedlive');
       const me=st&&st[String(d.id)];if(!el){clearInterval(speedTimer);return}
       if(me){const sp=me.seconds?mbs((me.bytes||0)/me.seconds/1e6):'';el.textContent=me.phase=='write'?`Testing write speed… ${sp}`:me.phase=='read'?`Testing read speed… ${sp}`:'Starting…'}
