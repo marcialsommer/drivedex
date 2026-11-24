@@ -105,7 +105,7 @@ Key facts:
   "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
   separator from the Mac's locale, NSSavePanel starting in the main folder).
 - Drive page tabs (v2.12): Files · Backups (same name on backup drives) · Info (facts: sizes, scan history, space) ·
-  Settings (type, location note, Scanning, Forget). Search placeholder: "Search all drives…".
+  Settings (type, location note, Scanning, Forget). Search hint follows the drive menu (`searchHint()`): "Search all drives…" / "Search <drive>…" / "Search in “folder”…".
 - Per-drive scan schedule (v2.11, Settings tab → Scanning; `drives.scan_schedule` '' / connect / hourly / daily / weekly /
   monthly / changes / manual, `remind_scan_days`; both synced in meta; bridge `setSchedule`). `Scanner.scan` gets a
   `ScanReason` (mount / timer / changes / manual) and `maxAge(schedule:reason:)` decides. "changes" uses FSEvents
