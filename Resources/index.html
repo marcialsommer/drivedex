@@ -201,6 +201,7 @@ th[data-hk]{cursor:pointer}
 .steps{margin:8px 0 10px;padding-left:22px;line-height:1.55}.steps li{margin-bottom:6px}
 .donetog{font-size:12.5px;color:var(--mute);display:inline-flex;align-items:center;gap:5px;cursor:pointer;white-space:nowrap}
 .attn.isdone{opacity:.6}.donebtn{padding:3px 9px;color:var(--ok)}
+button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.danger:disabled{color:var(--mute)}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -1291,7 +1292,7 @@ async function drawShoot(uuid){
           <div class="row"><span>Card name</span><input type="text" id="fmt_name" maxlength="11" value="${esc(suggest)}" style="width:180px"><span class="mute" style="font-size:12px">up to 11 characters · kept every time you format in DriveDex</span></div>
           <label class="set"><input type="checkbox" id="fmt_eject" checked>Eject the card when done</label>
           <div class="mute" style="font-size:12.5px">Erases <b>everything</b> on this card and sets it up as an empty card (exFAT; FAT32 for cards up to 32 GB). The camera creates its own folders by itself. Camera makers generally recommend formatting in the camera; if a camera ever complains about a card formatted here, format that card in the camera once.</div>
-          <div class="row" style="margin-top:10px"><button class="danger" id="fmt_go">Erase and format</button></div></div>`}}
+          <div class="row" style="margin-top:10px"><button class="danger" id="fmt_go" ${deepOK?'':'disabled title="Run a deep check first, or tick “Format anyway” above"'}>Erase and format</button>${deepOK?'':'<span class="mute" style="font-size:12px">needs a deep check, or “Format anyway”</span>'}</div></div>`}}
   let miss='';
   if(shootMiss&&shootMiss.deep){const c=cards.find(x=>x.key==shootMiss.key),d=c&&c.deep;
     if(d&&(d.problems||[]).length){const dn=j=>j<0?'the card':(j==0?'main':'backup '+j)+' ('+esc(dests[j]?dests[j].name:'?')+')';
@@ -1308,6 +1309,9 @@ async function drawShoot(uuid){
   const keepFmt=$('#fmt_name')?{v:$('#fmt_name').value,focus:document.activeElement&&document.activeElement.id=='fmt_name',q:$('#fmt_quick')&&$('#fmt_quick').checked,e:$('#fmt_eject')&&$('#fmt_eject').checked}:null;
   $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+pend+table+fmt+add+miss;
   if(keepFmt&&$('#fmt_name')){$('#fmt_name').value=keepFmt.v;if(keepFmt.focus)$('#fmt_name').focus();if($('#fmt_quick'))$('#fmt_quick').checked=keepFmt.q;if($('#fmt_eject')&&keepFmt.e!=null)$('#fmt_eject').checked=keepFmt.e}
+  // Without a deep check, "Erase and format" stays greyed out until "Format anyway" is ticked.
+  const syncGo=()=>{if($('#fmt_go')&&$('#fmt_quick')){$('#fmt_go').disabled=!$('#fmt_quick').checked;$('#fmt_go').title=$('#fmt_quick').checked?'':'Run a deep check first, or tick “Format anyway” above'}};
+  if($('#fmt_quick')){$('#fmt_quick').onchange=syncGo;syncGo()}
   document.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>{shootFmt={key:b.dataset.fmt,mode:'format'};drawShoot(uuid).then(()=>{const m=$('#fmtbox');if(m)m.scrollIntoView({block:'nearest'})})});
   document.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{shootFmt={key:b.dataset.ren,mode:'rename'};drawShoot(uuid).then(()=>{const m=$('#fmtbox');if(m){m.scrollIntoView({block:'nearest'});$('#fmt_name').select()}})});
   if($('#fmt_cancel'))$('#fmt_cancel').onclick=()=>{shootFmt=null;$('#fmtbox').remove()};
