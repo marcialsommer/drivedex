@@ -123,6 +123,16 @@ final class Scanner {
             let readerWords = ["secure digital", "sd card", "sdxc", "sdhc", "card reader", "cardreader", "cfexpress", "compactflash",
                                "compact flash", "cf card", "xqd", "microsd", "memory card", "sd reader", "multi-card", "multicard"]
             info.isCard = readerWords.contains { hay.contains($0) }
+            // A camera plugged in directly (USB storage mode) reports its maker / model, e.g. "DJI Osmo Action".
+            let vendor = (desc[kDADiskDescriptionDeviceVendorKey as String] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            let cam = (vendor + " " + model).lowercased()
+            let cameraWords = ["dji", "osmo", "gopro", "insta360", "camera", "digital still", " dsc", "canon", "nikon", "fujifilm",
+                               "lumix", "panasonic", "olympus", "om system", "ricoh", "pentax", "leica", "hasselblad", "sony", "blackmagic"]
+            if !info.isCard, (info.total ?? 0) > 0, (info.total ?? 0) <= 1_100_000_000_000,
+               cameraWords.contains(where: { (" " + cam).contains($0) }) {
+                info.isCard = true
+                if !vendor.isEmpty && !info.source.lowercased().contains(vendor.lowercased()) { info.source = vendor + " " + info.source }
+            }
         }
         if let uuid = v.volumeUUIDString { info.key = "uuid:" + uuid } else { info.key = "name:" + name }
         return info
@@ -222,7 +232,7 @@ final class Scanner {
     func pendingDrives() -> [[String: Any]] {
         lock.lock(); defer { lock.unlock() }
         return pendingNew.values.sorted { $0.name < $1.name }.map {
-            ["key": $0.key, "name": $0.name, "kind": $0.kind, "total": $0.total ?? 0, "used": ($0.total ?? 0) - ($0.free ?? 0), "card": $0.isCard]
+            ["key": $0.key, "name": $0.name, "kind": $0.kind, "total": $0.total ?? 0, "used": ($0.total ?? 0) - ($0.free ?? 0), "card": $0.isCard, "source": $0.source]
         }
     }
 
