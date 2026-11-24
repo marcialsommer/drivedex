@@ -344,6 +344,27 @@ enum Bridge {
             case .failure(let f): return err(f.message)
             }
 
+        case "exportOverview":   // one readable file about all drives, to share with Claude (or keep)
+            let depth = max(1, min(4, int("depth") ?? 3))
+            let text = db.overviewMarkdown(online: Scanner.onlineMap(), fileNames: a["names"] as? Bool ?? false, depth: depth)
+            let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+            let fileName = "DriveDex overview \(df.string(from: Date())).md"
+            var target: URL? = nil
+            DispatchQueue.main.sync {
+                MainActor.assumeIsolated {
+                    let p = NSSavePanel()
+                    p.nameFieldStringValue = fileName
+                    p.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+                    p.canCreateDirectories = true
+                    p.directoryURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+                    NSApp.activate(ignoringOtherApps: true)
+                    if p.runModal() == .OK { target = p.url }
+                }
+            }
+            guard let url = target else { return ["cancelled": true] as [String: Any] }
+            do { try text.data(using: .utf8)?.write(to: url, options: .atomic) } catch { return err("Couldn't save: \(error.localizedDescription)") }
+            return ["path": url.path, "size": text.utf8.count] as [String: Any]
+
         case "exportLog":   // save a shoot's card log as a spreadsheet file (CSV) where the user chooses
             let rows = (a["rows"] as? [[Any]] ?? []).map { $0.map { "\($0)" } }
             let sep = Locale.current.decimalSeparator == "," ? ";" : ","     // what Excel expects on this Mac

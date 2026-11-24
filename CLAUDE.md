@@ -104,6 +104,10 @@ Key facts:
   connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
   "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
   separator from the Mac's locale, NSSavePanel starting in the main folder).
+- "Export overview for Claude…" (Settings; `Sources/Overview.swift` `overviewMarkdown`, bridge `exportOverview`): Markdown
+  with drives, backups, folder tree (depth 2–4, small folders folded), content by file type, large files on 2+ drives
+  (names only if ticked). Built from the catalog only. Next step the owner wants later: a read-only MCP server for the
+  Claude desktop app (list drives, browse folders, search, backups).
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

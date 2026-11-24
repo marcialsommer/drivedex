@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.9.3'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.10'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -221,7 +221,7 @@ s+=[P('14  Settings and shortcuts', h1),
            ('<b>Rescan when plugged in / network shares</b>','How old a catalog may get before a rescan (1 hour / 12 hours).'),
            ('<b>Strict backup check</b>','Also compare modification dates (section 7).'),
            ('<b>Never scan these drives</b>','Names to skip. Drives you Ignore are added here.'),
-           ('<b>Share between Macs</b>','Section 12.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
+           ('<b>Share between Macs</b>','Section 12.'),('<b>Ask Claude about your drives</b>','<b>Export overview for Claude…</b> saves one readable file about all drives (space, backups, folder structure, what takes the space, duplicates). Drop it into a chat with Claude for advice on storage, naming and backups. Folder names only, unless you tick file names of duplicates.'),('<b>Help / Updates</b>','Open this guide, run the setup guide again, check for and install updates.')], 58*mm),
     P('Keyboard shortcuts', h2),
     table([('<b>&#8984; ,</b>','Settings (press again, or click Settings again, to go back)'),('<b>&#8984; F</b> or <b>/</b>','Search'),('<b>Esc</b>','Clear the search, close a menu'),('<b>&#8984; R</b>','Rescan connected drives'),('<b>&#8984; W</b> / <b>&#8984; Q</b>','Close the window (keeps running) / quit'),('<b>&#8984; ?</b>','Open this user guide'),('<b>Arrow keys</b>','Move around in the Column view'),('<b>&#8984; [</b> / <b>&#8984; ]</b>','Back / forward (also &#8984;&larr; / &#8984;&rarr;, and the Go menu)'),('<b>&#8679;&#8984; O</b>','Overview'),('<b>&#8984; Z</b>','Undo the last backup-link change')], 38*mm),
     PageBreak()]

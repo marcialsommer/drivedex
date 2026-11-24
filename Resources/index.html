@@ -1425,6 +1425,11 @@ async function openSettings(){
   <label class="set"><input type="checkbox" id="s_dmg" ${s.skipDiskImages?'checked':''}>Ignore disk images (.dmg installers)</label>
   <label class="set"><input type="checkbox" id="s_strict" ${s.strictCheck?'checked':''}>Strict backup check: a backup copy must also have the same modification date <span class="mute">(catches edited files that kept their size; may flag copies made by tools that don't preserve dates)</span></label>
   <div class="set">Never scan these drives (one name per line)<textarea id="s_ignore" rows="3" placeholder="e.g. Time Machine">${esc(s.ignoreVolumes.join('\n'))}</textarea></div>
+  <h3>Ask Claude about your drives</h3>
+  <div class="set"><span class="mute">Saves one readable file about all your drives: sizes and free space, backups and how complete they are, the folder structure with sizes, what takes up the space, and large files on more than one drive. Drop it into a chat with Claude to get advice on storage, naming, where things should live and your backup strategy. Made from the catalog: nothing is read from your drives, and nothing is sent anywhere by DriveDex.</span>
+    <div class="row" style="margin-top:8px"><button id="s_overview">Export overview for Claude…</button>
+      <label class="chk" title="How many folder levels per drive"><span>Folder levels</span><select class="sm" id="s_ovdepth"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select></label>
+      <label class="chk"><input type="checkbox" id="s_ovnames">Include file names of duplicates</label></div></div>
   <h3>Memory cards</h3><div class="set" id="s_cards"></div>
   <h3>Share between Macs</h3>
   <div class="set">${s.syncFolder?`<span class="okc">✓ Sharing</span> through <b>${s.syncIsICloud?'iCloud Drive':esc(s.syncFolder)}</b>${s.lastSync?` · last checked ${ago(s.lastSync)}`:''}.${s.syncError?` <span class="errc">⚠ ${esc(s.syncError)}</span>`:''}
@@ -1455,6 +1460,9 @@ async function openSettings(){
     el.querySelectorAll('[data-notacard]').forEach(b=>b.onclick=()=>notACard(b.dataset.notacard,b.dataset.name));
     if($('#s_forgetcards'))$('#s_forgetcards').onclick=()=>{if(!confirm(`Forget ${n} memory card${n==1?'':'s'}?\n\nTheir catalogs are removed from DriveDex. Nothing on the cards is touched, and cards that belong to a shoot are kept.`))return;
       api('forgetCards').then(r=>{toast(`Forgot ${r.forgotten} memory card${r.forgotten==1?'':'s'}`);loadDrives().then(openSettings)})}})();
+  $('#s_overview').onclick=()=>{$('#s_overview').disabled=true;$('#s_overview').textContent='Preparing…';
+    api('exportOverview',{depth:+$('#s_ovdepth').value,names:$('#s_ovnames').checked}).then(r=>{if(r&&r.path)toast(`Saved “${r.path.split('/').pop()}”. Drop it into a chat with Claude.`)})
+      .catch(e=>toast(e.message)).finally(()=>{$('#s_overview').disabled=false;$('#s_overview').textContent='Export overview for Claude…'})};
   $('#s_setup').onclick=openSetup;$('#s_guide').onclick=()=>api('openGuide');
   $('#s_fb_bug').onclick=()=>api('feedback',{kind:'bug'});$('#s_fb_idea').onclick=()=>api('feedback',{kind:'idea'});
   const sync=(a,msg)=>api(a).then(()=>{if(msg)toast(msg);openSettings()}).catch(e=>toast(e.message));

@@ -30,6 +30,7 @@
 - **Shoot mode for productions.** Plug in memory cards and see, card by card, whether everything is on your main drive and on every backup, and when a card is safe to format. An optional deep check compares the actual contents.
 - **Remembers where drives live.** A location note ("office, top drawer") and which Mac last saw each drive, shown in the drive list and in search results.
 - **Works across your Macs.** Share the catalog through iCloud Drive, Google Drive or Dropbox, so every Mac sees every drive.
+- **Ask Claude about your drives.** Export a readable overview of all drives and backups and drop it into a chat with Claude for advice on storage, naming and backup strategy.
 - **Updates itself.** One click installs new versions.
 
 <table>
