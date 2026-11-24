@@ -66,9 +66,9 @@ Requires **macOS 13 Ventura or newer** (Apple Silicon or Intel). The [user guide
 - **It's a snapshot.** A drive's catalog is only as current as its last scan. A backup that hasn't been connected for a while may have changed (or failed) since. DriveDex shows how old each catalog is.
 - Hidden files are skipped unless you turn them on, and app/library bundles (for example Final Cut libraries) count as one item.
 
-Shoot mode uses the same rule: a memory card is "safe to format" when every file on it is in the main folder and every backup folder with the same name and size. For certainty, Shoot mode also has a **Deep check**: it reads every file on the card and each copy and compares their contents (xxHash64 fingerprints). It only reads, never writes, and takes about as long as copying the card.
+Shoot mode uses the same rule: a memory card is "safe to format" when every file on it is in the main folder and every backup folder with the same name and size. For certainty, Shoot mode also has a **Deep check**: it reads every file on the card and each copy and compares their contents (xxHash64 fingerprints). It only reads, never writes, and takes about as long as copying the card. Once a card is safe, Shoot mode can also **format it and keep its name** ("CHRIS SD1" stays "CHRIS SD1"), or just rename it, but only when you click it.
 
-**DriveDex doesn't copy, back up or repair anything.** It never writes to your drives. For the copying itself, use a dedicated tool:
+**DriveDex doesn't copy, back up or repair anything.** It never writes to your drives, with one exception you trigger yourself: formatting or renaming a memory card in Shoot mode. For the copying itself, use a dedicated tool:
 
 - **Backups of drives and folders:** [Carbon Copy Cloner](https://bombich.com) (reliable for years, with scheduled and incremental backups), ChronoSync, or Time Machine.
 - **Memory cards on a shoot:** an offload tool that compares checksums (a fingerprint of each file's actual contents), such as Hedge OffShoot, ShotPut Pro or Pomfort Silverstack.
@@ -80,7 +80,7 @@ Then let DriveDex keep the overview: what's on which drive, and whether anything
 - DriveDex only stores **names, sizes and dates** of files and folders. It never opens or uploads your files.
 - The catalog stays **on your Mac**. If you turn on sharing between Macs, it's also stored in **your own** iCloud Drive or sync folder.
 - Nothing is sent to anyone else. The only network requests are to GitHub, to check for and download updates.
-- DriveDex never changes anything on your drives.
+- DriveDex never changes anything on your drives. The only exception: in Shoot mode you can format or rename a memory card, after it's confirmed safe, with a final confirmation.
 
 ## Feedback
 

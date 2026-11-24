@@ -88,6 +88,12 @@ Key facts:
   counts, up to 300 problems); valid while card bytes+files are unchanged (`deep_valid`). Live progress via bridge
   `deepState`. Stops on eject. `Tests/main.swift` checks XXH64 against official vectors in build.sh (build fails
   if wrong). Next idea: read Hedge/Silverstack MHL files to count their copies as verified.
+- Card formatting / renaming (`Sources/CardTools.swift`, bridge `formatCard` / `renameCard`): the ONLY code that writes
+  to a disk. `CardTools.target` requires: card of the shoot, not a destination, connected, removable/ejectable whole
+  disk ≤ 2.2 TB with no other mounted volume. Format also re-checks `Shoots.status` (state safe; deep problems block;
+  no deep check needs `quick`), then `diskutil eraseDisk ExFAT|MS-DOS FAT32 <name> MBRFormat /dev/diskN` (FAT32 ≤32 GB),
+  records `cards[i]["formatted"]`, optional eject. Names ≤ 11 chars. Empty cards trigger no notice. The owner
+  formats DJI action-cam cards here (fixed names like "CHRIS SD1"), Sony/drone cards in camera.
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

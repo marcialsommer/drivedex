@@ -354,6 +354,9 @@ final class Scanner {
         let card = Shoots.claimCard(v, db: db)          // a memory card of the active shoot?
         let addedOnPurpose = (db.row("SELECT is_card FROM drives WHERE key=?", [v.key])?["is_card"] as? Int) == -1
         if card == nil && v.isCard && !addedOnPurpose {
+            // An empty card (e.g. just formatted) has nothing to check: no notice.
+            let visible = (try? FileManager.default.contentsOfDirectory(atPath: v.url.path))?.filter { !$0.hasPrefix(".") } ?? ["?"]
+            if visible.isEmpty { return }
             // Memory cards never become normal drives: they wait for "Add to <shoot>" (or Ignore).
             db.run("UPDATE drives SET is_card=1 WHERE key=?", [v.key])          // hide one catalogued earlier
             lock.lock()

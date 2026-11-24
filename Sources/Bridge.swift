@@ -321,6 +321,19 @@ enum Bridge {
             return ["key": "local:" + SyncFolder.machine, "local": true, "mac": SyncFolder.machine, "path": url.path,
                     "name": SyncFolder.machine + " · internal drive"] as [String: Any]
 
+        case "formatCard":   // erase + format a safe card, keeping (or setting) its name
+            switch CardTools.format(db: db, shoot: str("uuid"), key: str("key"), name: str("name"),
+                                    allowQuickOnly: a["quick"] as? Bool ?? false, eject: a["eject"] as? Bool ?? true) {
+            case .success(let n): return ["name": n] as [String: Any]
+            case .failure(let f): return err(f.message)
+            }
+
+        case "renameCard":
+            switch CardTools.rename(db: db, shoot: str("uuid"), key: str("key"), name: str("name")) {
+            case .success(let n): return ["name": n] as [String: Any]
+            case .failure(let f): return err(f.message)
+            }
+
         case "deepStart":
             if let e = DeepCheck.shared.start(shoot: str("uuid"), card: str("key")) { return err(e) }
             return ok

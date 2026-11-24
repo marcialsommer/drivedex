@@ -197,6 +197,7 @@ th[data-hk]{cursor:pointer}
 .livedot{width:7px;height:7px;border-radius:50%;background:var(--err);display:inline-block;animation:pulse 1.6s infinite}
 .shootrow .live{font-size:11.5px}
 .sech{margin:16px 0 6px;padding-top:10px;border-top:1px solid var(--line);font-weight:700;font-size:13.5px}
+.fmtbtn{color:var(--err)}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
 <div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
@@ -1055,7 +1056,7 @@ $('#scanall').onclick=()=>api('scanConnected').then(()=>{toast('Rescanning conne
 document.addEventListener('keydown',e=>{if((e.metaKey&&e.key=='f')||(e.key=='/'&&document.activeElement.tagName!='INPUT'&&document.activeElement.tagName!='TEXTAREA')){e.preventDefault();$('#q').focus()}});
 let settingsReturn=null;
 // ---- Shoot mode: memory cards checked against a main folder and its backups. DriveDex never copies anything.
-let deepTimer=null,shootsData={shoots:[],active:''},shootTimer=null,shootBusy=false,shootMiss=null;
+let shootFmt=null,deepTimer=null,shootsData={shoots:[],active:''},shootTimer=null,shootBusy=false,shootMiss=null;
 const activeShoot=()=>(shootsData.shoots||[]).find(s=>s.uuid==shootsData.active&&!s.done);
 function enterPage(st){prevState=null;settingsReturn=null;$('#gear').classList.remove('on');$('#q').value='';$('#qx').style.display='none';
   clearInterval(shootTimer);shootTimer=null;state=st;loadDrives()}
@@ -1202,7 +1203,7 @@ async function openShoot(uuid){
   await drawShoot(uuid);
   clearInterval(shootTimer);
   shootTimer=setInterval(()=>{if(state.mode!='shoot'||state.uuid!=uuid){clearInterval(shootTimer);return}
-    if(document.activeElement&&document.activeElement.classList.contains('cl'))return;drawShoot(uuid)},8000);
+    if(document.activeElement&&(document.activeElement.classList.contains('cl')||document.activeElement.id=='fmt_name'))return;drawShoot(uuid)},8000);
 }
 async function drawShoot(uuid){
   if(shootBusy)return;shootBusy=true;
@@ -1228,8 +1229,10 @@ async function drawShoot(uuid){
   const deepNote=c=>{const d=c.deep;if(c.deep_live||!d)return'';
     if(!c.deep_valid)return '<div class="path">deep check is out of date: the card changed</div>';
     return `<div class="path">deep check ${ago(d.at)}${d.mac?' on '+esc(d.mac):''}${d.stopped?' · '+esc(d.stopped):''}${d.seconds?' · took '+fmtDur(d.seconds):''}</div>`};
+  const canFormat=c=>c.online&&!s.done&&c.state=='safe'&&!(c.deep_valid&&c.deep&&c.deep.state=='problems');
   const fmtDur=t=>t<90?Math.round(t)+' s':t<5400?Math.round(t/60)+' min':(t/3600).toFixed(1)+' h';
-  const stPill=c=>deepPill(c)||stPillBasic(c);
+  const fmtPill=c=>c.formatted&&!c.online?`<span class="pill safe" title="Formatted ${esc(ago(c.formatted.at))}${c.formatted.mac?' on '+esc(c.formatted.mac):''}">✓ Formatted as ${esc(c.formatted.name)}</span>`:'';
+  const stPill=c=>fmtPill(c)||deepPill(c)||stPillBasic(c);
   const stPillBasic=c=>c.state=='safe'?'<span class="pill safe">✓ Safe to format</span>':c.state=='copying'?'<span class="pill copy">Not safe yet</span>':c.state=='scanning'?'<span class="pill wait">Reading card…</span>':c.state=='empty'?'<span class="pill wait">Empty card</span>':c.state=='error'?`<span class="pill err" title="${esc(c.detail||'')}">Couldn't read</span>`:'<span class="pill wait">Waiting</span>';
   const finalNote=c=>s.done&&c.final&&c.final.state!=c.state?`<div class="path">at the end of the shoot: ${c.final.state=='safe'?'safe':'not safe'}, ${(c.final.files||0).toLocaleString()} files</div>`:'';
   const nSafe=st.safe||0;
@@ -1243,10 +1246,24 @@ async function drawShoot(uuid){
     ${cards.map(c=>`<tr><td class="n"><div style="display:flex;align-items:center;gap:6px"><span class="dot ${c.online?'on':''}" title="${c.online?'Connected':'Not connected'}"></span><input class="cl" data-cl="${esc(c.key)}" value="${esc(c.label||'Card')}" title="Click to rename"></div><div class="path" style="margin-left:20px">${esc(c.vol||'')}${c.mac?' · on '+esc(c.mac):''}${c.state=='scanning'&&c.detail?' · '+esc(c.detail):''}</div>${finalNote(c)}</td>
       <td class="r">${c.files!=null?`${hb(c.bytes)}<div class="path">${c.files.toLocaleString()} file${c.files==1?'':'s'}</div>${c.ignored?`<div class="path" title="Thumbnails, previews, index and other non-media files on the card aren't checked (shoot setting)">${c.ignored.toLocaleString()} other${c.ignored==1?'':'s'} ignored</div>`:''}`:'<span class="mute">—</span>'}</td>
       ${c.files!=null&&c.files>0?dests.map((d,j)=>cell(c,j)).join(''):dests.map(()=>'<td class="r mute">—</td>').join('')}
-      <td style="white-space:normal;min-width:150px">${stPill(c)}${deepNote(c)}${c.deep_live?`<div><button class="sm dbtn" data-deepstop="${esc(c.key)}">Stop deep check</button></div>`:c.online&&c.files>0&&!s.done?`<div><button class="sm dbtn" data-deep="${esc(c.key)}" title="Read every file on the card and each copy, and compare their contents. Takes about as long as copying the card.">${c.deep&&c.deep_valid?'Deep check again':'Deep check'}</button></div>`:''}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
+      <td style="white-space:normal;min-width:150px">${stPill(c)}${deepNote(c)}${c.deep_live?`<div><button class="sm dbtn" data-deepstop="${esc(c.key)}">Stop deep check</button></div>`:c.online&&c.files>0&&!s.done?`<div><button class="sm dbtn" data-deep="${esc(c.key)}" title="Read every file on the card and each copy, and compare their contents. Takes about as long as copying the card.">${c.deep&&c.deep_valid?'Deep check again':'Deep check'}</button>${canFormat(c)?` <button class="sm dbtn fmtbtn" data-fmt="${esc(c.key)}" title="Erase the card and format it, keeping its name">Format…</button>`:''} <button class="sm dbtn" data-ren="${esc(c.key)}" title="Rename the card (nothing is erased)">Rename…</button></div>`:''}</td><td class="r"><button class="sm" data-notcard="${esc(c.key)}" title="Remove from this shoot (it isn't a memory card, or doesn't belong here)">✕</button></td></tr>`).join('')}</table>`
     :`<div class="card empty" style="padding:30px">${active?(s.autoAdd?'Plug in a memory card. It will appear here within a few seconds and be read automatically.':'Plug in a memory card, then click <b>Add to this shoot</b> when it appears above.'):'No cards in this shoot. Click <b>Make active</b> and plug in your cards.'}</div>`;
   const others=realDrives().filter(d=>!Shoots_destKeys(s).includes(d.key));
   const add=s.done?'':`<div class="row" style="margin-top:10px"><div class="addcardrow"><button id="sh_addcard" title="Add a memory card that isn't listed yet, also one DriveDex already knew as a normal drive">+ Add a card…</button></div><span class="mute">for a card that isn't listed: pick it from your drives, or click it in Finder</span></div>`;
+  let fmt='';
+  if(shootFmt){const c=cards.find(x=>x.key==shootFmt.key);
+    if(!c||!c.online){shootFmt=null}
+    else{const dv=(dByKey(c.key)||{}).name||c.vol||'';const generic=/^(no name|untitled|sd ?card|sdxc|sdhc|eos_digital|dji|gopro|card)$/i.test(dv.trim());
+      const suggest=(generic?(c.label||''):dv).slice(0,11);const deepOK=c.deep_valid&&c.deep&&c.deep.state=='verified';
+      fmt=shootFmt.mode=='rename'?`<div class="card" id="fmtbox"><div class="row"><b>Rename “${esc(c.label)}”</b> <span class="mute">(now “${esc(dv)}”)</span><span style="flex:1"></span><button class="sm" id="fmt_cancel">Cancel</button></div>
+          <div class="row" style="margin-top:8px"><input type="text" id="fmt_name" maxlength="11" value="${esc(suggest)}" style="width:180px"><button class="primary" id="fmt_rename">Rename card</button><span class="mute" style="font-size:12px">up to 11 characters · nothing on the card is erased</span></div></div>`
+        :`<div class="card" id="fmtbox" style="border-color:var(--err)"><div class="row"><b>Format “${esc(c.label)}”</b> <span class="mute">(${esc(dv)}${c.bytes?' · '+hb(c.bytes)+' on it':''})</span><span style="flex:1"></span><button class="sm" id="fmt_cancel">Cancel</button></div>
+          <div style="margin:8px 0">${deepOK?'<span class="okc">✓ Deep check passed: every file has an identical copy on the main drive and every backup.</span>'
+            :'<span class="warnc">⚠ Only the quick check passed (same names and sizes). A deep check compares the contents too.</span><label class="set" style="margin:6px 0 0"><input type="checkbox" id="fmt_quick">Format anyway, without a deep check</label>'}</div>
+          <div class="row"><span>Card name</span><input type="text" id="fmt_name" maxlength="11" value="${esc(suggest)}" style="width:180px"><span class="mute" style="font-size:12px">up to 11 characters · kept every time you format in DriveDex</span></div>
+          <label class="set"><input type="checkbox" id="fmt_eject" checked>Eject the card when done</label>
+          <div class="mute" style="font-size:12.5px">Erases <b>everything</b> on this card and sets it up as an empty card (exFAT; FAT32 for cards up to 32 GB). The camera creates its own folders by itself. Camera makers generally recommend formatting in the camera; if a camera ever complains about a card formatted here, format that card in the camera once.</div>
+          <div class="row" style="margin-top:10px"><button class="danger" id="fmt_go">Erase and format</button></div></div>`}}
   let miss='';
   if(shootMiss&&shootMiss.deep){const c=cards.find(x=>x.key==shootMiss.key),d=c&&c.deep;
     if(d&&(d.problems||[]).length){const dn=j=>j<0?'the card':(j==0?'main':'backup '+j)+' ('+esc(dests[j]?dests[j].name:'?')+')';
@@ -1260,7 +1277,21 @@ async function drawShoot(uuid){
     else shootMiss=null}
   const keepScroll=$('#view').scrollTop;
   const pend=active&&pending.length?`<div class="card" style="border-color:var(--acc)">${pending.map(n=>`<div class="row" style="margin:3px 0"><span>New drive connected: <b>${esc(n.name)}</b>${n.total?` <span class="mute">· ${hb(n.total)}</span>`:''}</span><span style="flex:1"></span><button class="primary sm" data-addcard="${esc(n.key)}" data-name="${esc(n.name)}">Add to this shoot</button>${n.card?`<button class="sm" data-notacard="${esc(n.key)}" data-name="${esc(n.name)}" title="Catalog it like any other drive instead">Add to my drives</button>`:`<button class="sm" data-approve2="${esc(n.key)}" title="Catalog it as a normal drive">Normal drive</button>`}</div>`).join('')}</div>`:'';
-  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+pend+table+add+miss;
+  const keepFmt=$('#fmt_name')?{v:$('#fmt_name').value,focus:document.activeElement&&document.activeElement.id=='fmt_name',q:$('#fmt_quick')&&$('#fmt_quick').checked,e:$('#fmt_eject')&&$('#fmt_eject').checked}:null;
+  $('#view').innerHTML=`<div class="navrow">${navHTML()}</div>`+head+pend+table+fmt+add+miss;
+  if(keepFmt&&$('#fmt_name')){$('#fmt_name').value=keepFmt.v;if(keepFmt.focus)$('#fmt_name').focus();if($('#fmt_quick'))$('#fmt_quick').checked=keepFmt.q;if($('#fmt_eject')&&keepFmt.e!=null)$('#fmt_eject').checked=keepFmt.e}
+  document.querySelectorAll('[data-fmt]').forEach(b=>b.onclick=()=>{shootFmt={key:b.dataset.fmt,mode:'format'};drawShoot(uuid).then(()=>{const m=$('#fmtbox');if(m)m.scrollIntoView({block:'nearest'})})});
+  document.querySelectorAll('[data-ren]').forEach(b=>b.onclick=()=>{shootFmt={key:b.dataset.ren,mode:'rename'};drawShoot(uuid).then(()=>{const m=$('#fmtbox');if(m){m.scrollIntoView({block:'nearest'});$('#fmt_name').select()}})});
+  if($('#fmt_cancel'))$('#fmt_cancel').onclick=()=>{shootFmt=null;$('#fmtbox').remove()};
+  if($('#fmt_rename'))$('#fmt_rename').onclick=()=>{const key=shootFmt.key,name=$('#fmt_name').value.trim();
+    $('#fmt_rename').disabled=true;api('renameCard',{uuid,key,name}).then(r=>{shootFmt=null;toast(`Renamed to “${r.name}”`);re()}).catch(e=>{toast(e.message);$('#fmt_rename').disabled=false})};
+  if($('#fmt_go'))$('#fmt_go').onclick=()=>{const key=shootFmt.key,c=cards.find(x=>x.key==key),name=$('#fmt_name').value.trim(),quick=$('#fmt_quick')?$('#fmt_quick').checked:false;
+    if($('#fmt_quick')&&!quick){toast('Run a deep check first, or tick “Format anyway”.');return}
+    if(!name){toast('Give the card a name');return}
+    if(!confirm(`Erase “${(dByKey(key)||{}).name||c.vol||c.label}” and format it as “${name}”?\n\nEverything on the card is deleted. This can't be undone.`))return;
+    $('#fmt_go').disabled=true;$('#fmt_go').textContent='Formatting…';
+    api('formatCard',{uuid,key,name,quick,eject:$('#fmt_eject').checked}).then(r=>{shootFmt=null;toast(`Formatted as “${r.name}”.${$('#fmt_eject')&&$('#fmt_eject').checked?' Ejected: you can take it out.':''}`);setTimeout(re,1200)})
+      .catch(e=>{toast(e.message);$('#fmt_go').disabled=false;$('#fmt_go').textContent='Erase and format'})};
   document.querySelectorAll('#view [data-addcard]').forEach(b=>b.onclick=()=>addCard(b.dataset.addcard,b.dataset.name));
   document.querySelectorAll('#view [data-notacard]').forEach(a=>a.onclick=()=>notACard(a.dataset.notacard,a.dataset.name));
   document.querySelectorAll('#view [data-approve2]').forEach(b=>b.onclick=()=>api('approveDrive',{key:b.dataset.approve2}).then(()=>{toast('Cataloguing it as a normal drive…');setTimeout(loadDrives,800)}));
