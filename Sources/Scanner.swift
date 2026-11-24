@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import DiskArbitration
 import Foundation
 import IOKit
@@ -31,6 +32,9 @@ private let packageExts: Set<String> = [
 ]
 private let entryKeys: [URLResourceKey] = [.isDirectoryKey, .isSymbolicLinkKey, .isPackageKey, .fileSizeKey, .contentModificationDateKey]
 private let entryKeySet = Set(entryKeys)
+
+/// Why a scan was started (decides whether a drive's own schedule lets it run).
+enum ScanReason { case mount, timer, changes, manual }
 
 enum ScanError: Error {
     case disconnected
@@ -203,7 +207,8 @@ final class Scanner {
             guard let url = n.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else { return }
             // Give the drive a moment to settle before reading it.
             DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
-                if let v = Scanner.eligible(url) { self?.enqueue(v, force: false) }
+                if let v = Scanner.eligible(url) { self?.enqueue(v, force: false, reason: .mount) }
+                self?.refreshWatchers()
             }
         }
         nc.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: nil) { [weak self] n in
@@ -213,18 +218,22 @@ final class Scanner {
             self.cancelled.insert(path)
             self.pendingNew = self.pendingNew.filter { $0.value.url.standardizedFileURL.path != path }
             self.lock.unlock()
+            self.stopWatching(path)
         }
         timer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
-            self?.scanAllConnected(force: false)
+            self?.scanAllConnected(force: false, reason: .timer)
             self?.checkReminders()
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + 60) { [weak self] in self?.checkReminders() }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in self?.scanAllConnected(force: false) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.scanAllConnected(force: false, reason: .mount)     // at launch: like connecting every drive
+            self?.refreshWatchers()
+        }
     }
 
-    func scanAllConnected(force: Bool) {
+    func scanAllConnected(force: Bool, reason: ScanReason = .manual) {
         DispatchQueue.global(qos: .utility).async {
-            for v in Scanner.connectedVolumes() { self.enqueue(v, force: force) }
+            for v in Scanner.connectedVolumes() { self.enqueue(v, force: force, reason: force ? .manual : reason) }
         }
     }
 
@@ -265,7 +274,7 @@ final class Scanner {
         return (current != nil, q)
     }
 
-    func enqueue(_ v: VolumeInfo, force: Bool, approved: Bool = false) {
+    func enqueue(_ v: VolumeInfo, force: Bool, approved: Bool = false, reason: ScanReason = .manual) {
         lock.lock()
         if pending.contains(v.key) { lock.unlock(); return }
         pending.insert(v.key)
@@ -277,7 +286,79 @@ final class Scanner {
             }
             self.current = v.key; self.lock.unlock()
             defer { self.lock.lock(); self.pending.remove(v.key); self.current = nil; self.stopKeys.remove(v.key); self.lock.unlock() }
-            self.scan(v, force: force, approved: approved)
+            self.scan(v, force: force, approved: approved, reason: reason)
+        }
+    }
+
+    // MARK: - per-drive schedule
+
+    /// Seconds a drive's catalog may get old before an automatic rescan, for its schedule and the reason; nil = don't scan now.
+    private func maxAge(schedule: String, reason: ScanReason, network: Bool) -> Double? {
+        switch schedule {
+        case "manual": return nil                                     // only the Rescan button
+        case "connect": return reason == .mount ? 300 : nil           // every time it's connected
+        case "changes": return reason == .changes ? 600 : reason == .mount ? 300 : nil
+        case "hourly": return 3600
+        case "daily": return 86400
+        case "weekly": return 7 * 86400
+        case "monthly": return 30 * 86400
+        default: return (network ? Settings.periodicRescanHours : Settings.rescanAfterHours) * 3600   // as in Settings
+        }
+    }
+
+    // "When files change on it": macOS file-system events for the drive's mount point.
+    private var watchers: [String: FSEventStreamRef] = [:]
+    private var lastChange: [String: Double] = [:]
+    private let watchQueue = DispatchQueue(label: "drivedex.fsevents")
+
+    /// Starts / stops change watchers to match the connected drives whose schedule is "changes".
+    func refreshWatchers() {
+        queue.async {
+            let want = Set(Scanner.connectedVolumes().filter { v in
+                (self.db.row("SELECT scan_schedule FROM drives WHERE key=?", [v.key])?["scan_schedule"] as? String) == "changes"
+            }.map { $0.url.standardizedFileURL.path })
+            self.watchQueue.async {
+                for (path, s) in self.watchers where !want.contains(path) {
+                    FSEventStreamStop(s); FSEventStreamInvalidate(s); FSEventStreamRelease(s); self.watchers[path] = nil
+                }
+                for path in want where self.watchers[path] == nil {
+                    var ctx = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
+                    let cb: FSEventStreamCallback = { stream, info, n, paths, _, _ in
+                        guard let info = info else { return }
+                        let me = Unmanaged<Scanner>.fromOpaque(info).takeUnretainedValue()
+                        let list = Unmanaged<CFArray>.fromOpaque(paths).takeUnretainedValue() as? [String] ?? []
+                        let watched = (FSEventStreamCopyPathsBeingWatched(stream) as? [String])?.first ?? ""
+                        // Ignore macOS's own housekeeping (Spotlight index, trash, event store).
+                        let real = list.contains { p in
+                            ![".Spotlight-V100", ".fseventsd", ".Trashes", ".TemporaryItems", ".DocumentRevisions-V100", ".DS_Store"].contains { p.contains("/" + $0) }
+                        }
+                        if real && n > 0 { me.filesChanged(watched) }
+                    }
+                    guard let s = FSEventStreamCreate(kCFAllocatorDefault, cb, &ctx, [path] as CFArray,
+                                                      FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 30,
+                                                      FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes)) else { continue }
+                    FSEventStreamSetDispatchQueue(s, self.watchQueue)
+                    FSEventStreamStart(s)
+                    self.watchers[path] = s
+                }
+            }
+        }
+    }
+
+    func stopWatching(_ path: String) {
+        watchQueue.async {
+            guard let s = self.watchers[path] else { return }
+            FSEventStreamStop(s); FSEventStreamInvalidate(s); FSEventStreamRelease(s); self.watchers[path] = nil
+        }
+    }
+
+    /// Files changed on a watched drive: rescan once things have been quiet for 2 minutes.
+    private func filesChanged(_ mount: String) {
+        let now = Date().timeIntervalSince1970
+        lastChange[mount] = now
+        watchQueue.asyncAfter(deadline: .now() + 120) { [weak self] in
+            guard let self = self, (self.lastChange[mount] ?? 0) <= now else { return }   // more changes came in: wait for those
+            if let v = Scanner.eligible(URL(fileURLWithPath: mount)) { self.enqueue(v, force: false, reason: .changes) }
         }
     }
 
@@ -315,6 +396,16 @@ final class Scanner {
                 self.notify("Backup reminder: “\(r.backup)” (backup of \(r.main)) was last updated \(r.days) days ago. Time to connect or swap it.", force: true)
                 last[r.key] = now
             }
+            // Per drive: "Remind me if it hasn't been updated for …" (Info tab)
+            for r in self.db.rows("SELECT id, COALESCE(NULLIF(label,''), name) AS n, remind_scan_days AS rd, last_scan AS ls FROM drives WHERE remind_scan_days > 0") {
+                guard let rd = r["rd"] as? Int, let id = r["id"] as? Int else { continue }
+                let age = now - (r["ls"] as? Double ?? 0)
+                let k = "scan-\(id)"
+                if age > Double(rd) * 86400 && now - (last[k] ?? 0) > 20 * 3600 {
+                    self.notify("“\(r["n"] as? String ?? "A drive")” hasn't been updated for \(Int(age / 86400)) days. Connect it so DriveDex can catalog it.", force: true)
+                    last[k] = now
+                }
+            }
             Settings.d.set(last, forKey: "remindedAt")
         }
     }
@@ -337,6 +428,7 @@ final class Scanner {
 
     func letGo(_ path: String) {
         lock.lock(); ejecting.insert(path); lock.unlock()
+        stopWatching(path)
         // Wait (briefly) until a running scan of this drive has stopped reading it.
         for _ in 0..<30 {
             lock.lock(); let busy = currentMount == path; lock.unlock()
@@ -360,7 +452,7 @@ final class Scanner {
 
     // MARK: - scanning
 
-    private func scan(_ v: VolumeInfo, force: Bool, approved: Bool) {
+    private func scan(_ v: VolumeInfo, force: Bool, approved: Bool, reason: ScanReason = .manual) {
         let card = Shoots.claimCard(v, db: db)          // a memory card of the active shoot?
         let addedOnPurpose = (db.row("SELECT is_card FROM drives WHERE key=?", [v.key])?["is_card"] as? Int) == -1
         if card == nil && v.isCard && !addedOnPurpose {
@@ -390,8 +482,24 @@ final class Scanner {
         if card != nil { db.run("UPDATE drives SET is_card=1 WHERE id=?", [id]) }
         guard let d = db.row("SELECT * FROM drives WHERE id=?", [id]) else { return }
         let lastScan = d["last_scan"] as? Double ?? 0
-        let hours = v.kind == "network" ? Settings.periodicRescanHours : Settings.rescanAfterHours
-        if !force && Date().timeIntervalSince1970 - lastScan < (card != nil ? 90 : hours * 3600) { return }   // cards: always re-read
+        let age = Date().timeIntervalSince1970 - lastScan
+        if !force {
+            if card != nil {
+                if age < 90 { return }                                     // cards: always re-read
+            } else if lastScan > 0 {
+                // The drive's own schedule (Info tab), or the Settings default.
+                guard let limit = maxAge(schedule: d["scan_schedule"] as? String ?? "", reason: reason, network: v.kind == "network"),
+                      age >= limit else {
+                    if reason == .changes, let limit = maxAge(schedule: "changes", reason: .changes, network: false), age < limit {
+                        // Changed again shortly after a scan: try once more when the 10 minutes are up.
+                        DispatchQueue.global().asyncAfter(deadline: .now() + (limit - age) + 5) { [weak self] in
+                            if let nv = Scanner.eligible(v.url) { self?.enqueue(nv, force: false, reason: .changes) }
+                        }
+                    }
+                    return
+                }
+            }
+        }
         lock.lock(); let stopped = stoppedAt[v.key] ?? 0; lock.unlock()
         if !force && Date().timeIntervalSince1970 - stopped < 12 * 3600 { return }   // the user stopped it recently
 

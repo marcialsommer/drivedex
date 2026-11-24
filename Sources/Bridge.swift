@@ -261,13 +261,13 @@ enum Bridge {
             Shoots.put(db, s)
             if a["activate"] as? Bool == true {
                 Shoots.activeID = s["uuid"] as? String ?? ""
-                Scanner.shared.scanAllConnected(force: false)
+                Scanner.shared.scanAllConnected(force: false, reason: .mount)
             }
             return ["uuid": s["uuid"] ?? ""] as [String: Any]
 
         case "shootActivate":
             Shoots.activeID = str("uuid")
-            if !str("uuid").isEmpty { Scanner.shared.scanAllConnected(force: false) }
+            if !str("uuid").isEmpty { Scanner.shared.scanAllConnected(force: false, reason: .mount) }
             return ok
 
         case "shootDelete":
@@ -343,6 +343,15 @@ enum Bridge {
             case .success(let n): return ["name": n] as [String: Any]
             case .failure(let f): return err(f.message)
             }
+
+        case "setSchedule":   // per drive: when to rescan, and when to remind
+            guard let id = int("id") else { return err("missing id") }
+            let allowed = ["", "connect", "hourly", "daily", "weekly", "monthly", "changes", "manual"]
+            let sched = allowed.contains(str("schedule")) ? str("schedule") : ""
+            db.run("UPDATE drives SET scan_schedule=?, remind_scan_days=? WHERE id=?", [sched, max(0, int("remind") ?? 0), id])
+            db.touchMeta([id]); Scanner.shared.exportMeta([id])
+            Scanner.shared.refreshWatchers()
+            return ok
 
         case "exportOverview":   // one readable file about all drives, to share with Claude (or keep)
             let depth = max(1, min(4, int("depth") ?? 3))

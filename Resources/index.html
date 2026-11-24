@@ -460,6 +460,8 @@ function attentionItems(){
       if(d.remind_days&&now-(b.backup_scan||0)>d.remind_days*86400)out.push({key:`rem:${d.key}:${b.set}:${Math.round(b.backup_scan||0)}`,lvl:1,text:`<b>${esc(d.display)}</b>: ${esc(bkName(b))} hasn't been updated for ${Math.floor((now-(b.backup_scan||0))/86400)} days. Time to connect or swap it.`,act:'Open',fn:()=>{driveTab='backups';openDrive(d.id,'')}});
     }
   }
+  for(const d of drives.filter(x=>x.remind_scan_days>0&&x.last_scan&&now-x.last_scan>x.remind_scan_days*86400&&!x.card&&x.is_card!=1))
+    out.push({key:`scanrem:${d.key}:${Math.round(d.last_scan)}`,lvl:1,text:`<b>${esc(d.display)}</b> hasn't been updated for ${Math.floor((now-d.last_scan)/86400)} days. Connect it so DriveDex can catalog it.`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
   for(const d of drives.filter(x=>x.status=='error'))out.push({key:`err:${d.key}:${d.status_detail}`,lvl:2,text:`<b>${esc(d.display)}</b>: ${esc(d.status_detail)}`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
   for(const n of pending)if(n.card&&!activeShoot())out.push({lvl:0,text:`Memory card connected: <b>${esc(n.name)}</b>. Memory cards are checked in a shoot.`,act:'Start a shoot',fn:()=>editShoot(null)});else if(activeShoot())out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. A memory card for <b>${esc(activeShoot().name)}</b>?`,act:'Add to shoot',fn:()=>addCard(n.key,n.name)});else out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. Add it to your catalog?`,act:'Catalog it',fn:()=>api('approveDrive',{key:n.key}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)})});
   if(updateInfo&&updateInfo.available)out.push({lvl:0,text:`DriveDex ${esc(updateInfo.version)} is available.`,act:'Install & Relaunch',fn:installUpdate});
@@ -714,6 +716,8 @@ function renderDriveHeader(){
   ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:''}</div>`;
   document.querySelectorAll('#dh [data-tab]').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
   if(driveTab=='info')loadScanLog(d);
+  const saveSched=()=>api('setSchedule',{id:d.id,schedule:$('#schedSel').value,remind:+$('#remindScan').value}).then(()=>{toast('Saved');redo()}).catch(e=>toast(e.message));
+  if($('#schedSel'))$('#schedSel').onchange=saveSched;if($('#remindScan'))$('#remindScan').onchange=saveSched;
   if(driveTab=='info')document.querySelectorAll('#dh details.more').forEach(x=>x.addEventListener('toggle',()=>{if(x.open&&!spaceLoaded){spaceLoaded=true;loadSpace(d)}}));
   spaceLoaded=false;
   const save=()=>api('updateDrive',{id:d.id,label:$('#lbl').value,notes:$('#notes')?$('#notes').value:d.notes}).then(()=>{toast('Saved');loadDrives()});
@@ -894,9 +898,21 @@ function typeRow(d){
 }
 let driveTab='files';
 const lastSeen=d=>d.online?'connected now':d.last_seen?`last connected ${ago(d.last_seen)}${d.last_seen_on?' on '+esc(d.last_seen_on):''}`:'';
+// What a drive's rescan schedule means, in plain words
+function schedNote(d){const net=d.kind=='network';
+  return ({'':net?'Network shares that stay connected are rescanned every 12 hours by default; change the default in Settings → Scanning.':'By default: when connected, if the last scan is more than an hour old, and about every hour while connected. Change the default in Settings → Scanning.',
+    connect:'Rescanned each time you connect it, not while it stays connected.',hourly:'Rescanned about every hour while connected, and when connected if the last scan is older.',
+    daily:'Rescanned once a day while connected, or when connected if the last scan is more than a day old.',weekly:'Rescanned once a week (when connected, if the last scan is more than a week old).',
+    monthly:'Rescanned once a month (when connected, if the last scan is more than a month old).',
+    changes:'Rescanned a couple of minutes after files are added or changed (at most every 10 minutes), and when connected.'+(net?' For a NAS, only changes made from this Mac are noticed.':''),
+    manual:'Never rescanned automatically. Use Rescan now.'})[d.scan_schedule||'']||''}
 function infoHTML(d){
   return `<div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>Last connected<b>${d.online?'now':d.last_seen?ago(d.last_seen):'—'}</b>${d.last_seen_on&&!d.online?`<span class="mute">on ${esc(d.last_seen_on)}</span>`:''}</div></div>
-  <h3 style="margin-top:4px">Scan history</h3><div id="scanlog" class="mute">Loading…</div>
+  <div class="sech" style="margin-top:8px">Scanning</div>
+  <div class="row" style="font-size:13px"><span>Rescan this drive</span><select class="sm" id="schedSel">${[['','Default (as in Settings)'],['connect','Every time it’s connected'],['hourly','Every hour'],['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['changes','When files change on it'],['manual','Only when I click Rescan']].map(([v,l])=>`<option value="${v}" ${(d.scan_schedule||'')==v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="mute" style="font-size:12px;margin:4px 0 8px">${schedNote(d)}</div>
+  <div class="row" style="font-size:13px"><span>Remind me if it hasn’t been updated for</span><select class="sm" id="remindScan">${[[0,'never'],[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month'],[90,'3 months']].map(([v,l])=>`<option value="${v}" ${(d.remind_scan_days||0)==v?'selected':''}>${l}</option>`).join('')}</select>${d.remind_scan_days&&d.last_scan&&Date.now()/1000-d.last_scan>d.remind_scan_days*86400?' <span class="warnc">⏰ due</span>':''}</div>
+  <div class="sech">Scan history</div><div id="scanlog" class="mute">Loading…</div>
   <div style="margin:12px 0 10px">${typeRow(d)}</div>
   <div class="mute" style="font-size:12px;margin-bottom:4px">📍 Where does this drive live? (shown in the drive list and in search results)</div>
   <textarea id="notes" rows="2" placeholder="e.g. Office, top drawer · client archive 2019–2023">${esc(d.notes)}</textarea>

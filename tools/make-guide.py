@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.10.1'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.11'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -94,6 +94,7 @@ s+=[Spacer(1,4), Table([[RLImage(GK,width=gw,height=gw*gk.size[1]/gk.size[0]), P
 s+=[P('2  Adding drives', h1),
     side('new', 58*mm, 'The first time DriveDex sees a drive, it <b>asks before cataloguing it</b>: a notification and a card at the top of the drive list.<br/><br/><b>Catalog it</b> adds the drive. <b>Ignore</b> means never ask again (for example camera cards). App installers (.dmg) are skipped automatically.'),
     P('After that, a known drive is updated automatically whenever you connect it (if its last scan is over an hour old). NAS shares that stay connected are rescanned every 12 hours.'),
+    P('<b>Per drive:</b> on a drive\'s <b>Info</b> tab, <b>Scanning</b> sets when it\'s rescanned: as in Settings (default), every time it\'s connected, every hour, day, week or month, when files change on it, or only when you click Rescan. There you can also ask to be <b>reminded</b> when a drive hasn\'t been updated for 3 days to 3 months.'),
     P('Drives are scanned <b>one at a time</b>, which is gentler on disks and usually faster overall than scanning several at once. A drive waiting its turn shows <b>Waiting to scan</b>, and <b>Rescan now</b> tells you whether the scan started or was queued.'),
     P('While anything is happening, a slim blue <b>activity bar</b> appears under the search field: which drive is being scanned, how many files so far, an estimate of how far along it is (based on the last scan), what\'s next, and which backups are being checked. It disappears when DriveDex is idle. The menu-bar menu shows the same.'),
     P('<b>Stopping a scan:</b> click <b>Stop</b> in the activity bar (or <b>Stop scan</b> on the drive\'s page), <b>&#x2715;</b> next to a waiting drive, or <b>Stop all</b>. The drive keeps its previous catalog, the scan history notes it was stopped, and DriveDex won\'t restart it by itself for 12 hours. Plugging it in again or pressing Rescan starts it as usual.'),
