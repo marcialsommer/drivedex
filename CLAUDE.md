@@ -98,6 +98,11 @@ Key facts:
 - Needs attention: items with a `key` (numbers included: none/miss/rem/err/nobk) can be marked done (`doneAtt`, bridge
   `doneAttention`/`setDoneAttention`, synced in prefs.json); "Show done" toggle; keys no longer present are pruned.
   Menu-bar icon is always plain and its menu has no backup warnings (owner's wish, v2.8.2).
+- One row per physical card (v2.9): formatting gives a card a new volume UUID/key. `CardTools.format` finds the new key
+  after erasing and calls `Shoots.startRound` (old round → `cards[i]["history"]`, row gets new key + `ready`). Cards
+  formatted elsewhere continue a row by fixed name (`continuedRow`: non-generic name = row's `nextName`, old key not
+  connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
+  "Formatted as … · ready", collapsible Card log.
 - Overview table is sortable (`hsort`, `homeSorted()`, saved in localStorage; default = sidebar order).
 - Scans can be stopped/dequeued (`Scanner.stop/stopAll`, `ScanError.stopped`): previous catalog kept,
   logged as 'stopped', and automatic rescans skip that drive for 12 h. Home = `goHome()` (Overview item / title).

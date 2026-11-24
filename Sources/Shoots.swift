@@ -103,12 +103,96 @@ enum Shoots {
     }
 
     /// Adds a drive to a shoot as a memory card (no-op if it's already one).
+    // MARK: - one row per physical card
+
+    /// Card names many cards share: they don't identify a card.
+    static let genericNames: Set<String> = ["no name", "untitled", "sd card", "sd_card", "sdcard", "eos_digital", "dji", "gopro",
+                                            "card", "sdxc", "sdhc", "nikon", "canon", "lumix", "sony", "memory card", "removable", "disk"]
+    static func isGeneric(_ n: String) -> Bool {
+        let t = n.trimmingCharacters(in: .whitespaces).lowercased()
+        return t.isEmpty || genericNames.contains(t) || t.range(of: #"^untitled( \d+)?$"#, options: .regularExpression) != nil
+    }
+    /// The name this card row's card has now, or will have after the format DriveDex did.
+    static func nextName(_ c: [String: Any]) -> String {
+        ((c["ready"] as? [String: Any])?["name"] as? String) ?? ((c["formatted"] as? [String: Any])?["name"] as? String) ?? (c["vol"] as? String ?? "")
+    }
+
+    /// Counted files and bytes in a card's catalog.
+    static func cardStats(_ db: DB, key: String, shoot s: [String: Any]) -> (Int, Int64) {
+        guard let d = db.row("SELECT id, gen FROM drives WHERE key=?", [key]), let id = d["id"] as? Int, let gen = d["gen"] as? Int else { return (0, 0) }
+        var n = 0, b: Int64 = 0
+        for r in db.rows("SELECT name, size FROM entries WHERE drive_id=? AND gen=? AND is_dir <> 1", [id, gen]) {
+            if counts(r["name"] as? String ?? "", shoot: s) { n += 1; b += Int64(r["size"] as? Int ?? 0) }
+        }
+        return (n, b)
+    }
+
+    /// A record of the card's current round, for its history (the log).
+    static func roundSnapshot(_ db: DB, _ c: [String: Any], shoot s: [String: Any], state: String? = nil) -> [String: Any] {
+        let key = c["key"] as? String ?? ""
+        let (n, b) = cardStats(db, key: key, shoot: s)
+        var r: [String: Any] = ["key": key, "vol": c["vol"] ?? "", "start": c["roundStart"] ?? c["added"] ?? 0,
+                                "end": Date().timeIntervalSince1970, "files": n, "bytes": b, "mac": c["mac"] ?? ""]
+        if let deep = c["deep"] as? [String: Any] { r["deep"] = ["state": deep["state"] ?? "", "at": deep["at"] ?? 0] as [String: Any] }
+        if let f = c["formatted"] { r["formatted"] = f }
+        if let st = state { r["state"] = st }
+        return r
+    }
+
+    /// The card in row `c` starts a new round with a new identity (after formatting): the round so far goes to its history.
+    static func startRound(_ db: DB, card c: inout [String: Any], shoot s: [String: Any], newKey: String, vol: String,
+                           state: String? = nil, start: Any? = nil) {
+        var hist = c["history"] as? [[String: Any]] ?? []
+        hist.append(roundSnapshot(db, c, shoot: s, state: state))
+        c["history"] = Array(hist.suffix(300))
+        c["key"] = newKey; c["vol"] = vol; c["roundStart"] = start ?? Date().timeIntervalSince1970; c["mac"] = SyncFolder.machine
+        for k in ["deep", "formatted", "ready"] { c.removeValue(forKey: k) }
+    }
+
+    /// A row this newly plugged-in card continues: same fixed name as that row's card (or the name DriveDex formatted
+    /// it with), and that row's card isn't connected right now.
+    static func continuedRow(_ cards: [[String: Any]], vol: String, key: String, online: [String: VolumeInfo]) -> Int? {
+        guard !isGeneric(vol) else { return nil }
+        let t = vol.lowercased()
+        return cards.lastIndex { ($0["key"] as? String) != key && nextName($0).lowercased() == t && online[$0["key"] as? String ?? ""] == nil }
+    }
+
+    /// Older shoots: rows that are one physical card (a formatted row whose name the next row has) become one row.
+    static func mergeRounds(_ db: DB, _ s: inout [String: Any]) -> Bool {
+        let cards = s["cards"] as? [[String: Any]] ?? []
+        var out: [[String: Any]] = []
+        var changed = false
+        for c in cards {
+            let vol = (c["vol"] as? String ?? "").lowercased()
+            if !isGeneric(vol), let i = out.lastIndex(where: {
+                ($0["formatted"] != nil || $0["ready"] != nil) && nextName($0).lowercased() == vol && ($0["key"] as? String) != (c["key"] as? String) }) {
+                var r = out[i]
+                startRound(db, card: &r, shoot: s, newKey: c["key"] as? String ?? "", vol: c["vol"] as? String ?? "",
+                           state: "formatted", start: c["added"])
+                for k in ["deep", "formatted", "ready"] { if let v = c[k] { r[k] = v } }
+                r["history"] = (r["history"] as? [[String: Any]] ?? []) + (c["history"] as? [[String: Any]] ?? [])
+                out[i] = r
+                changed = true
+            } else {
+                out.append(c)
+            }
+        }
+        if changed { s["cards"] = out }
+        return changed
+    }
+
     static func addCard(_ db: DB, _ uuid: String, key: String, vol: String) -> Bool {
         guard var s = get(db, uuid), s["deleted"] as? Bool != true else { return false }
         var cards = s["cards"] as? [[String: Any]] ?? []
         if !cards.contains(where: { $0["key"] as? String == key }) {
-            cards.append(["key": key, "label": "Card \(cards.count + 1)", "vol": vol,
-                          "added": Date().timeIntervalSince1970, "mac": SyncFolder.machine])
+            if let i = continuedRow(cards, vol: vol, key: key, online: Scanner.onlineMap()) {
+                var c = cards[i]                       // the same card again (formatted since): one row, new round
+                startRound(db, card: &c, shoot: s, newKey: key, vol: vol, state: "formatted")
+                cards[i] = c
+            } else {
+                cards.append(["key": key, "label": "Card \(cards.count + 1)", "vol": vol,
+                              "added": Date().timeIntervalSince1970, "mac": SyncFolder.machine])
+            }
         }
         s["cards"] = cards
         s["notCards"] = (s["notCards"] as? [String] ?? []).filter { $0 != key }
@@ -131,6 +215,14 @@ enum Shoots {
         if known && cardKeys(db)[v.key] == nil { return nil }       // a normal drive the user already has
         let notCards = s["notCards"] as? [String] ?? []
         if notCards.contains(v.key) { return nil }                 // the user said "not a card"
+        if let i = continuedRow(cards, vol: v.name, key: v.key, online: Scanner.onlineMap()) {
+            var c = cards[i]                           // the same card again (it has a fixed name): new round, no question
+            startRound(db, card: &c, shoot: s, newKey: v.key, vol: v.name, state: "formatted")
+            cards[i] = c
+            s["cards"] = cards
+            put(db, s)
+            return s["name"] as? String ?? ""
+        }
         guard s["autoAdd"] as? Bool == true, looksLikeCard(v) else { return nil }   // ask instead
         cards.append(["key": v.key, "label": "Card \(cards.count + 1)", "vol": v.name,
                       "added": Date().timeIntervalSince1970, "mac": SyncFolder.machine])
@@ -174,7 +266,8 @@ enum Shoots {
     /// Card-by-card status of a shoot. Connected destinations are read live (just the shoot folder);
     /// others from their last catalog.
     static func status(_ db: DB, _ uuid: String) -> [String: Any] {
-        guard let s = get(db, uuid) else { return ["error": "This shoot doesn't exist any more."] }
+        guard var s = get(db, uuid) else { return ["error": "This shoot doesn't exist any more."] }
+        if mergeRounds(db, &s) { put(db, s) }
         let online = Scanner.onlineMap()
         var dests: [Dest] = []
         var specs: [[String: Any]] = []

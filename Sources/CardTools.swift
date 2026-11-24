@@ -106,12 +106,26 @@ enum CardTools {
         guard r.ok else {
             return .failure(Failure(message: "Formatting failed: " + (r.output.split(separator: "\n").last.map(String.init) ?? "unknown error")))
         }
-        // Remember it in the shoot (the card gets a new identity, so this row is now a record).
+        // The card has a new identity now: find it, so the next time it's plugged in it's the same row (a new round).
+        var newKey: String? = nil
+        for _ in 0..<24 {
+            let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: []) ?? []
+            if let u = urls.first(where: { diskInfo($0)?.whole == d.whole }), let nv = Scanner.volumeInfo(u), !nv.key.isEmpty, nv.key != key {
+                newKey = nv.key; break
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        let fmt: [String: Any] = ["at": Date().timeIntervalSince1970, "name": label, "mac": SyncFolder.machine, "deep": deepOK]
         if var s = Shoots.get(db, uuid) {
             var cards = s["cards"] as? [[String: Any]] ?? []
             if let i = cards.firstIndex(where: { $0["key"] as? String == key }) {
-                cards[i]["formatted"] = ["at": Date().timeIntervalSince1970, "name": label, "mac": SyncFolder.machine,
-                                         "deep": deepOK] as [String: Any]
+                var c = cards[i]
+                c["formatted"] = fmt
+                if let nk = newKey {
+                    Shoots.startRound(db, card: &c, shoot: s, newKey: nk, vol: label, state: deepOK ? "verified" : "safe")
+                    c["ready"] = fmt                        // shown until the card has new files
+                }
+                cards[i] = c
             }
             s["cards"] = cards
             Shoots.put(db, s)
