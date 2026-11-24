@@ -346,7 +346,7 @@ enum Bridge {
 
         case "speedTest":
             guard let id = int("id") else { return err("missing id") }
-            if let e = SpeedTest.shared.start(id: id, write: a["write"] as? Bool ?? false) { return err(e) }
+            if let e = SpeedTest.shared.start(id: id, write: a["write"] as? Bool ?? false, note: str("note")) { return err(e) }
             return ok
 
         case "speedState":

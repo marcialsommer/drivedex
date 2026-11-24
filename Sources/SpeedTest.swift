@@ -20,21 +20,23 @@ final class SpeedTest {
 
     private func set(_ id: Int, _ v: [String: Any]) { lock.lock(); live[id, default: [:]].merge(v) { _, n in n }; lock.unlock() }
 
-    func start(id: Int, write: Bool) -> String? {
+    func start(id: Int, write: Bool, note: String = "") -> String? {
         lock.lock()
         if !live.isEmpty { lock.unlock(); return "A speed test is already running." }
         live[id] = ["phase": "starting", "write": write]
         lock.unlock()
-        queue.async { self.run(id: id, write: write) }
+        queue.async { self.run(id: id, write: write, note: note) }
         return nil
     }
 
     private struct Fail: Error { let message: String }
 
-    private func run(id: Int, write: Bool) {
+    private func run(id: Int, write: Bool, note: String) {
         defer { lock.lock(); live.removeValue(forKey: id); lock.unlock() }
         guard let key = db.driveKey(id), let v = Scanner.onlineMap()[key] else { save(id, ["error": "The drive isn't connected."]); return }
         var result: [String: Any] = ["at": Date().timeIntervalSince1970, "mac": SyncFolder.machine]
+        let n = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !n.isEmpty { result["note"] = String(n.prefix(120)) }      // how it was connected (cable, hub…)
         do {
             set(id, ["phase": "read"])
             let (rb, rs) = try readTest(id: id, mount: v.url)

@@ -106,7 +106,8 @@ Key facts:
   separator from the Mac's locale, NSSavePanel starting in the main folder).
 - Speed test (v2.15, Info tab; `Sources/SpeedTest.swift`, bridge `speedTest`/`speedState`): read = largest catalogued
   files, F_NOCACHE, ≤15 s / 6 GB; write (opt-in, confirm) = hidden `.DriveDex-speedtest-*.tmp` at the drive root, ≤2 GB /
-  15 s, F_FULLFSYNC, always deleted; needs 7 GB free; stops on eject. Results in `drives.speed_json` (last 20, synced).
+  15 s, F_FULLFSYNC, always deleted; needs 7 GB free; stops on eject. Results in `drives.speed_json` (last 20, synced), each with an
+  optional `note` ("Connected via": cable/hub, remembered per drive).
 - Renames (v2.14): drives are keyed by volume UUID, so a Finder rename keeps everything. `didRenameVolumeNotification`
   → forced rescan; `upsertDrive` sets `renamed_from` when the volume name changes and a DriveDex `label` differs → notice
   "Use new name / Keep" (bridge `resolveRename`). Renaming in DriveDex on a connected drive offers bridge `renameVolume`
