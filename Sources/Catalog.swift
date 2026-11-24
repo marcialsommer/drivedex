@@ -124,7 +124,8 @@ final class DB {
         for c in ["cov_bytes", "cov_one_bytes", "cov_two_bytes"] { addColumn("drives", c, "INTEGER") }   // v2.1.7: % by data
         addColumn("drives", "scan_started", "REAL")     // v2.1.8: live progress of the running scan
         addColumn("drives", "scan_files", "INTEGER")
-        addColumn("drives", "renamed_from", "TEXT DEFAULT ''")      // v2.14: renamed in the Finder, DriveDex name differs
+        addColumn("drives", "renamed_from", "TEXT DEFAULT ''")
+        addColumn("drives", "speed_json", "TEXT DEFAULT ''")        // v2.15: speed test results (last 20)      // v2.14: renamed in the Finder, DriveDex name differs
         addColumn("drives", "scan_schedule", "TEXT DEFAULT ''")      // v2.11: per-drive rescan schedule ('' = Settings)
         addColumn("drives", "remind_scan_days", "INTEGER DEFAULT 0")  // v2.11: remind if not catalogued for N days
         // v2.6.5: memory cards stay out of the drive list (is_card 1). -1 = a card the user added to their drives.
@@ -823,7 +824,7 @@ final class DB {
 
     /// Editable, user-facing info about a drive, shared between Macs.
     func metaDict(_ id: Int) -> [String: Any]? {
-        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user, sort_order, is_card, scan_schedule, remind_scan_days FROM drives WHERE id=?", [id]),
+        guard let d = row("SELECT key, name, label, notes, role, meta_updated, remind_days, media_user, sort_order, is_card, scan_schedule, remind_scan_days, speed_json FROM drives WHERE id=?", [id]),
               let key = d["key"] as? String else { return nil }
         let mains = rows("SELECT d.key AS key FROM backups b JOIN drives d ON d.id=b.main_id WHERE b.backup_id=? AND COALESCE(b.backup_path,'')=''", [id])
             .compactMap { $0["key"] as? String }
@@ -848,6 +849,7 @@ final class DB {
                 }, uniquingKeysWith: { a, _ in a }),
             "remind_days": d["remind_days"] as? Int ?? 0, "media_user": d["media_user"] as? String ?? "", "sort_order": d["sort_order"] ?? NSNull(), "is_card": d["is_card"] as? Int ?? 0,
             "scan_schedule": d["scan_schedule"] as? String ?? "", "remind_scan_days": d["remind_scan_days"] as? Int ?? 0,
+            "speed_json": d["speed_json"] as? String ?? "",
             "updated": d["meta_updated"] as? Double ?? 0, "format": 1,
         ]
     }
@@ -973,6 +975,7 @@ final class DB {
         if let ic = m["is_card"] as? Int { run("UPDATE drives SET is_card=? WHERE id=?", [ic, id]) }
         if let ss = m["scan_schedule"] as? String { run("UPDATE drives SET scan_schedule=? WHERE id=?", [ss, id]) }
         if let rs = m["remind_scan_days"] as? Int { run("UPDATE drives SET remind_scan_days=? WHERE id=?", [rs, id]) }
+        if let sj = m["speed_json"] as? String, !sj.isEmpty { run("UPDATE drives SET speed_json=? WHERE id=?", [sj, id]) }
         if let ex = m["excluded"] as? [String] {
             run("DELETE FROM excluded WHERE drive_id=?", [id])
             for p in ex { setExcluded(id, p, true) }

@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.14'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.15'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -113,7 +113,7 @@ s+=[P('3  The drive list', h1),
 # 4
 s+=[P('4  A drive\'s page and browsing', h1),
     shot('dhead','The top of a drive\'s page: name, type, status, backup status, location, and the three tabs.'),
-    table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Everything about backups: what the drive holds (main files / backup), how complete its backups are, the backup reminder, excluded folders and history (sections 6–9). On a backup drive: what it backs up, how complete that is, and the files it\'s missing.'),('<b>Info</b>','Facts only: size and free space, files and folders, last scanned and connected (and on which Mac), format, <b>scan history</b> (every scan, including failed ones), biggest folders and possible duplicates (collapsed; click to open).'),('<b>Settings</b>','What you can change: type (HDD / SSD / NAS), where the drive lives, <b>Scanning</b> (when it\'s rescanned, reminder) and Forget drive.')], 26*mm),
+    table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Everything about backups: what the drive holds (main files / backup), how complete its backups are, the backup reminder, excluded folders and history (sections 6–9). On a backup drive: what it backs up, how complete that is, and the files it\'s missing.'),('<b>Info</b>','Facts only: size and free space, files and folders, last scanned and connected (and on which Mac), format, <b>speed test</b> (read speed from existing files; optional write test with a temporary 2 GB file that\'s deleted right after; earlier results kept), <b>scan history</b> (every scan, including failed ones), biggest folders and possible duplicates (collapsed; click to open).'),('<b>Settings</b>','What you can change: type (HDD / SSD / NAS), where the drive lives, <b>Scanning</b> (when it\'s rescanned, reminder) and Forget drive.')], 26*mm),
     Spacer(1,6), P('Three ways to look at files', h2),
     P('Like the Finder, the buttons above the files switch between <b>Icons</b> (big icons, double-click a folder to open it), <b>List</b> (a sortable table with a Backups column) and <b>Columns</b>. DriveDex remembers your choice. The <b>&lsaquo; &rsaquo;</b> buttons on the left, above the files, go <b>back and forward</b> to where you were before, like in a web browser (also &#8984;[ and &#8984;], or &#8984;&larr; and &#8984;&rarr;).'),
     P('Column view', h2),

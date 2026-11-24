@@ -90,7 +90,7 @@ Key facts:
   `deepState`. Stops on eject. `Tests/main.swift` checks XXH64 against official vectors in build.sh (build fails
   if wrong). Next idea: read Hedge/Silverstack MHL files to count their copies as verified.
 - Card formatting / renaming (`Sources/CardTools.swift`, bridge `formatCard` / `renameCard`): the ONLY code that writes
-  to a disk. `CardTools.target` requires: card of the shoot, not a destination, connected, removable/ejectable whole
+  to a disk besides `renameVolume` and the opt-in write speed test. `CardTools.target` requires: card of the shoot, not a destination, connected, removable/ejectable whole
   disk ≤ 2.2 TB with no other mounted volume. Format also re-checks `Shoots.status` (state safe; deep problems block;
   no deep check needs `quick`), then `diskutil eraseDisk ExFAT|MS-DOS FAT32 <name> MBRFormat /dev/diskN` (FAT32 ≤32 GB),
   records `cards[i]["formatted"]`, optional eject. Names ≤ 11 chars. Empty cards trigger no notice. The owner
@@ -104,6 +104,9 @@ Key facts:
   connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
   "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
   separator from the Mac's locale, NSSavePanel starting in the main folder).
+- Speed test (v2.15, Info tab; `Sources/SpeedTest.swift`, bridge `speedTest`/`speedState`): read = largest catalogued
+  files, F_NOCACHE, ≤15 s / 6 GB; write (opt-in, confirm) = hidden `.DriveDex-speedtest-*.tmp` at the drive root, ≤2 GB /
+  15 s, F_FULLFSYNC, always deleted; needs 7 GB free; stops on eject. Results in `drives.speed_json` (last 20, synced).
 - Renames (v2.14): drives are keyed by volume UUID, so a Finder rename keeps everything. `didRenameVolumeNotification`
   → forced rescan; `upsertDrive` sets `renamed_from` when the volume name changes and a DriveDex `label` differs → notice
   "Use new name / Keep" (bridge `resolveRename`). Renaming in DriveDex on a connected drive offers bridge `renameVolume`

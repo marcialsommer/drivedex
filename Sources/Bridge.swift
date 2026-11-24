@@ -344,6 +344,14 @@ enum Bridge {
             case .failure(let f): return err(f.message)
             }
 
+        case "speedTest":
+            guard let id = int("id") else { return err("missing id") }
+            if let e = SpeedTest.shared.start(id: id, write: a["write"] as? Bool ?? false) { return err(e) }
+            return ok
+
+        case "speedState":
+            return SpeedTest.shared.state()
+
         case "resolveRename":   // after a Finder rename: use the drive's new name in DriveDex, or keep DriveDex's name
             guard let id = int("id") else { return err("missing id") }
             if a["use"] as? Bool == true { db.run("UPDATE drives SET label='', renamed_from='' WHERE id=?", [id]) }

@@ -721,7 +721,7 @@ function renderDriveHeader(){
   <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
   ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:driveTab=='settings'?`<div class="tabbody">${settingsHTML(d)}</div>`:''}</div>`;
   document.querySelectorAll('#dh [data-tab]').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
-  if(driveTab=='info')loadScanLog(d);
+  if(driveTab=='info'){loadScanLog(d);wireSpeed(d)}
   const saveSched=()=>api('setSchedule',{id:d.id,schedule:$('#schedSel').value,remind:+$('#remindScan').value}).then(()=>{toast('Saved');redo()}).catch(e=>toast(e.message));
   if($('#schedSel'))$('#schedSel').onchange=saveSched;if($('#remindScan'))$('#remindScan').onchange=saveSched;
   if(driveTab=='info')document.querySelectorAll('#dh details.more').forEach(x=>x.addEventListener('toggle',()=>{if(x.open&&!spaceLoaded){spaceLoaded=true;loadSpace(d)}}));
@@ -916,9 +916,32 @@ function schedNote(d){const net=d.kind=='network';
     monthly:'Rescanned once a month (when connected, if the last scan is more than a month old).',
     changes:'Rescanned a couple of minutes after files are added or changed (at most every 10 minutes), and when connected.'+(net?' For a NAS, only changes made from this Mac are noticed.':''),
     manual:'Never rescanned automatically. Use Rescan now.'})[d.scan_schedule||'']||''}
+// Speed test results (newest first) and buttons
+function speedList(d){try{return JSON.parse(d.speed_json||'[]')}catch(e){return[]}}
+const mbs=v=>v>=1000?(v/1000).toFixed(2)+' GB/s':Math.round(v)+' MB/s';
+function speedHTML(d){const L=speedList(d),last=L.find(x=>!x.error),err=L[0]&&L[0].error?L[0]:null;
+  const line=x=>`${x.read_mbs?'Read <b>'+mbs(x.read_mbs)+'</b>':''}${x.write_mbs?' · Write <b>'+mbs(x.write_mbs)+'</b>':''} <span class="mute">· ${date(x.at)}${x.mac?' on '+esc(x.mac):''}</span>`;
+  return `${last?`<div style="font-size:14px">${line(last)}</div>`:'<div class="mute">Not tested yet.</div>'}
+    ${err?`<div class="warnc" style="font-size:12.5px;margin-top:2px">Last test: ${esc(err.error)}</div>`:''}
+    ${L.filter(x=>!x.error).length>1?`<details class="more"><summary>Earlier tests</summary><div style="font-size:12.5px">${L.filter(x=>!x.error).slice(1).map(x=>`<div>${line(x)}</div>`).join('')}</div></details>`:''}
+    <div class="row" style="margin-top:8px"><span id="speedlive" class="mute" style="font-size:12.5px"></span>
+      <button class="sm" id="sp_read" ${d.online?'':'disabled title="Connect the drive first"'} title="Reads large files already on the drive for about 15 seconds. Nothing is written.">Test read speed</button>
+      <button class="sm" id="sp_rw" ${d.online&&d.kind!='network'?'':'disabled title="Connect the drive first"'}>Test read & write…</button></div>
+    <div class="mute" style="font-size:12px;margin-top:4px">The read test uses files already on the drive. The write test writes a temporary 2 GB file and deletes it again.</div>`}
+let speedTimer=null;
+function wireSpeed(d){
+  const run=write=>{if(write&&!confirm(`Test write speed on “${d.display}”?\n\nDriveDex writes a temporary file of up to 2 GB to the drive for about 15 seconds and deletes it right after. It needs about 7 GB free space.`))return;
+    api('speedTest',{id:d.id,write}).then(()=>{$('#sp_read').disabled=$('#sp_rw').disabled=true;poll()}).catch(e=>toast(e.message))};
+  const poll=()=>{clearInterval(speedTimer);speedTimer=setInterval(async()=>{const st=await api('speedState').catch(()=>null);const el=$('#speedlive');
+      const me=st&&st[String(d.id)];if(!el){clearInterval(speedTimer);return}
+      if(me){const sp=me.seconds?mbs((me.bytes||0)/me.seconds/1e6):'';el.textContent=me.phase=='write'?`Testing write speed… ${sp}`:me.phase=='read'?`Testing read speed… ${sp}`:'Starting…'}
+      else{clearInterval(speedTimer);el.textContent='';await loadDrives();const nd=drives.find(x=>x.id==d.id);if(nd&&$('#speedbox')){$('#speedbox').innerHTML=speedHTML(nd);wireSpeed(nd)}
+        const r=nd&&speedList(nd)[0];if(r)toast(r.error?r.error:`${r.read_mbs?'Read '+mbs(r.read_mbs):''}${r.write_mbs?' · Write '+mbs(r.write_mbs):''}`)}},800)};
+  if($('#sp_read'))$('#sp_read').onclick=()=>run(false);if($('#sp_rw'))$('#sp_rw').onclick=()=>run(true)}
 function infoHTML(d){
   return `<div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>Last connected<b>${d.online?'now':d.last_seen?ago(d.last_seen):'—'}</b>${d.last_seen_on&&!d.online?`<span class="mute">on ${esc(d.last_seen_on)}</span>`:''}</div></div>
   <div class="mute" style="margin:2px 0 8px;font-size:12px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')}</div>
+  <div class="sech">Speed</div><div id="speedbox">${speedHTML(d)}</div>
   <div class="sech">Scan history</div><div id="scanlog" class="mute">Loading…</div>
   <details class="more"><summary>Biggest folders</summary><div id="sp_big" class="mute">Loading…</div></details>
   <details class="more"><summary>Large files that are also on other drives <span class="mute">(possible duplicates)</span></summary><div class="mute" style="font-size:12px;margin-bottom:4px">Files of 50 MB or more that exist on another drive which isn't one of this drive's backups.</div><div id="sp_dup" class="mute">Loading…</div></details>`;
