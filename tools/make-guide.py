@@ -55,7 +55,7 @@ def table(rows, w1):
     t=Table([[P(a),P(b)] for a,b in rows], colWidths=[w1, CW-w1])
     t.setStyle(TableStyle([('LINEBELOW',(0,0),(-1,-1),0.5,LINE),('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),('TOPPADDING',(0,0),(-1,-1),4),('BOTTOMPADDING',(0,0),(-1,-1),4)])); return t
 def footer(c,d):
-    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.11'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
+    c.saveState(); c.setFont('Helvetica',8); c.setFillColor(MUTE); c.drawString(M,12*mm,'DriveDex user guide · version 2.12'); c.drawRightString(W-M,12*mm,str(d.page)); c.restoreState()
 def cover(c,d):
     c.saveState(); c.setFillColor(TINT); c.rect(0,H-118*mm,W,118*mm,stroke=0,fill=1)
     c.drawImage(ICON, M-4*mm, H-78*mm, 42*mm, 42*mm, mask='auto')
@@ -94,7 +94,7 @@ s+=[Spacer(1,4), Table([[RLImage(GK,width=gw,height=gw*gk.size[1]/gk.size[0]), P
 s+=[P('2  Adding drives', h1),
     side('new', 58*mm, 'The first time DriveDex sees a drive, it <b>asks before cataloguing it</b>: a notification and a card at the top of the drive list.<br/><br/><b>Catalog it</b> adds the drive. <b>Ignore</b> means never ask again (for example camera cards). App installers (.dmg) are skipped automatically.'),
     P('After that, a known drive is updated automatically whenever you connect it (if its last scan is over an hour old). NAS shares that stay connected are rescanned every 12 hours.'),
-    P('<b>Per drive:</b> on a drive\'s <b>Info</b> tab, <b>Scanning</b> sets when it\'s rescanned: as in Settings (default), every time it\'s connected, every hour, day, week or month, when files change on it, or only when you click Rescan. There you can also ask to be <b>reminded</b> when a drive hasn\'t been updated for 3 days to 3 months.'),
+    P('<b>Per drive:</b> on a drive\'s <b>Settings</b> tab, <b>Scanning</b> sets when it\'s rescanned: as in Settings (default), every time it\'s connected, every hour, day, week or month, when files change on it, or only when you click Rescan. There you can also ask to be <b>reminded</b> when a drive hasn\'t been updated for 3 days to 3 months.'),
     P('Drives are scanned <b>one at a time</b>, which is gentler on disks and usually faster overall than scanning several at once. A drive waiting its turn shows <b>Waiting to scan</b>, and <b>Rescan now</b> tells you whether the scan started or was queued.'),
     P('While anything is happening, a slim blue <b>activity bar</b> appears under the search field: which drive is being scanned, how many files so far, an estimate of how far along it is (based on the last scan), what\'s next, and which backups are being checked. It disappears when DriveDex is idle. The menu-bar menu shows the same.'),
     P('<b>Stopping a scan:</b> click <b>Stop</b> in the activity bar (or <b>Stop scan</b> on the drive\'s page), <b>&#x2715;</b> next to a waiting drive, or <b>Stop all</b>. The drive keeps its previous catalog, the scan history notes it was stopped, and DriveDex won\'t restart it by itself for 12 hours. Plugging it in again or pressing Rescan starts it as usual.'),
@@ -113,7 +113,7 @@ s+=[P('3  The drive list', h1),
 # 4
 s+=[P('4  A drive\'s page and browsing', h1),
     shot('dhead','The top of a drive\'s page: name, type, status, backup status, location, and the three tabs.'),
-    table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Main files / backup role, backup status, history and reminders (sections 6–9). On a backup drive this tab is called <b>Backup status</b>: what it backs up, how complete it is, and a link to the files it\'s missing.'),('<b>Info</b>','Size, last connected (and on which Mac), <b>scan history</b> (every scan with date, Mac, files, size and duration, including failed ones), type, location notes, Forget drive. Biggest folders and possible duplicates are in collapsed sections; click to open.')], 26*mm),
+    table([('<b>Files</b>','Browse the drive\'s folders (opens first).'),('<b>Backups</b>','Everything about backups: what the drive holds (main files / backup), how complete its backups are, the backup reminder, excluded folders and history (sections 6–9). On a backup drive: what it backs up, how complete that is, and the files it\'s missing.'),('<b>Info</b>','Facts only: size and free space, files and folders, last scanned and connected (and on which Mac), format, <b>scan history</b> (every scan, including failed ones), biggest folders and possible duplicates (collapsed; click to open).'),('<b>Settings</b>','What you can change: type (HDD / SSD / NAS), where the drive lives, <b>Scanning</b> (when it\'s rescanned, reminder) and Forget drive.')], 26*mm),
     Spacer(1,6), P('Three ways to look at files', h2),
     P('Like the Finder, the buttons above the files switch between <b>Icons</b> (big icons, double-click a folder to open it), <b>List</b> (a sortable table with a Backups column) and <b>Columns</b>. DriveDex remembers your choice. The <b>&lsaquo; &rsaquo;</b> buttons on the left, above the files, go <b>back and forward</b> to where you were before, like in a web browser (also &#8984;[ and &#8984;], or &#8984;&larr; and &#8984;&rarr;).'),
     P('Column view', h2),
@@ -121,7 +121,7 @@ s+=[P('4  A drive\'s page and browsing', h1),
     table([('<b>&darr; &uarr;</b>','Move up and down'),('<b>&rarr;</b> or <b>Return</b>','Open the selected folder'),('<b>&larr;</b>','Back to the parent folder'),('<b>Type a name</b>','Jump to the first item starting with those letters')], 38*mm),
     Spacer(1,6),
     P('The <b>info panel</b> on the right shows the selected item, or the folder you\'re in: its <b>size</b>, for folders how many <b>files and folders</b> it contains (all levels deep), when it was modified, its backup status, any <b>links</b> to other drives (with a <b>Remove</b> button), and a <b>Show in Finder</b> button. The <b>path bar</b> along the bottom always shows where you are; click any part of it to jump back up.'),
-    P('Click a drive\'s location or name to rename it, and edit its location under <b>Info</b>.'),
+    P('Click a drive\'s location or name to rename it, and edit its location under <b>Settings</b>.'),
     PageBreak()]
 # 5
 s+=[P('5  Searching', h1),
@@ -136,7 +136,7 @@ s+=[PageBreak()]
 s+=[P('6  Setting up your backups', h1),
     P('Whole drives', h2),
     steps(['Open a drive with your originals &rarr; <b>Backups</b> tab &rarr; set <b>This drive holds</b> to <b>Main files</b>. Drives that are neither stay <b>Not marked</b>. If a change would remove backup links, DriveDex asks first.',
-           'Open a backup drive &rarr; <b>Backup status</b> tab &rarr; set <b>This drive holds</b> to <b>Backup</b>.',
+           'Open a backup drive &rarr; <b>Backups</b> tab &rarr; set <b>This drive holds</b> to <b>Backup</b>.',
            'Under <b>Backs up</b>, tick every main drive it contains. Names like "Samsung T7 Backup" are suggested automatically.']),
     P('A folder as a backup location', h2),
     P('If a drive is backed up into a folder on another drive (for example "Denali" into "Backups/Denali" on the NAS), open that folder and choose the drive under <b>This folder is a backup of</b>, or right-click it &rarr; <b>Use as backup location…</b>.'),
@@ -162,7 +162,7 @@ s+=[P('7  Is everything backed up?', h1),
     P('<b>Percentages are by data</b> (how many GB/TB have a copy); the number of files is shown next to them. A backup only shows 100% when nothing at all is missing. The bar shows all data: <font color="#2e9d58"><b>green</b></font> on 2+ backups, <font color="#d9822b"><b>amber</b></font> on exactly 1, <font color="#d33f3f"><b>red</b></font> on none. Each backup row shows how complete it is, when it was last fully <b>in sync</b>, and how old its catalog is. Click the amber <b>&#9888; missing</b> link to see exactly which files that backup lacks.'),
     shot('setmiss','Files missing from one backup set. Click a file to jump to its folder.', width=CW*0.7),
     P('From a backup drive', h2),
-    P('Open a backup drive (or a NAS that holds a folder backup): its header says e.g. <b>&#9888; 233 files missing &rsaquo;</b>. Click it for the list of files that backup doesn\'t have. The <b>Backup status</b> tab shows each drive it backs up, how complete it is and when it was last in sync.'),
+    P('Open a backup drive (or a NAS that holds a folder backup): its header says e.g. <b>&#9888; 233 files missing &rsaquo;</b>. Click it for the list of files that backup doesn\'t have. Its <b>Backups</b> tab shows each drive it backs up, how complete it is and when it was last in sync.'),
     note('<b>How matching works:</b> a file counts as backed up when the backup has a file with the same name and size, in any folder. Invisible name differences between a Mac and a NAS (umlauts, special characters) are ignored. Turn on <b>Strict backup check</b> in Settings to also require the same modification date. Each backup is only as current as its last catalog.', colors.HexColor('#fff7e8'), WARN),
     PageBreak()]
 # 8 9 10
@@ -229,7 +229,7 @@ s+=[P('14  Settings and shortcuts', h1),
 # 13
 s+=[P('15  Questions and troubleshooting', h1)]
 faq=[('"The disk couldn\'t be ejected because DriveDex is using it."','DriveDex lets go of a drive the moment you eject it (a scan in progress is stopped and the previous catalog kept), so this shouldn\'t happen any more. You can also eject from DriveDex: the <b>&#9167;</b> button next to each connected drive. If macOS still says "one or more programs may be using it" without naming DriveDex, it\'s usually Spotlight indexing a newly connected drive: wait a minute and try again.'),
-     ('A drive shows "macOS blocked access".','Info tab &rarr; <b>Open Privacy Settings</b> and allow DriveDex (or add it under Full Disk Access). Then <b>Rescan now</b>.'),
+     ('A drive shows "macOS blocked access".','Settings tab &rarr; <b>Open Privacy Settings</b> and allow DriveDex (or add it under Full Disk Access). Then <b>Rescan now</b>.'),
      ('I plugged in a drive and nothing happened.','Look for the <b>New drive</b> card. Otherwise check DriveDex is running (menu-bar icon); a drive scanned within the last hour is skipped (use <b>Rescan now</b>).'),
      ('A backup I just finished shows 99.x%.','Rescan the backup (its catalog may predate the end of the backup), then click the amber <b>&#9888; missing</b> link to see which files. Often they are files changed after the backup, like an open Lightroom catalog.'),
      ('My backup is split over two drives and each shows about 50%.','Combine them into a set (section 6).'),

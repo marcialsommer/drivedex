@@ -104,7 +104,9 @@ Key facts:
   connected) in `addCard`/`claimCard`. `mergeRounds` (run in `status`) folds older duplicate rows. UI: "round N",
   "Formatted as … · ready", collapsible Card log. "Export log…" (`exportShootLog` → bridge `exportLog`: CSV with BOM,
   separator from the Mac's locale, NSSavePanel starting in the main folder).
-- Per-drive scan schedule (v2.11, Info tab → Scanning; `drives.scan_schedule` '' / connect / hourly / daily / weekly /
+- Drive page tabs (v2.12): Files · Backups (same name on backup drives) · Info (facts: sizes, scan history, space) ·
+  Settings (type, location note, Scanning, Forget). Search placeholder: "Search all drives…".
+- Per-drive scan schedule (v2.11, Settings tab → Scanning; `drives.scan_schedule` '' / connect / hourly / daily / weekly /
   monthly / changes / manual, `remind_scan_days`; both synced in meta; bridge `setSchedule`). `Scanner.scan` gets a
   `ScanReason` (mount / timer / changes / manual) and `maxAge(schedule:reason:)` decides. "changes" uses FSEvents
   watchers (`refreshWatchers`, debounce 2 min, at most every 10 min; stopped in `letGo`/unmount). Scan reminders:

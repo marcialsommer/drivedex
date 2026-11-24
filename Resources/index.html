@@ -207,7 +207,7 @@ button:disabled{opacity:.45;cursor:not-allowed;border-color:var(--line)}button.d
 #drives{flex:1;min-height:0;overflow:auto;margin:0 -8px -8px;padding:0 8px 8px}#navfixed{flex:none}.sidetabs,#drvhd{flex:none}
 </style></head><body>
 <header><h1 id="home" title="Overview">DriveDex</h1>
-<div class="qwrap"><input id="q" placeholder="Search every drive… (file or folder name)" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
+<div class="qwrap"><input id="q" placeholder="Search all drives…" autocomplete="off" autofocus><button id="qx" title="Clear search (Esc)" aria-label="Clear search">✕</button></div>
 <select id="kind"><option value="all">Everything</option><option value="folders">Folders</option><option value="files">Files</option><option value="video">Videos</option><option value="photo">Photos</option><option value="audio">Audio</option><option value="doc">Documents</option><option value="project">Projects &amp; libraries</option><option value="archive">Archives &amp; disk images</option></select>
 <select id="scope"><option value="">All drives</option></select>
 <button id="gear" title="Settings">⚙︎ Settings</button>
@@ -461,7 +461,7 @@ function attentionItems(){
     }
   }
   for(const d of drives.filter(x=>x.remind_scan_days>0&&x.last_scan&&now-x.last_scan>x.remind_scan_days*86400&&!x.card&&x.is_card!=1))
-    out.push({key:`scanrem:${d.key}:${Math.round(d.last_scan)}`,lvl:1,text:`<b>${esc(d.display)}</b> hasn't been updated for ${Math.floor((now-d.last_scan)/86400)} days. Connect it so DriveDex can catalog it.`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
+    out.push({key:`scanrem:${d.key}:${Math.round(d.last_scan)}`,lvl:1,text:`<b>${esc(d.display)}</b> hasn't been updated for ${Math.floor((now-d.last_scan)/86400)} days. Connect it so DriveDex can catalog it.`,act:'Open',fn:()=>{driveTab='settings';openDrive(d.id,'')}});
   for(const d of drives.filter(x=>x.status=='error'))out.push({key:`err:${d.key}:${d.status_detail}`,lvl:2,text:`<b>${esc(d.display)}</b>: ${esc(d.status_detail)}`,act:'Open',fn:()=>{driveTab='info';openDrive(d.id,'')}});
   for(const n of pending)if(n.card&&!activeShoot())out.push({lvl:0,text:`Memory card connected: <b>${esc(n.name)}</b>. Memory cards are checked in a shoot.`,act:'Start a shoot',fn:()=>editShoot(null)});else if(activeShoot())out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. A memory card for <b>${esc(activeShoot().name)}</b>?`,act:'Add to shoot',fn:()=>addCard(n.key,n.name)});else out.push({lvl:0,text:`New drive connected: <b>${esc(n.name)}</b>. Add it to your catalog?`,act:'Catalog it',fn:()=>api('approveDrive',{key:n.key}).then(()=>{toast('Cataloguing…');setTimeout(loadDrives,800)})});
   if(updateInfo&&updateInfo.available)out.push({lvl:0,text:`DriveDex ${esc(updateInfo.version)} is available.`,act:'Install & Relaunch',fn:installUpdate});
@@ -708,12 +708,12 @@ function renderDriveHeader(){
   if(el.dataset.id==d.id&&document.activeElement&&el.contains(document.activeElement)){ $('#dstat').innerHTML=dstat(d);return }
   el.dataset.id=d.id;
   const roleTxt=d.role=='main'?'Main files':d.role=='backup'?'Backup'+((d.backup_of||[]).length?' of '+esc((d.backup_of||[]).map(dname).filter(Boolean).join(', ')):''):'';
-  const tabs=[['files','Files'],['backups',d.role=='backup'?'Backup status':'Backups'],['info','Info']];
+  const tabs=[['files','Files'],['backups','Backups'],['info','Info'],['settings','Settings']];
   el.innerHTML=`<div class="card dcard"><div class="dtop"><input class="lbl" id="lbl" value="${esc(d.display)}" title="Click to rename">${tagHTML(d)}
     <span style="flex:1"></span>${d.status=='scanning'||d.queued?`<button class="danger" id="stopscan">${d.status=='scanning'?'Stop scan':'Don\'t scan'}</button>`:`<button class="primary" id="rescan" ${d.online?'':'disabled title="Connect the drive to rescan"'}>Rescan now</button>`}<button id="reveal" ${d.online?'':'disabled title="Connect the drive first"'}>Show in Finder</button>${d.online&&d.kind!='internal'?`<button data-eject="${d.id}" title="Eject this drive">⏏ Eject</button>`:''}</div>
   <div class="dsum"><span id="dstat">${dstat(d)}</span>${d.last_scan&&d.status!='scanning'?` · <a class="lnk" data-tab="info" title="Show scan history">scanned ${ago(d.last_scan)}</a>`:''}${roleTxt?` · ${roleTxt}`:''}${covShort(d)&&d.role=='main'?` · <a class="lnk" data-tab="backups">${covShort(d)}</a>`:''}${backupHeadline(d)?` · ${backupHeadline(d)}`:''}${d.notes?` · <span title="${esc(d.notes)}">📍 ${esc(d.notes.split('\n')[0].slice(0,60))}</span>`:''}${!d.online&&d.last_seen?` · <span class="mute">${lastSeen(d)}</span>`:''}</div>
   <div class="tabs">${tabs.map(([v,l])=>`<button class="tab ${driveTab==v?'on':''}" data-tab="${v}">${l}</button>`).join('')}</div>
-  ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:''}</div>`;
+  ${driveTab=='backups'?`<div class="tabbody">${roleHTML(d)}</div>`:driveTab=='info'?`<div class="tabbody">${infoHTML(d)}</div>`:driveTab=='settings'?`<div class="tabbody">${settingsHTML(d)}</div>`:''}</div>`;
   document.querySelectorAll('#dh [data-tab]').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));
   if(driveTab=='info')loadScanLog(d);
   const saveSched=()=>api('setSchedule',{id:d.id,schedule:$('#schedSel').value,remind:+$('#remindScan').value}).then(()=>{toast('Saved');redo()}).catch(e=>toast(e.message));
@@ -900,7 +900,7 @@ let driveTab='files';
 const lastSeen=d=>d.online?'connected now':d.last_seen?`last connected ${ago(d.last_seen)}${d.last_seen_on?' on '+esc(d.last_seen_on):''}`:'';
 // What a drive's rescan schedule means, in plain words
 function schedNote(d){const net=d.kind=='network';
-  return ({'':net?'Network shares that stay connected are rescanned every 12 hours by default; change the default in Settings → Scanning.':'By default: when connected, if the last scan is more than an hour old, and about every hour while connected. Change the default in Settings → Scanning.',
+  return ({'':net?'Network shares that stay connected are rescanned every 12 hours by default; change the default under ⚙︎ Settings (top right) → Scanning.':'By default: when connected, if the last scan is more than an hour old, and about every hour while connected. Change the default under ⚙︎ Settings (top right) → Scanning.',
     connect:'Rescanned each time you connect it, not while it stays connected.',hourly:'Rescanned about every hour while connected, and when connected if the last scan is older.',
     daily:'Rescanned once a day while connected, or when connected if the last scan is more than a day old.',weekly:'Rescanned once a week (when connected, if the last scan is more than a week old).',
     monthly:'Rescanned once a month (when connected, if the last scan is more than a month old).',
@@ -908,18 +908,21 @@ function schedNote(d){const net=d.kind=='network';
     manual:'Never rescanned automatically. Use Rescan now.'})[d.scan_schedule||'']||''}
 function infoHTML(d){
   return `<div class="grid"><div>Used<b>${hb(d.used_bytes)} / ${hb(d.total_bytes)}</b></div><div>Free<b>${hb(d.free_bytes)}</b></div><div>Files<b>${(d.file_count||0).toLocaleString()}</b></div><div>Folders<b>${(d.dir_count||0).toLocaleString()}</b></div><div>Last scanned<b>${ago(d.last_scan)}</b></div><div>Last connected<b>${d.online?'now':d.last_seen?ago(d.last_seen):'—'}</b>${d.last_seen_on&&!d.online?`<span class="mute">on ${esc(d.last_seen_on)}</span>`:''}</div></div>
-  <div class="sech" style="margin-top:8px">Scanning</div>
-  <div class="row" style="font-size:13px"><span>Rescan this drive</span><select class="sm" id="schedSel">${[['','Default (as in Settings)'],['connect','Every time it’s connected'],['hourly','Every hour'],['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['changes','When files change on it'],['manual','Only when I click Rescan']].map(([v,l])=>`<option value="${v}" ${(d.scan_schedule||'')==v?'selected':''}>${l}</option>`).join('')}</select></div>
-  <div class="mute" style="font-size:12px;margin:4px 0 8px">${schedNote(d)}</div>
-  <div class="row" style="font-size:13px"><span>Remind me if it hasn’t been updated for</span><select class="sm" id="remindScan">${[[0,'never'],[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month'],[90,'3 months']].map(([v,l])=>`<option value="${v}" ${(d.remind_scan_days||0)==v?'selected':''}>${l}</option>`).join('')}</select>${d.remind_scan_days&&d.last_scan&&Date.now()/1000-d.last_scan>d.remind_scan_days*86400?' <span class="warnc">⏰ due</span>':''}</div>
+  <div class="mute" style="margin:2px 0 8px;font-size:12px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')}</div>
   <div class="sech">Scan history</div><div id="scanlog" class="mute">Loading…</div>
-  <div style="margin:12px 0 10px">${typeRow(d)}</div>
+  <details class="more"><summary>Biggest folders</summary><div id="sp_big" class="mute">Loading…</div></details>
+  <details class="more"><summary>Large files that are also on other drives <span class="mute">(possible duplicates)</span></summary><div class="mute" style="font-size:12px;margin-bottom:4px">Files of 50 MB or more that exist on another drive which isn't one of this drive's backups.</div><div id="sp_dup" class="mute">Loading…</div></details>`;
+}
+// Settings tab: everything you can change about the drive
+function settingsHTML(d){
+  return `<div style="margin:4px 0 10px">${typeRow(d)}</div>
   <div class="mute" style="font-size:12px;margin-bottom:4px">📍 Where does this drive live? (shown in the drive list and in search results)</div>
   <textarea id="notes" rows="2" placeholder="e.g. Office, top drawer · client archive 2019–2023">${esc(d.notes)}</textarea>
-  <div class="mute" style="margin:6px 0 0;font-size:12px">${[esc(d.name)+(d.label&&d.label!=d.name?' (volume name)':''),esc(d.fs||''),esc(d.source||'')].filter(Boolean).join(' · ')}</div>
-  <details class="more"><summary>Biggest folders</summary><div id="sp_big" class="mute">Loading…</div></details>
-  <details class="more"><summary>Large files that are also on other drives <span class="mute">(possible duplicates)</span></summary><div class="mute" style="font-size:12px;margin-bottom:4px">Files of 50 MB or more that exist on another drive which isn't one of this drive's backups.</div><div id="sp_dup" class="mute">Loading…</div></details>
-  <div class="row" style="margin-top:14px">${d.status=='error'&&/blocked/i.test(d.status_detail||'')?'<button id="priv">Open Privacy Settings</button>':''}<span style="flex:1"></span><button class="danger" id="forget">Forget drive</button></div>`;
+  <div class="sech">Scanning</div>
+  <div class="row" style="font-size:13px"><span>Rescan this drive</span><select class="sm" id="schedSel">${[['','Default (DriveDex settings)'],['connect','Every time it’s connected'],['hourly','Every hour'],['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['changes','When files change on it'],['manual','Only when I click Rescan']].map(([v,l])=>`<option value="${v}" ${(d.scan_schedule||'')==v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="mute" style="font-size:12px;margin:4px 0 8px">${schedNote(d)}</div>
+  <div class="row" style="font-size:13px"><span>Remind me if it hasn’t been updated for</span><select class="sm" id="remindScan">${[[0,'never'],[3,'3 days'],[7,'1 week'],[14,'2 weeks'],[30,'1 month'],[90,'3 months']].map(([v,l])=>`<option value="${v}" ${(d.remind_scan_days||0)==v?'selected':''}>${l}</option>`).join('')}</select>${d.remind_scan_days&&d.last_scan&&Date.now()/1000-d.last_scan>d.remind_scan_days*86400?' <span class="warnc">⏰ due</span>':''}</div>
+  <div class="row sech" style="border-top:1px solid var(--line)">${d.status=='error'&&/blocked/i.test(d.status_detail||'')?'<button id="priv">Open Privacy Settings</button>':''}<span style="flex:1"></span><button class="danger" id="forget">Forget drive</button></div>`;
 }
 let spaceLoaded=false;
 async function loadScanLog(d){

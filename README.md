@@ -36,7 +36,7 @@
 <table>
   <tr>
     <td width="50%"><img src="docs/images/home.png" alt="Needs attention"><br><sub><b>Needs attention:</b> files without a backup, incomplete or overdue backups.</sub></td>
-    <td width="50%"><img src="docs/images/backups.png" alt="Backup status"><br><sub><b>Backup status per drive:</b> each backup's completeness, last time in sync, history.</sub></td>
+    <td width="50%"><img src="docs/images/backups.png" alt="Backups"><br><sub><b>Backups per drive:</b> each backup's completeness, last time in sync, history.</sub></td>
   </tr>
   <tr>
     <td colspan="2"><img src="docs/images/search.png" alt="Search"><br><sub><b>Search every drive at once</b>, including disconnected ones, with copies grouped together.</sub></td>
